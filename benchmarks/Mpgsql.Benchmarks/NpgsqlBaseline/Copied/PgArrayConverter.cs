@@ -277,7 +277,7 @@ readonly partial struct PgArrayConverter(
             var elem = elemData?[i++];
             var size = elem?.Size ?? (elemTypeDbNullable && IsDbNull(values, indices) ? -1 : bufferRequirements.Write);
             if (size.Kind is SizeKind.Unknown)
-                throw new NotImplementedException();
+                throw new InvalidOperationException(nameof(size.Kind) + " must be known at this point.");
 
             var length = size.Value;
             writer.WriteInt32(length);
