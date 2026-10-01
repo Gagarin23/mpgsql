@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Mpgsql/Mpgsql.csproj" />
+  <Project Path="../tests/Mpgsql.Tests/Mpgsql.Tests.csproj" />
+  <Project Path="../benchmarks/Mpgsql.Benchmarks/Mpgsql.Benchmarks.csproj" />
+  <Project Path="../tests/Mpgsql.IntegrationTests/Mpgsql.IntegrationTests.csproj" />
+</Solution>

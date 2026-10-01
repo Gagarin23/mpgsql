@@ -1,0 +1,94 @@
+using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Configs;
+using Mpgsql.Benchmarks.NpgsqlBaseline;
+using Mpgsql.Converters;
+using Npgsql.Internal;
+
+namespace Mpgsql.Benchmarks;
+
+[MemoryDiagnoser]
+[WarmupCount(3)]
+[IterationCount(8)]
+[IterationTime(150)]
+[GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
+[CategoriesColumn]
+public class NpgsqlLongArrayWriteBenchmarks
+{
+    [Params(0, 1, 8, 256, 4096, 65536)]
+    public int Count { get; set; }
+    private long[] _values = [];
+    private ReadOnlyMemory<long> _memory;
+    private NpgsqlArrayHarness _harness = null!;
+    private ValueMetadata _originalMetadata;
+    private ValueMetadata _copiedMetadata;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _values = NpgsqlArrayVerification.Values(Count);
+        _memory = _values;
+        _harness = new(Math.Max(20, LongArrayConverter.GetByteCount(_memory)));
+        _originalMetadata = _harness.Prepare(_harness.Original, _values);
+        _copiedMetadata = _harness.Prepare(_harness.Copy, _values);
+        NpgsqlOriginal();
+        byte[] expected = _harness.Output.WrittenSpan.ToArray();
+        Check(expected, NpgsqlCopied());
+        Check(expected, NpgsqlOriginalPrepared());
+        Check(expected, NpgsqlCopiedPrepared());
+        Check(expected, _harness.WriteAsync(_harness.Original, _values).GetAwaiter().GetResult());
+        Check(expected, _harness.WriteAsync(_harness.Copy, _values).GetAwaiter().GetResult());
+        int size = Mpgsql();
+        if (size != LongArrayConverter.GetByteCount(Count) ||
+            !LongArrayConverter.Read(_harness.Output.WrittenSpan).Span.SequenceEqual(_values) ||
+            (Count != 0 && !expected.AsSpan().SequenceEqual(_harness.Output.WrittenSpan)))
+            throw new InvalidOperationException("Mpgsql bytes differ from the original Npgsql converter.");
+        // Empty arrays are valid with either ndims=0 (12 bytes) or ndims=1, count=0 (20 bytes).
+        using var crossRead = new NpgsqlArrayHarness(20, _harness.Output.WrittenSpan.ToArray());
+        if (!crossRead.Read(crossRead.Original).AsSpan().SequenceEqual(_values) ||
+            !crossRead.Read(crossRead.Copy).AsSpan().SequenceEqual(_values))
+            throw new InvalidOperationException("Npgsql could not decode Mpgsql output.");
+    }
+
+    private void Check(byte[] expected, int size)
+    {
+        if (size != expected.Length || !expected.AsSpan().SequenceEqual(_harness.Output.WrittenSpan))
+            throw new InvalidOperationException("The copied Npgsql encoder differs from the package converter.");
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("SizeAndWrite")]
+    public int NpgsqlOriginal() => _harness.Write(_harness.Original, _values);
+
+    [Benchmark, BenchmarkCategory("SizeAndWrite")]
+    public int NpgsqlCopied() => _harness.Write(_harness.Copy, _values);
+
+    [Benchmark, BenchmarkCategory("SizeAndWrite")]
+    public int Mpgsql()
+    {
+        _ = LongArrayConverter.GetByteCount(_memory);
+        _harness.Output.Reset();
+        LongArrayConverter.Write(_memory, _harness.Output);
+        return _harness.Output.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("PreparedWrite")]
+    public int NpgsqlOriginalPrepared() => _harness.WritePrepared(_harness.Original, _values, _originalMetadata);
+
+    [Benchmark, BenchmarkCategory("PreparedWrite")]
+    public int NpgsqlCopiedPrepared() => _harness.WritePrepared(_harness.Copy, _values, _copiedMetadata);
+
+    [Benchmark, BenchmarkCategory("PreparedWrite")]
+    public int MpgsqlPrepared()
+    {
+        _harness.Output.Reset();
+        LongArrayConverter.Write(_memory, _harness.Output);
+        return _harness.Output.WrittenCount;
+    }
+
+    [GlobalCleanup]
+    public void Cleanup()
+    {
+        (_originalMetadata.WriteState as IDisposable)?.Dispose();
+        (_copiedMetadata.WriteState as IDisposable)?.Dispose();
+        _harness?.Dispose();
+    }
+}

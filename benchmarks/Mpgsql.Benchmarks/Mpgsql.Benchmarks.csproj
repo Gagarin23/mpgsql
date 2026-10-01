@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <!-- The version-pinned upstream converter API is experimental; benchmarks only. -->
+    <NoWarn>$(NoWarn);NPG9001</NoWarn>
+    <BaselineAssembly>$(MSBuildThisFileDirectory)../../artifacts/protocol-baseline/bin/Release/net10.0/Mpgsql.ProtocolBaseline.dll</BaselineAssembly>
+    <DefineConstants Condition="Exists('$(BaselineAssembly)')">$(DefineConstants);PROTOCOL_BASELINE</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Mpgsql/Mpgsql.csproj" />
+    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Test-only socket/authentication transport shared by live benchmarks. -->
+    <Compile Include="../../tests/Mpgsql.IntegrationTests/TestConnection.cs" Link="Live/TestConnection.cs" />
+    <Compile Include="../../tests/Mpgsql.IntegrationTests/TestScram.cs" Link="Live/TestScram.cs" />
+    <Compile Include="../../tests/Mpgsql.IntegrationTests/ServerFailure.cs" Link="Live/ServerFailure.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="Exists('$(BaselineAssembly)')">
+    <Reference Include="Mpgsql.ProtocolBaseline">
+      <HintPath>$(BaselineAssembly)</HintPath>
+      <Aliases>baseline</Aliases>
+    </Reference>
+  </ItemGroup>
+</Project>
