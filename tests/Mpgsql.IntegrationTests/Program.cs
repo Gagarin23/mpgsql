@@ -25,6 +25,7 @@ try
     {
         Console.WriteLine($"Connected to PostgreSQL {connection.ServerVersion}, database {database}, {connection.Authentication}.");
         LiveProtocolChecks.Run(connection);
+        await MessageSessionChecks.RunAsync(connection);
         connection.Send(Mpgsql.Protocol.FrontendMessage.Terminate());
     }
 

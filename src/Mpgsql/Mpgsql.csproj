@@ -6,4 +6,9 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <ItemGroup>
+        <InternalsVisibleTo Include="Mpgsql.Tests" />
+        <InternalsVisibleTo Include="Mpgsql.Benchmarks" />
+    </ItemGroup>
+
 </Project>
