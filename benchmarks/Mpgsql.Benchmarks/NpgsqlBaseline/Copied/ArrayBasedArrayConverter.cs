@@ -36,14 +36,20 @@ using Npgsql.Internal;
 namespace Mpgsql.Benchmarks.NpgsqlBaseline.Copied;
 
 sealed class ArrayBasedArrayConverter<T, TElement>(PgConverterResolution elemResolution, Type? effectiveType = null, int pgLowerBound = 1)
-    : ArrayConverter<T>(expectedDimensions: effectiveType is null ? 1 : effectiveType.IsArray ? effectiveType.GetArrayRank() : null,
-        elemResolution, pgLowerBound), IElementOperations
+    : ArrayConverter<T>(expectedDimensions: effectiveType is null
+            ? 1
+            : effectiveType.IsArray
+                ? effectiveType.GetArrayRank()
+                : null,
+        elemResolution,
+        pgLowerBound), IElementOperations
     where T : class
 {
     readonly PgConverter<TElement> _elemConverter = elemResolution.GetConverter<TElement>();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static TElement? GetValue(object collection, Indices indices)
+    static TElement? GetValue(object collection,
+        Indices indices)
     {
         Debug.Assert(indices.Count > 0);
         switch (indices.Count)
@@ -60,7 +66,9 @@ sealed class ArrayBasedArrayConverter<T, TElement>(PgConverterResolution elemRes
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void SetValue(object collection, Indices indices, TElement? value)
+    static void SetValue(object collection,
+        Indices indices,
+        TElement? value)
     {
         Debug.Assert(indices.Count > 0);
         switch (indices.Count)
@@ -73,7 +81,8 @@ sealed class ArrayBasedArrayConverter<T, TElement>(PgConverterResolution elemRes
             default:
                 // Justification: exact type Unsafe.As used to avoid the cast overhead for per element calls.
                 Debug.Assert(collection is Array);
-                Unsafe.As<Array>(collection).SetValue(value, indices.Many!);
+                Unsafe.As<Array>(collection).SetValue(value,
+                    indices.Many!);
                 break;
         }
     }
@@ -94,35 +103,76 @@ sealed class ArrayBasedArrayConverter<T, TElement>(PgConverterResolution elemRes
             _ => throw new InvalidOperationException("Postgres arrays can have at most 8 dimensions.")
         };
 
-    int IElementOperations.GetCollectionCount(object collection, out int[]? lengths)
-        => GetLengths((Array)collection, out lengths);
+    int IElementOperations.GetCollectionCount(object collection,
+        out int[]? lengths)
+        => GetLengths((Array)collection,
+            out lengths);
 
-    Size? IElementOperations.GetSizeOrDbNull(SizeContext context, object collection, Indices indices, ref object? writeState)
-        => _elemConverter.GetSizeOrDbNull(context.Format, context.BufferRequirement, GetValue(collection, indices), ref writeState);
+    Size? IElementOperations.GetSizeOrDbNull(SizeContext context,
+        object collection,
+        Indices indices,
+        ref object? writeState)
+        => _elemConverter.GetSizeOrDbNull(context.Format,
+            context.BufferRequirement,
+            GetValue(collection,
+                indices),
+            ref writeState);
 
-    ValueTask IElementOperations.Read(bool async, PgReader reader, bool isDbNull, object collection, Indices indices, CancellationToken cancellationToken)
+    ValueTask IElementOperations.Read(bool async,
+        PgReader reader,
+        bool isDbNull,
+        object collection,
+        Indices indices,
+        CancellationToken cancellationToken)
     {
         if (!isDbNull && async && _elemConverter is PgStreamingConverter<TElement> streamingConverter)
-            return ReadAsync(streamingConverter, reader, collection, indices, cancellationToken);
+        {
+            return ReadAsync(streamingConverter,
+                reader,
+                collection,
+                indices,
+                cancellationToken);
+        }
 
-        SetValue(collection, indices, isDbNull ? default : _elemConverter.Read(reader));
+        SetValue(collection,
+            indices,
+            isDbNull
+                ? default
+                : _elemConverter.Read(reader));
         return new();
     }
 
     // Adapted: ReadAsyncAsTask and the function-pointer continuation are internal.
-    async ValueTask ReadAsync(PgStreamingConverter<TElement> converter, PgReader reader, object collection,
-        Indices indices, CancellationToken cancellationToken)
+    async ValueTask ReadAsync(PgStreamingConverter<TElement> converter,
+        PgReader reader,
+        object collection,
+        Indices indices,
+        CancellationToken cancellationToken)
     {
-        var value = await converter.ReadAsync(reader, cancellationToken).ConfigureAwait(false);
-        SetValue(collection, indices, value);
+        var value = await converter.ReadAsync(reader,
+            cancellationToken).ConfigureAwait(false);
+        SetValue(collection,
+            indices,
+            value);
     }
 
-    ValueTask IElementOperations.Write(bool async, PgWriter writer, object collection, Indices indices, CancellationToken cancellationToken)
+    ValueTask IElementOperations.Write(bool async,
+        PgWriter writer,
+        object collection,
+        Indices indices,
+        CancellationToken cancellationToken)
     {
         if (async)
-            return _elemConverter.WriteAsync(writer, GetValue(collection, indices)!, cancellationToken);
+        {
+            return _elemConverter.WriteAsync(writer,
+                GetValue(collection,
+                    indices)!,
+                cancellationToken);
+        }
 
-        _elemConverter.Write(writer, GetValue(collection, indices)!);
+        _elemConverter.Write(writer,
+            GetValue(collection,
+                indices)!);
         return new();
     }
 }

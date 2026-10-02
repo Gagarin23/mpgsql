@@ -37,37 +37,64 @@ abstract class ArrayConverter<T> : PgStreamingConverter<T> where T : notnull
 {
     readonly PgArrayConverter _pgArrayConverter;
 
-    private protected ArrayConverter(int? expectedDimensions, PgConverterResolution elemResolution, int pgLowerBound = 1)
+    private protected ArrayConverter(int? expectedDimensions,
+        PgConverterResolution elemResolution,
+        int pgLowerBound = 1)
     {
-        if (!elemResolution.Converter.CanConvert(DataFormat.Binary, out var bufferRequirements))
+        if (!elemResolution.Converter.CanConvert(DataFormat.Binary,
+                out var bufferRequirements))
+        {
             throw new NotSupportedException("Element converter has to support the binary format to be compatible.");
+        }
 
-        _pgArrayConverter = new((IElementOperations)this, elemResolution.Converter.IsDbNullable, expectedDimensions,
-            bufferRequirements, elemResolution.PgTypeId, pgLowerBound);
+        _pgArrayConverter = new((IElementOperations)this,
+            elemResolution.Converter.IsDbNullable,
+            expectedDimensions,
+            bufferRequirements,
+            elemResolution.PgTypeId,
+            pgLowerBound);
     }
 
-    public override T Read(PgReader reader) => (T)_pgArrayConverter.Read(async: false, reader).Result;
+    public override T Read(PgReader reader) => (T)_pgArrayConverter.Read(async: false,
+        reader).Result;
 
     // Adapted: AsyncHelpers is internal to Npgsql; retain the completed fast path.
-    public override ValueTask<T> ReadAsync(PgReader reader, CancellationToken cancellationToken = default)
+    public override ValueTask<T> ReadAsync(PgReader reader,
+        CancellationToken cancellationToken = default)
     {
-        var task = _pgArrayConverter.Read(async: true, reader, cancellationToken);
+        var task = _pgArrayConverter.Read(async: true,
+            reader,
+            cancellationToken);
         return task.IsCompletedSuccessfully ? new((T)task.Result) : AwaitResult(task);
 
         static async ValueTask<T> AwaitResult(ValueTask<object> task)
             => (T)await task.ConfigureAwait(false);
     }
 
-    public override Size GetSize(SizeContext context, T values, ref object? writeState)
-        => _pgArrayConverter.GetSize(context, values, ref writeState);
+    public override Size GetSize(SizeContext context,
+        T values,
+        ref object? writeState)
+        => _pgArrayConverter.GetSize(context,
+            values,
+            ref writeState);
 
-    public override void Write(PgWriter writer, T values)
-        => _pgArrayConverter.Write(async: false, writer, values, CancellationToken.None).GetAwaiter().GetResult();
+    public override void Write(PgWriter writer,
+        T values)
+        => _pgArrayConverter.Write(async: false,
+            writer,
+            values,
+            CancellationToken.None).GetAwaiter().GetResult();
 
-    public override ValueTask WriteAsync(PgWriter writer, T values, CancellationToken cancellationToken = default)
-        => _pgArrayConverter.Write(async: true, writer, values, cancellationToken);
+    public override ValueTask WriteAsync(PgWriter writer,
+        T values,
+        CancellationToken cancellationToken = default)
+        => _pgArrayConverter.Write(async: true,
+            writer,
+            values,
+            cancellationToken);
 
-    protected static int GetLengths(Array array, out int[]? lengths)
+    protected static int GetLengths(Array array,
+        out int[]? lengths)
     {
         var dimensions = array.Rank;
 

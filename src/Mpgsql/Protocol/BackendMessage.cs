@@ -20,7 +20,9 @@ public readonly struct BackendMessage
     public bool IsAsynchronous => Kind is BackendMessageKind.NoticeResponse or
         BackendMessageKind.ParameterStatus or BackendMessageKind.NotificationResponse;
 
-    internal BackendMessage(byte type, BackendMessageKind kind, ReadOnlySequence<byte> payload,
+    internal BackendMessage(byte type,
+        BackendMessageKind kind,
+        ReadOnlySequence<byte> payload,
         int rowCount)
     {
         Type = type;
@@ -35,20 +37,27 @@ public readonly struct BackendMessage
         var reader = new WireReader(Payload);
         var method = (AuthenticationMethod)reader.Int32();
         if (method != AuthenticationMethod.Sasl)
-            return new(method, reader.Rest(), default);
+        {
+            return new(method,
+                reader.Rest(),
+                default);
+        }
 
         var mechanisms = new List<string>();
         ReadOnlySequence<byte> name;
         while (!(name = reader.CStringBytes()).IsEmpty)
             mechanisms.Add(WireEncoding.Decode(name));
-        return new(method, default, mechanisms.ToArray());
+        return new(method,
+            default,
+            mechanisms.ToArray());
     }
 
     public BackendKeyData GetBackendKeyData()
     {
         RequireKind(BackendMessageKind.BackendKeyData);
         var reader = new WireReader(Payload);
-        return new(reader.Int32(), reader.Int32());
+        return new(reader.Int32(),
+            reader.Int32());
     }
 
     public string GetCommandTag()
@@ -69,14 +78,17 @@ public readonly struct BackendMessage
     {
         RequireKind(BackendMessageKind.ParameterStatus);
         var reader = new WireReader(Payload);
-        return new(reader.CString(), reader.CString());
+        return new(reader.CString(),
+            reader.CString());
     }
 
     public NotificationResponse GetNotification()
     {
         RequireKind(BackendMessageKind.NotificationResponse);
         var reader = new WireReader(Payload);
-        return new(reader.Int32(), reader.CString(), reader.CString());
+        return new(reader.Int32(),
+            reader.CString(),
+            reader.CString());
     }
 
     public ReadOnlyMemory<uint> GetParameterDescription()
@@ -96,15 +108,21 @@ public readonly struct BackendMessage
         var fields = new RowField[reader.Count()];
         for (int i = 0; i < fields.Length; i++)
             fields[i] = new(
-                reader.CString(), reader.UInt32(), reader.Int16(), reader.UInt32(),
-                reader.Int16(), reader.Int32(), reader.Format());
+                reader.CString(),
+                reader.UInt32(),
+                reader.Int16(),
+                reader.UInt32(),
+                reader.Int16(),
+                reader.Int32(),
+                reader.Format());
         return fields;
     }
 
     public DataRow GetDataRow()
     {
         RequireKind(BackendMessageKind.DataRow);
-        return new(_rowCount, Payload.Slice(2));
+        return new(_rowCount,
+            Payload.Slice(2));
     }
 
     public ReadOnlySequence<byte>? GetFunctionCallResult()
@@ -123,24 +141,30 @@ public readonly struct BackendMessage
     public CopyResponse GetCopyResponse()
     {
         if (Kind is not (BackendMessageKind.CopyInResponse or BackendMessageKind.CopyOutResponse or BackendMessageKind.CopyBothResponse))
+        {
             throw new InvalidOperationException("The message is not a COPY response.");
+        }
         var reader = new WireReader(Payload);
         var format = (FormatCode)reader.Byte();
         var columns = new FormatCode[reader.Count()];
         for (int i = 0; i < columns.Length; i++)
             columns[i] = reader.Format();
-        return new(format, columns);
+        return new(format,
+            columns);
     }
 
     public DiagnosticMessage GetDiagnostics()
     {
         if (Kind is not (BackendMessageKind.ErrorResponse or BackendMessageKind.NoticeResponse))
+        {
             throw new InvalidOperationException("The message is not an error or notice.");
+        }
         var reader = new WireReader(Payload);
         var fields = new List<DiagnosticField>();
         byte code;
         while ((code = reader.Byte()) != 0)
-            fields.Add(new(code, reader.CString()));
+            fields.Add(new(code,
+                reader.CString()));
         return new(fields.ToArray());
     }
 
@@ -152,12 +176,15 @@ public readonly struct BackendMessage
         var options = new string[reader.Int32()];
         for (int i = 0; i < options.Length; i++)
             options[i] = reader.CString();
-        return new(minorVersion, options);
+        return new(minorVersion,
+            options);
     }
 
     private void RequireKind(BackendMessageKind kind)
     {
         if (Kind != kind)
+        {
             throw new InvalidOperationException($"Expected {kind}, received {Kind}.");
+        }
     }
 }

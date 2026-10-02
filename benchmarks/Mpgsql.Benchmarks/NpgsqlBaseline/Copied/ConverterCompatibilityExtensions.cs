@@ -36,53 +36,89 @@ namespace Mpgsql.Benchmarks.NpgsqlBaseline.Copied;
 // Compatibility adapters for internal Npgsql overloads, using the public API.
 static class ConverterCompatibilityExtensions
 {
-    public static ValueTask Buffer(this PgReader reader, bool async, int byteCount,
+    public static ValueTask Buffer(this PgReader reader,
+        bool async,
+        int byteCount,
         CancellationToken cancellationToken)
     {
         if (async)
-            return reader.BufferAsync(byteCount, cancellationToken);
+        {
+            return reader.BufferAsync(byteCount,
+                cancellationToken);
+        }
 
         reader.Buffer(byteCount);
         return default;
     }
 
-    public static ValueTask<NestedReadScope> BeginNestedRead(this PgReader reader, bool async,
-        int size, Size bufferRequirement, CancellationToken cancellationToken)
+    public static ValueTask<NestedReadScope> BeginNestedRead(this PgReader reader,
+        bool async,
+        int size,
+        Size bufferRequirement,
+        CancellationToken cancellationToken)
         => async
-            ? reader.BeginNestedReadAsync(size, bufferRequirement, cancellationToken)
-            : new(reader.BeginNestedRead(size, bufferRequirement));
+            ? reader.BeginNestedReadAsync(size,
+                bufferRequirement,
+                cancellationToken)
+            : new(reader.BeginNestedRead(size,
+                bufferRequirement));
 
-    public static ValueTask Flush(this PgWriter writer, bool async, CancellationToken cancellationToken)
+    public static ValueTask Flush(this PgWriter writer,
+        bool async,
+        CancellationToken cancellationToken)
     {
         if (async)
+        {
             return writer.FlushAsync(cancellationToken);
+        }
 
         writer.Flush();
         return default;
     }
 
-    public static ValueTask<NestedWriteScope> BeginNestedWrite(this PgWriter writer, bool async,
-        Size bufferRequirement, int byteCount, object? state, CancellationToken cancellationToken)
+    public static ValueTask<NestedWriteScope> BeginNestedWrite(this PgWriter writer,
+        bool async,
+        Size bufferRequirement,
+        int byteCount,
+        object? state,
+        CancellationToken cancellationToken)
         => async
-            ? writer.BeginNestedWriteAsync(bufferRequirement, byteCount, state, cancellationToken)
-            : new(writer.BeginNestedWrite(bufferRequirement, byteCount, state));
+            ? writer.BeginNestedWriteAsync(bufferRequirement,
+                byteCount,
+                state,
+                cancellationToken)
+            : new(writer.BeginNestedWrite(bufferRequirement,
+                byteCount,
+                state));
 
-    public static Size? GetSizeOrDbNull<T>(this PgConverter<T> converter, DataFormat format, Size writeRequirement, T? value, ref object? writeState)
+    public static Size? GetSizeOrDbNull<T>(this PgConverter<T> converter,
+        DataFormat format,
+        Size writeRequirement,
+        T? value,
+        ref object? writeState)
     {
-        if (converter.IsDbNull(value, ref writeState))
+        if (converter.IsDbNull(value,
+                ref writeState))
+        {
             return null;
+        }
 
-        if (writeRequirement is { Kind: SizeKind.Exact, Value: var byteCount })
+        if (writeRequirement is {Kind: SizeKind.Exact, Value: var byteCount})
+        {
             return byteCount;
-        var size = converter.GetSize(new(format, writeRequirement), value, ref writeState);
+        }
+        var size = converter.GetSize(new(format,
+                writeRequirement),
+            value,
+            ref writeState);
 
         switch (size.Kind)
         {
-        case SizeKind.UpperBound:
-            throw new InvalidOperationException($"{nameof(SizeKind.UpperBound)} is not a valid return value for GetSize.");
-        case SizeKind.Unknown:
-            // Not valid yet.
-            throw new InvalidOperationException($"{nameof(SizeKind.Unknown)} is not a valid return value for GetSize.");
+            case SizeKind.UpperBound:
+                throw new InvalidOperationException($"{nameof(SizeKind.UpperBound)} is not a valid return value for GetSize.");
+            case SizeKind.Unknown:
+                // Not valid yet.
+                throw new InvalidOperationException($"{nameof(SizeKind.Unknown)} is not a valid return value for GetSize.");
         }
 
         return size;

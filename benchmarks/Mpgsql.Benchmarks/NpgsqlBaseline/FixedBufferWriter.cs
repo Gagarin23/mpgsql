@@ -7,21 +7,26 @@ internal sealed class FixedBufferWriter(int capacity) : IBufferWriter<byte>
 {
     private readonly byte[] _buffer = new byte[capacity];
     public int WrittenCount { get; private set; }
-    public ReadOnlySpan<byte> WrittenSpan => _buffer.AsSpan(0, WrittenCount);
+    public ReadOnlySpan<byte> WrittenSpan => _buffer.AsSpan(0,
+        WrittenCount);
 
     public void Reset() => WrittenCount = 0;
 
     public void Advance(int count)
     {
         if ((uint)count > (uint)(_buffer.Length - WrittenCount))
+        {
             throw new ArgumentOutOfRangeException(nameof(count));
+        }
         WrittenCount += count;
     }
 
     public Memory<byte> GetMemory(int sizeHint = 0)
     {
         if ((uint)sizeHint > (uint)(_buffer.Length - WrittenCount))
+        {
             throw new ArgumentOutOfRangeException(nameof(sizeHint));
+        }
         return _buffer.AsMemory(WrittenCount);
     }
 

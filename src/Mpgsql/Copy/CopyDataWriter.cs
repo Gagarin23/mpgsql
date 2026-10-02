@@ -22,11 +22,17 @@ public sealed class CopyDataWriter : IBufferWriter<byte>, IDisposable
     private bool _faulted;
     private bool _completed;
 
-    public CopyDataWriter(Stream stream, int bufferSize = 8192)
+    public CopyDataWriter(Stream stream,
+        int bufferSize = 8192)
     {
         ArgumentNullException.ThrowIfNull(stream);
-        if (!stream.CanWrite) throw new ArgumentException("The stream is not writable.", nameof(stream));
-        ArgumentOutOfRangeException.ThrowIfLessThan(bufferSize, 19);
+        if (!stream.CanWrite)
+        {
+            throw new ArgumentException("The stream is not writable.",
+                nameof(stream));
+        }
+        ArgumentOutOfRangeException.ThrowIfLessThan(bufferSize,
+            19);
         _stream = stream;
         _bufferSize = bufferSize;
         _limit = checked(bufferSize + 5);
@@ -36,7 +42,10 @@ public sealed class CopyDataWriter : IBufferWriter<byte>, IDisposable
     public void Advance(int count)
     {
         RequireWritable();
-        if ((uint)count > (uint)(_limit - _position)) throw new ArgumentOutOfRangeException(nameof(count));
+        if ((uint)count > (uint)(_limit - _position))
+        {
+            throw new ArgumentOutOfRangeException(nameof(count));
+        }
         _position += count;
     }
 
@@ -44,7 +53,8 @@ public sealed class CopyDataWriter : IBufferWriter<byte>, IDisposable
     {
         RequireWritable();
         ArgumentOutOfRangeException.ThrowIfNegative(sizeHint);
-        sizeHint = Math.Max(1, sizeHint);
+        sizeHint = Math.Max(1,
+            sizeHint);
         if (sizeHint > _limit - _position)
         {
             int required = checked(sizeHint + 5);
@@ -52,13 +62,15 @@ public sealed class CopyDataWriter : IBufferWriter<byte>, IDisposable
             Flush();
             if (required > _limit)
             {
-                var replacement = ArrayPool<byte>.Shared.Rent(Math.Max(capacity, checked(_bufferSize + 10)));
+                var replacement = ArrayPool<byte>.Shared.Rent(Math.Max(capacity,
+                    checked(_bufferSize + 10)));
                 ArrayPool<byte>.Shared.Return(_buffer!);
                 _buffer = replacement;
                 _limit = required;
             }
         }
-        return _buffer!.AsMemory(_position, _limit - _position);
+        return _buffer!.AsMemory(_position,
+            _limit - _position);
     }
 
     public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
@@ -66,7 +78,10 @@ public sealed class CopyDataWriter : IBufferWriter<byte>, IDisposable
     public void Flush()
     {
         RequireWritable();
-        if (_position == 5) return;
+        if (_position == 5)
+        {
+            return;
+        }
         WriteDataHeader();
         WritePacket(_position);
         _position = 5;
@@ -79,10 +94,15 @@ public sealed class CopyDataWriter : IBufferWriter<byte>, IDisposable
     {
         RequireWritable();
         int offset = _position == 5 ? 0 : _position;
-        if (offset != 0) WriteDataHeader();
-        var done = _buffer!.AsSpan(offset, 5);
+        if (offset != 0)
+        {
+            WriteDataHeader();
+        }
+        var done = _buffer!.AsSpan(offset,
+            5);
         done[0] = (byte)'c';
-        BinaryPrimitives.WriteInt32BigEndian(done[1..], 4);
+        BinaryPrimitives.WriteInt32BigEndian(done[1..],
+            4);
         WritePacket(offset + 5);
         _position = 5;
         _completed = true;
@@ -91,26 +111,43 @@ public sealed class CopyDataWriter : IBufferWriter<byte>, IDisposable
     private void WriteDataHeader()
     {
         _buffer![0] = (byte)'d';
-        BinaryPrimitives.WriteInt32BigEndian(_buffer.AsSpan(1, 4), _position - 1);
+        BinaryPrimitives.WriteInt32BigEndian(_buffer.AsSpan(1,
+                4),
+            _position - 1);
     }
 
     private void WritePacket(int count)
     {
-        try { _stream.Write(_buffer!.AsSpan(0, count)); }
-        catch { _faulted = true; throw; }
+        try { _stream.Write(_buffer!.AsSpan(0,
+            count)); }
+        catch
+        {
+            _faulted = true;
+            throw;
+        }
     }
 
     private void RequireWritable()
     {
-        ObjectDisposedException.ThrowIf(_buffer is null, this);
-        if (_faulted) throw new InvalidOperationException("The COPY output stream failed; discard the connection.");
-        if (_completed) throw new InvalidOperationException("CopyDone has already been sent.");
+        ObjectDisposedException.ThrowIf(_buffer is null,
+            this);
+        if (_faulted)
+        {
+            throw new InvalidOperationException("The COPY output stream failed; discard the connection.");
+        }
+        if (_completed)
+        {
+            throw new InvalidOperationException("CopyDone has already been sent.");
+        }
     }
 
     public void Dispose()
     {
         var buffer = _buffer;
         _buffer = null;
-        if (buffer is not null) ArrayPool<byte>.Shared.Return(buffer);
+        if (buffer is not null)
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
     }
 }

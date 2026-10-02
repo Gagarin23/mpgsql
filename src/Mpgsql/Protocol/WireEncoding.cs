@@ -7,13 +7,17 @@ namespace Mpgsql.Protocol;
 internal static class WireEncoding
 {
     // The codec requires client_encoding=UTF8. Never replace malformed input silently.
-    internal static readonly UTF8Encoding Utf8 = new(false, true);
+    internal static readonly UTF8Encoding Utf8 = new(false,
+        true);
 
     internal static int CStringLength(string? value)
     {
         ArgumentNullException.ThrowIfNull(value);
         if (value.AsSpan().Contains('\0'))
-            throw new ArgumentException("A PostgreSQL string cannot contain NUL.", nameof(value));
+        {
+            throw new ArgumentException("A PostgreSQL string cannot contain NUL.",
+                nameof(value));
+        }
 
         return checked(Utf8.GetByteCount(value) + 1);
     }
@@ -23,7 +27,9 @@ internal static class WireEncoding
         if (value.IsSingleSegment)
         {
             if (!System.Text.Unicode.Utf8.IsValid(value.FirstSpan))
+            {
                 throw new InvalidDataException("Invalid UTF-8 in a PostgreSQL string.");
+            }
             return;
         }
 
@@ -32,10 +38,15 @@ internal static class WireEncoding
         Span<byte> scalar = stackalloc byte[4];
         while (reader.Remaining > 0)
         {
-            int length = (int)Math.Min(4, reader.Remaining);
+            int length = (int)Math.Min(4,
+                reader.Remaining);
             reader.TryCopyTo(scalar[..length]);
-            if (Rune.DecodeFromUtf8(scalar[..length], out _, out int consumed) != OperationStatus.Done)
+            if (Rune.DecodeFromUtf8(scalar[..length],
+                    out _,
+                    out int consumed) != OperationStatus.Done)
+            {
                 throw new InvalidDataException("Invalid UTF-8 in a PostgreSQL string.");
+            }
             reader.Advance(consumed);
         }
     }

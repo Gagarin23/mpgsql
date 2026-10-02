@@ -36,10 +36,23 @@ namespace Mpgsql.Benchmarks.NpgsqlBaseline.Copied;
 interface IElementOperations
 {
     object CreateCollection(ReadOnlySpan<int> lengths);
-    int GetCollectionCount(object collection, out int[]? lengths);
-    Size? GetSizeOrDbNull(SizeContext context, object collection, Indices indices, ref object? writeState);
-    ValueTask Read(bool async, PgReader reader, bool isDbNull, object collection,  Indices indices, CancellationToken cancellationToken = default);
-    ValueTask Write(bool async, PgWriter writer, object collection,  Indices indices, CancellationToken cancellationToken = default);
+    int GetCollectionCount(object collection,
+        out int[]? lengths);
+    Size? GetSizeOrDbNull(SizeContext context,
+        object collection,
+        Indices indices,
+        ref object? writeState);
+    ValueTask Read(bool async,
+        PgReader reader,
+        bool isDbNull,
+        object collection,
+        Indices indices,
+        CancellationToken cancellationToken = default);
+    ValueTask Write(bool async,
+        PgWriter writer,
+        object collection,
+        Indices indices,
+        CancellationToken cancellationToken = default);
 }
 
 #pragma warning restore NPG9001

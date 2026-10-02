@@ -19,7 +19,7 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
     private readonly CancellationTokenSource _lifetime;
     private readonly Lock _gate = new();
     private readonly Queue<MpgsqlQueryBatch> _responses = new();
-    private readonly HashSet<MpgsqlQueryBatch> _batches = new();
+    private readonly HashSet<MpgsqlQueryBatch> _batches = [];
     private readonly BackendFrameBuffer _frames = new();
 
     private readonly Channel<OutboundWork> _writes = Channel.CreateUnbounded<OutboundWork>(new()
@@ -59,45 +59,59 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
     public Task Completion => _completion.Task;
     public bool TryReadNotice(out DiagnosticMessage notice) => _notices.TryDequeue(out notice);
     public bool TryReadNotification(out NotificationResponse notification) => _notifications.TryDequeue(out notification);
-    public bool TryGetParameter(string name, out string? value) => _parameters.TryGetValue(name, out value);
+    public bool TryGetParameter(string name,
+        out string? value) => _parameters.TryGetValue(name,
+        out value);
 
     public MpgsqlQueryBatch CreateBatch(CancellationToken requestToken = default)
     {
         lock (_gate)
         {
             ThrowIfStopped();
-            var batch = new MpgsqlQueryBatch(this, requestToken);
+            var batch = new MpgsqlQueryBatch(this,
+                requestToken);
             _batches.Add(batch);
             return batch;
         }
     }
 
     internal long CopiedRowBytes => Interlocked.Read(ref _copiedRows) + Interlocked.Read(ref _frames.CopiedRowBytes);
-    internal void RecordRowCopy(long size) => Interlocked.Add(ref _copiedRows, size);
+    internal void RecordRowCopy(long size) => Interlocked.Add(ref _copiedRows,
+        size);
     internal void ScheduleDiscard(MpgsqlQueryBatch batch) => _cancellations.Writer.TryWrite(batch);
     internal void ReleaseBatch(MpgsqlQueryBatch batch)
     {
-        if (!batch.Completion.IsCompleted || !batch.ConsumerDisposed) return;
+        if (!batch.Completion.IsCompleted || !batch.ConsumerDisposed)
+        {
+            return;
+        }
         batch.ReleaseRegistration();
         lock (_gate) _batches.Remove(batch);
     }
 
-    internal ValueTask SendQueryAsync(MpgsqlQueryBatch batch, string sql,
+    internal ValueTask SendQueryAsync(MpgsqlQueryBatch batch,
+        string sql,
         ReadOnlyMemory<MpgsqlParameter> parameters)
     {
-        int size = QueryPacket.GetByteCount(sql, parameters.Span);
+        int size = QueryPacket.GetByteCount(sql,
+            parameters.Span);
         lock (_gate)
         {
             ThrowIfStopped();
             batch.ThrowForSend();
             if (_collecting is not null && _collecting != batch)
+            {
                 throw new InvalidOperationException("Call SendSyncAsync on the collecting group before sending another group.");
+            }
             if (_collecting is null)
             {
                 _collecting = batch;
                 _responses.Enqueue(batch);
             }
-            var work = new OutboundWork(batch, sql, parameters, size);
+            var work = new OutboundWork(batch,
+                sql,
+                parameters,
+                size);
             batch.AddWrite(work);
             _writes.Writer.TryWrite(work);
             return new(work.Completion);
@@ -110,9 +124,14 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
         {
             ThrowIfStopped();
             if (_collecting is not null && _collecting != batch)
+            {
                 throw new InvalidOperationException("Another group owns the collecting boundary.");
+            }
             batch.SyncQueued();
-            if (_collecting is null) _responses.Enqueue(batch);
+            if (_collecting is null)
+            {
+                _responses.Enqueue(batch);
+            }
             _collecting = null;
             var work = new OutboundWork(batch);
             batch.AddWrite(work);
@@ -143,7 +162,9 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
                     else
                     {
                         work.Batch.RequestToken.ThrowIfCancellationRequested();
-                        QueryPacket.Write(work.Sql!, work.Parameters.Span, _output.GetSpan(work.Size));
+                        QueryPacket.Write(work.Sql!,
+                            work.Parameters.Span,
+                            _output.GetSpan(work.Size));
                         work.Batch.RequestToken.ThrowIfCancellationRequested();
                         lock (_gate)
                         {
@@ -154,8 +175,14 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
                     }
                     work.Published();
                     var flush = await _output.FlushAsync(_lifetime.Token).ConfigureAwait(false);
-                    if (flush.IsCanceled) throw new OperationCanceledException(_lifetime.Token);
-                    if (flush.IsCompleted) throw new IOException("The output transport stopped reading.");
+                    if (flush.IsCanceled)
+                    {
+                        throw new OperationCanceledException(_lifetime.Token);
+                    }
+                    if (flush.IsCompleted)
+                    {
+                        throw new IOException("The output transport stopped reading.");
+                    }
                     work.Complete();
                 }
                 catch (OperationCanceledException error) when (!work.IsSync && work.Batch.RequestToken.IsCancellationRequested && !_lifetime.IsCancellationRequested)
@@ -172,7 +199,10 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
         }
         catch (Exception error)
         {
-            if (Volatile.Read(ref _disposed) == 0) Fail(error);
+            if (Volatile.Read(ref _disposed) == 0)
+            {
+                Fail(error);
+            }
         }
         finally { await _output.CompleteAsync(_failure).ConfigureAwait(false); }
     }
@@ -194,13 +224,22 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
                 var input = read.Buffer;
                 try
                 {
-                    if (read.IsCanceled) throw new OperationCanceledException(_lifetime.Token);
+                    if (read.IsCanceled)
+                    {
+                        throw new OperationCanceledException(_lifetime.Token);
+                    }
                     while (!input.IsEmpty)
                     {
                         MpgsqlQueryBatch? batch;
                         lock (_gate) batch = _responses.TryPeek(out var head) ? head : null;
-                        if (!_frames.TryRead(ref input, batch?.DiscardsRows == true,
-                                out var message, out var owner, out int skippedColumns)) break;
+                        if (!_frames.TryRead(ref input,
+                                batch?.DiscardsRows == true,
+                                out var message,
+                                out var owner,
+                                out int skippedColumns))
+                        {
+                            break;
+                        }
                         try
                         {
                             if (skippedColumns >= 0)
@@ -214,9 +253,15 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
                                 continue;
                             }
                             if (message.Kind is BackendMessageKind.CopyInResponse or BackendMessageKind.CopyOutResponse or BackendMessageKind.CopyBothResponse)
+                            {
                                 throw new NotSupportedException("COPY requires the separate COPY API and an exclusively owned connection.");
-                            if (batch is null) throw new InvalidDataException($"Unexpected idle backend message: {message.Kind}.");
-                            batch.Accept(message, ref owner);
+                            }
+                            if (batch is null)
+                            {
+                                throw new InvalidDataException($"Unexpected idle backend message: {message.Kind}.");
+                            }
+                            batch.Accept(message,
+                                ref owner);
                             if (message.Kind == BackendMessageKind.ReadyForQuery)
                             {
                                 lock (_gate) _responses.Dequeue();
@@ -226,15 +271,21 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
                         finally { owner?.Dispose(); }
                     }
                     if (read.IsCompleted)
+                    {
                         throw new EndOfStreamException(_frames.HasPartialFrame ? "Truncated backend frame." : "The backend closed the transport.");
+                    }
                 }
-                finally { _input.AdvanceTo(input.Start, read.Buffer.End); }
+                finally { _input.AdvanceTo(input.Start,
+                    read.Buffer.End); }
             }
         }
         catch (Exception error)
         {
             failure = error;
-            if (Volatile.Read(ref _disposed) == 0) Fail(error);
+            if (Volatile.Read(ref _disposed) == 0)
+            {
+                Fail(error);
+            }
         }
         finally
         {
@@ -253,7 +304,9 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
             case BackendMessageKind.ParameterStatus:
                 var parameter = message.GetParameterStatus();
                 if (parameter.Name == "client_encoding" && parameter.Value != "UTF8")
+                {
                     throw new NotSupportedException("MpgsqlMessageSession requires client_encoding=UTF8.");
+                }
                 _parameters[parameter.Name] = parameter.Value;
                 break;
         }
@@ -261,8 +314,14 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
 
     private void ThrowIfStopped()
     {
-        if (_failure is { } failure) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(failure);
-        if (Volatile.Read(ref _disposed) != 0) throw new ObjectDisposedException(nameof(MpgsqlMessageSession));
+        if (_failure is { } failure)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(failure);
+        }
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            throw new ObjectDisposedException(nameof(MpgsqlMessageSession));
+        }
         _lifetime.Token.ThrowIfCancellationRequested();
     }
 
@@ -271,9 +330,12 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
         MpgsqlQueryBatch[] batches;
         lock (_gate)
         {
-            if (_failure is not null || Volatile.Read(ref _disposed) != 0) return;
+            if (_failure is not null || Volatile.Read(ref _disposed) != 0)
+            {
+                return;
+            }
             _failure = error;
-            batches = _batches.Where(batch => !batch.Completion.IsCompleted).ToArray();
+            batches = [.. _batches.Where(batch => !batch.Completion.IsCompleted)];
             _writes.Writer.TryComplete();
         }
         foreach (var batch in batches)
@@ -289,11 +351,15 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        if (Interlocked.Exchange(ref _disposed,
+                1) != 0)
+        {
+            return;
+        }
         MpgsqlQueryBatch[] batches;
         lock (_gate)
         {
-            batches = _batches.ToArray();
+            batches = [.. _batches];
             _writes.Writer.TryComplete();
         }
         foreach (var batch in batches)

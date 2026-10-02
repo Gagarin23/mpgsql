@@ -22,37 +22,53 @@ public static class Int64Converter
 
     /// <summary>Writes eight bytes and returns the number written.</summary>
     /// <remarks>Insufficient capacity throws ArgumentException before changing the destination.</remarks>
-    public static int Write(long value, Span<byte> destination)
+    public static int Write(long value,
+        Span<byte> destination)
     {
-        if (!BinaryPrimitives.TryWriteInt64BigEndian(destination, value))
-            throw new ArgumentException("The destination is too small for the bigint payload.", nameof(destination));
+        if (!BinaryPrimitives.TryWriteInt64BigEndian(destination,
+                value))
+        {
+            throw new ArgumentException("The destination is too small for the bigint payload.",
+                nameof(destination));
+        }
         return ByteCount;
     }
 
     /// <summary>Writes a value, or leaves the destination unchanged and returns zero for NULL.</summary>
-    public static int Write(long? value, Span<byte> destination)
-        => value.HasValue ? Write(value.GetValueOrDefault(), destination) : 0;
+    public static int Write(long? value,
+        Span<byte> destination)
+        => value.HasValue ? Write(value.GetValueOrDefault(),
+            destination) : 0;
 
     /// <summary>Reserves and advances exactly eight payload bytes.</summary>
-    public static void Write(long value, IBufferWriter<byte> destination)
+    public static void Write(long value,
+        IBufferWriter<byte> destination)
     {
         ArgumentNullException.ThrowIfNull(destination);
-        Write(value, destination.GetSpan(ByteCount));
+        Write(value,
+            destination.GetSpan(ByteCount));
         destination.Advance(ByteCount);
     }
 
     /// <summary>Writes a value with one reservation; NULL neither reserves nor advances.</summary>
-    public static void Write(long? value, IBufferWriter<byte> destination)
+    public static void Write(long? value,
+        IBufferWriter<byte> destination)
     {
         ArgumentNullException.ThrowIfNull(destination);
-        if (value.HasValue) Write(value.GetValueOrDefault(), destination);
+        if (value.HasValue)
+        {
+            Write(value.GetValueOrDefault(),
+                destination);
+        }
     }
 
     /// <summary>Reads exactly eight big-endian bytes; rejects truncated or trailing bytes.</summary>
     public static long Read(ReadOnlySpan<byte> payload)
     {
         if (payload.Length != ByteCount)
+        {
             throw new InvalidDataException("A binary bigint requires exactly eight bytes.");
+        }
         return BinaryPrimitives.ReadInt64BigEndian(payload);
     }
 
@@ -60,14 +76,19 @@ public static class Int64Converter
     public static long Read(ReadOnlySequence<byte> payload)
     {
         if (payload.Length != ByteCount)
+        {
             throw new InvalidDataException("A binary bigint requires exactly eight bytes.");
-        if (payload.IsSingleSegment) return BinaryPrimitives.ReadInt64BigEndian(payload.FirstSpan);
+        }
+        if (payload.IsSingleSegment)
+        {
+            return BinaryPrimitives.ReadInt64BigEndian(payload.FirstSpan);
+        }
         // Exactly eight bytes are guaranteed above. Accumulate in wire order instead of
         // constructing a SequenceReader and copying a split value into its scratch buffer.
         long result = 0;
         foreach (var segment in payload)
-            foreach (byte part in segment.Span)
-                result = (result << 8) | part;
+        foreach (byte part in segment.Span)
+            result = (result << 8) | part;
         return result;
     }
 

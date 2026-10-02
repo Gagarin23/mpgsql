@@ -36,7 +36,8 @@ namespace Mpgsql.Benchmarks.NpgsqlBaseline.Copied;
 static class IndicesExtensions
 {
     // Workaround for lack of ref returns on struct fields.
-    public static ref int GetItem(this ref Indices indices, int index)
+    public static ref int GetItem(this ref Indices indices,
+        int index)
     {
         switch (indices.Count)
         {

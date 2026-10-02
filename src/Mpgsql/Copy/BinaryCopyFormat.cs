@@ -16,9 +16,11 @@ internal static class BinaryCopyFormat
         destination.Advance(HeaderSize);
     }
 
-    internal static void WriteInt16(IBufferWriter<byte> destination, short value)
+    internal static void WriteInt16(IBufferWriter<byte> destination,
+        short value)
     {
-        BinaryPrimitives.WriteInt16BigEndian(destination.GetSpan(2), value);
+        BinaryPrimitives.WriteInt16BigEndian(destination.GetSpan(2),
+            value);
         destination.Advance(2);
     }
 }

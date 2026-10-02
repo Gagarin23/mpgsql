@@ -28,19 +28,25 @@ public class Int64ArrayReadBenchmarks
         for (int i = 0; i < values.Length; i++)
             values[i] = unchecked((long)(0x0123456789abcdefUL * (ulong)(i + 1)));
         byte[] bytes = new byte[Int64ArrayConverter.GetByteCount(values)];
-        Int64ArrayReference.WriteScalar(values, bytes);
-        _payload = SegmentSize == 0 ? new ReadOnlySequence<byte>(bytes) : Segment(bytes, SegmentSize);
+        Int64ArrayReference.WriteScalar(values,
+            bytes);
+        _payload = SegmentSize == 0 ? new ReadOnlySequence<byte>(bytes) : Segment(bytes,
+            SegmentSize);
         _destination = new long[Count];
         if (Scalar() != Count || !_destination.AsSpan().SequenceEqual(values) ||
             FusedSimd() != Count || !_destination.AsSpan().SequenceEqual(values) ||
             !Int64ArrayConverter.Read(_payload).Span.SequenceEqual(values))
+        {
             throw new InvalidOperationException("An array decoder differs from the expected values.");
+        }
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("Reuse")]
-    public int Scalar() => Int64ArrayReference.ReadScalar(_payload, _destination);
+    public int Scalar() => Int64ArrayReference.ReadScalar(_payload,
+        _destination);
     [Benchmark, BenchmarkCategory("Reuse")]
-    public int FusedSimd() => Int64ArrayConverter.Read(_payload, _destination);
+    public int FusedSimd() => Int64ArrayConverter.Read(_payload,
+        _destination);
     [Benchmark, BenchmarkCategory("Owned")]
     public ReadOnlyMemory<long> Owned() => Int64ArrayConverter.Read(_payload);
 
@@ -52,20 +58,34 @@ public class Int64ArrayReadBenchmarks
         {
             for (int i = 0; i < 32; i++) FusedSimd();
             long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int i = 0; i < Math.Max(16, 4096 / Math.Max(1, Count)); i++) FusedSimd();
+            for (int i = 0; i < Math.Max(16,
+                     4096
+                     / Math.Max(1,
+                         Count)); i++) FusedSimd();
             allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-            if (allocated == 0) return;
+            if (allocated == 0)
+            {
+                return;
+            }
         }
         throw new InvalidOperationException($"Reading {Count} elements in {SegmentSize}-byte segments allocated {allocated} bytes.");
     }
 
-    private static ReadOnlySequence<byte> Segment(byte[] bytes, int size)
+    private static ReadOnlySequence<byte> Segment(byte[] bytes,
+        int size)
     {
-        var first = new SegmentNode(bytes.AsMemory(0, Math.Min(size, bytes.Length)));
+        var first = new SegmentNode(bytes.AsMemory(0,
+            Math.Min(size,
+                bytes.Length)));
         var last = first;
         for (int start = size; start < bytes.Length; start += size)
-            last = last.Append(bytes.AsMemory(start, Math.Min(size, bytes.Length - start)));
-        return new(first, 0, last, last.Memory.Length);
+            last = last.Append(bytes.AsMemory(start,
+                Math.Min(size,
+                    bytes.Length - start)));
+        return new(first,
+            0,
+            last,
+            last.Memory.Length);
     }
 
     private sealed class SegmentNode : ReadOnlySequenceSegment<byte>

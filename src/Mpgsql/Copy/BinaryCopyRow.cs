@@ -16,8 +16,14 @@ public readonly struct BinaryCopyRow
     public long ReadInt64(int index)
     {
         var value = RequireValue(index);
-        if (value.Length != 8) throw new InvalidDataException("A binary bigint requires exactly 8 bytes.");
-        if (value.IsSingleSegment) return BinaryPrimitives.ReadInt64BigEndian(value.FirstSpan);
+        if (value.Length != 8)
+        {
+            throw new InvalidDataException("A binary bigint requires exactly 8 bytes.");
+        }
+        if (value.IsSingleSegment)
+        {
+            return BinaryPrimitives.ReadInt64BigEndian(value.FirstSpan);
+        }
         var reader = new SequenceReader<byte>(value);
         reader.TryReadBigEndian(out long result);
         return result;
@@ -26,11 +32,15 @@ public readonly struct BinaryCopyRow
     public long? ReadNullableInt64(int index) => Int64Converter.ReadNullable(this[index]);
 
     public ReadOnlyMemory<long> ReadLongArray(int index) => Int64ArrayConverter.Read(RequireValue(index));
-    public int ReadLongArray(int index, Span<long> destination) => Int64ArrayConverter.Read(RequireValue(index), destination);
+    public int ReadLongArray(int index,
+        Span<long> destination) => Int64ArrayConverter.Read(RequireValue(index),
+        destination);
 
     public ReadOnlyMemory<long?> ReadNullableLongArray(int index) => NullableInt64ArrayConverter.Read(RequireValue(index));
-    public int ReadNullableLongArray(int index, Span<long?> destination) => NullableInt64ArrayConverter.Read(RequireValue(index), destination);
+    public int ReadNullableLongArray(int index,
+        Span<long?> destination) => NullableInt64ArrayConverter.Read(RequireValue(index),
+        destination);
 
     private ReadOnlySequence<byte> RequireValue(int index) => this[index]
-        ?? throw new InvalidOperationException("The COPY field is SQL NULL.");
+                                                              ?? throw new InvalidOperationException("The COPY field is SQL NULL.");
 }

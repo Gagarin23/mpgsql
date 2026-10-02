@@ -15,9 +15,11 @@ namespace Mpgsql.Benchmarks;
 [CategoriesColumn]
 public class BinaryCopyBenchmarks
 {
-    [Params(64, 4096)] public int Rows { get; set; }
+    [Params(64, 4096)]
+    public int Rows { get; set; }
     // 0 means scalar bigint; 256 means one bigint[] field per row.
-    [Params(0, 256)] public int ArrayLength { get; set; }
+    [Params(0, 256)]
+    public int ArrayLength { get; set; }
     private long[] _values = [], _array = [];
     private NpgsqlCopyHarness _native = null!;
     private MemoryStream _output = null!;
@@ -28,27 +30,53 @@ public class BinaryCopyBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _values = Enumerable.Range(0, Rows).Select(i => (long)i - Rows / 2).ToArray();
-        _array = Enumerable.Range(0, ArrayLength).Select(i => (long)i - ArrayLength / 2).ToArray();
+        _values =
+        [
+            .. Enumerable.Range(0,
+                Rows).Select(i => (long)i - Rows / 2)
+        ];
+        _array =
+        [
+            .. Enumerable.Range(0,
+                ArrayLength).Select(i => (long)i - ArrayLength / 2)
+        ];
         int payloadSize = checked(21 + Rows * (ArrayLength == 0 ? 14 : 26 + 12 * ArrayLength));
         int capacity = checked(payloadSize + (payloadSize / 4096 + 1) * 5);
-        _native = new(capacity); _output = new(capacity);
+        _native = new(capacity);
+        _output = new(capacity);
         NpgsqlWrite();
         byte[] expected = _native.Payload();
         MpgsqlWrite();
         byte[] encoded = Unframe(_output.ToArray());
-        if (!expected.AsSpan().SequenceEqual(encoded)) throw new InvalidOperationException("COPY payload differs from the Npgsql importer.");
+        if (!expected.AsSpan().SequenceEqual(encoded))
+        {
+            throw new InvalidOperationException("COPY payload differs from the Npgsql importer.");
+        }
         MpgsqlBatchWrite();
-        if (!expected.AsSpan().SequenceEqual(Unframe(_output.ToArray()))) throw new InvalidOperationException("COPY bigint batch differs from Npgsql.");
-        _exportInput = new(_native.PrepareRead(encoded, Rows));
-        var response = new ReadOnlySequence<byte>(new byte[] { (byte)'H', 0, 0, 0, 9, 1, 0, 1, 0, 1 });
-        if (!BackendMessageReader.TryRead(ref response, out _copyResponse)) throw new InvalidDataException();
+        if (!expected.AsSpan().SequenceEqual(Unframe(_output.ToArray())))
+        {
+            throw new InvalidOperationException("COPY bigint batch differs from Npgsql.");
+        }
+        _exportInput = new(_native.PrepareRead(encoded,
+            Rows));
+        var response = new ReadOnlySequence<byte>([(byte)'H', 0, 0, 0, 9, 1, 0, 1, 0, 1]);
+        if (!BackendMessageReader.TryRead(ref response,
+                out _copyResponse))
+        {
+            throw new InvalidDataException();
+        }
         long sum = ArrayLength == 0 ? _values.Sum() : (long)Rows * ArrayLength;
-        if (NpgsqlRead() != sum || MpgsqlRead() != sum) throw new InvalidOperationException("COPY results differ from the Npgsql exporter.");
+        if (NpgsqlRead() != sum || MpgsqlRead() != sum)
+        {
+            throw new InvalidOperationException("COPY results differ from the Npgsql exporter.");
+        }
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("Write")]
-    public int NpgsqlWrite() => _native.Write(_values, _array, Rows, ArrayLength != 0);
+    public int NpgsqlWrite() => _native.Write(_values,
+        _array,
+        Rows,
+        ArrayLength != 0);
     [Benchmark, BenchmarkCategory("Write")]
     public int MpgsqlWrite() => Write(batch: false);
     [Benchmark, BenchmarkCategory("Write")]
@@ -56,19 +84,36 @@ public class BinaryCopyBenchmarks
 
     private int Write(bool batch)
     {
-        _output.Position = 0; _output.SetLength(0);
-        using var frames = new CopyDataWriter(_output, 8192);
-        var copy = new BinaryCopyWriter(frames, 1);
+        _output.Position = 0;
+        _output.SetLength(0);
+        using var frames = new CopyDataWriter(_output,
+            8192);
+        var copy = new BinaryCopyWriter(frames,
+            1);
         if (batch && ArrayLength == 0)
+        {
             for (int offset = 0; offset < Rows; offset += 512)
-                copy.WriteInt64Rows(_values.AsSpan(offset, Math.Min(512, Rows - offset)));
+                copy.WriteInt64Rows(_values.AsSpan(offset,
+                    Math.Min(512,
+                        Rows - offset)));
+        }
         else
+        {
             for (int i = 0; i < Rows; i++)
             {
                 copy.StartRow();
-                if (ArrayLength == 0) copy.WriteInt64(_values[i]); else copy.WriteLongArray(_array);
+                if (ArrayLength == 0)
+                {
+                    copy.WriteInt64(_values[i]);
+                }
+                else
+                {
+                    copy.WriteLongArray(_array);
+                }
             }
-        copy.Complete(); frames.Flush();
+        }
+        copy.Complete();
+        frames.Flush();
         return (int)_output.Length;
     }
 
@@ -83,21 +128,41 @@ public class BinaryCopyBenchmarks
         long sum = 0;
         while (!input.IsEmpty)
         {
-            if (!BackendMessageReader.TryRead(ref input, out var message)) throw new InvalidDataException();
+            if (!BackendMessageReader.TryRead(ref input,
+                    out var message))
+            {
+                throw new InvalidDataException();
+            }
             operation.Accept(message);
-            if (message.Kind != BackendMessageKind.CopyData) continue;
+            if (message.Kind != BackendMessageKind.CopyData)
+            {
+                continue;
+            }
             var body = message.GetCopyData();
-            if (!copy.HeaderRead && !copy.TryReadHeader(ref body)) throw new InvalidDataException();
+            if (!copy.HeaderRead && !copy.TryReadHeader(ref body))
+            {
+                throw new InvalidDataException();
+            }
             while (!body.IsEmpty)
             {
-                var status = copy.TryReadRow(ref body, _fields, out var row);
-                if (status == BinaryCopyReadStatus.NeedMoreData) throw new InvalidDataException();
+                var status = copy.TryReadRow(ref body,
+                    _fields,
+                    out var row);
+                if (status == BinaryCopyReadStatus.NeedMoreData)
+                {
+                    throw new InvalidDataException();
+                }
                 if (status == BinaryCopyReadStatus.Row)
+                {
                     sum = ArrayLength == 0 ? unchecked(sum + row.ReadInt64(0)) : sum + row.ReadLongArray(0).Length;
+                }
             }
         }
         copy.EndData();
-        if (!operation.IsCompleted || operation.RowsCopied != (ulong)Rows) throw new InvalidDataException();
+        if (!operation.IsCompleted || operation.RowsCopied != (ulong)Rows)
+        {
+            throw new InvalidDataException();
+        }
         return sum;
     }
 
@@ -107,23 +172,32 @@ public class BinaryCopyBenchmarks
         var body = new ArrayBufferWriter<byte>();
         while (!input.IsEmpty)
         {
-            if (!Mpgsql.Protocol.BackendMessageReader.TryRead(ref input, out var message)) throw new InvalidDataException();
+            if (!Mpgsql.Protocol.BackendMessageReader.TryRead(ref input,
+                    out var message))
+            {
+                throw new InvalidDataException();
+            }
             foreach (var memory in message.GetCopyData()) body.Write(memory.Span);
         }
-        return body.WrittenSpan.ToArray();
+        return [.. body.WrittenSpan];
     }
 
     [GlobalCleanup]
-    public void Cleanup() { _native?.Dispose(); _output?.Dispose(); }
+    public void Cleanup()
+    {
+        _native?.Dispose();
+        _output?.Dispose();
+    }
 
     internal static void Verify()
     {
-        foreach (int rows in new[] { 0, 1, 64, 4096 })
-            foreach (int length in new[] { 0, 256 })
-            {
-                var benchmark = new BinaryCopyBenchmarks { Rows = rows, ArrayLength = length };
-                try { benchmark.Setup(); } finally { benchmark.Cleanup(); }
-            }
+        foreach (int rows in new[] {0, 1, 64, 4096})
+        foreach (int length in new[] {0, 256})
+        {
+            var benchmark = new BinaryCopyBenchmarks {Rows = rows, ArrayLength = length};
+            try { benchmark.Setup(); }
+            finally { benchmark.Cleanup(); }
+        }
         Console.WriteLine("Binary COPY rows/framing/results match the actual Npgsql 10.0.3 importer/exporter (memory transport).");
     }
 }

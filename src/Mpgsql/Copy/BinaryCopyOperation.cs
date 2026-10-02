@@ -11,7 +11,16 @@ namespace Mpgsql.Copy;
 /// </remarks>
 public sealed class BinaryCopyOperation
 {
-    private enum Phase { Import, Export, Command, Ready, Recovery, Completed }
+    private enum Phase
+    {
+        Import,
+        Export,
+        Command,
+        Ready,
+        Recovery,
+        Completed
+    }
+
     private Phase _phase;
     private readonly bool _extendedQuery;
     private bool _syncSent;
@@ -26,17 +35,29 @@ public sealed class BinaryCopyOperation
     public DiagnosticMessage? Error { get; private set; }
     public TransactionStatus? TransactionStatus { get; private set; }
 
-    public BinaryCopyOperation(BackendMessage response, bool extendedQuery = false)
+    public BinaryCopyOperation(BackendMessage response,
+        bool extendedQuery = false)
     {
         if (response.Kind is not (BackendMessageKind.CopyInResponse or BackendMessageKind.CopyOutResponse))
-            throw new ArgumentException("A binary COPY IN/OUT response is required.", nameof(response));
+        {
+            throw new ArgumentException("A binary COPY IN/OUT response is required.",
+                nameof(response));
+        }
         var copy = response.GetCopyResponse();
         if (copy.Format != FormatCode.Binary)
+        {
             throw new NotSupportedException("This operation requires FORMAT binary.");
+        }
         foreach (var format in copy.ColumnFormats.Span)
-            if (format != FormatCode.Binary) throw new InvalidDataException("A binary COPY column has a text format.");
+            if (format != FormatCode.Binary)
+            {
+                throw new InvalidDataException("A binary COPY column has a text format.");
+            }
         ColumnCount = copy.ColumnFormats.Length;
-        if (ColumnCount > short.MaxValue) throw new InvalidDataException("Too many binary COPY columns.");
+        if (ColumnCount > short.MaxValue)
+        {
+            throw new InvalidDataException("Too many binary COPY columns.");
+        }
         IsImport = response.Kind == BackendMessageKind.CopyInResponse;
         _phase = IsImport ? Phase.Import : Phase.Export;
         _extendedQuery = extendedQuery;
@@ -58,18 +79,29 @@ public sealed class BinaryCopyOperation
     public void SyncSent()
     {
         if (!_extendedQuery || _syncSent || _phase is not (Phase.Export or Phase.Command or Phase.Ready or Phase.Recovery))
+        {
             throw new InvalidOperationException("A recovery Sync cannot be sent during COPY IN data.");
+        }
         _syncSent = true;
     }
 
     /// <summary>Returns false for asynchronous messages which the connection must route independently.</summary>
     public bool Accept(BackendMessage message)
     {
-        if (message.IsAsynchronous) return false;
-        if (IsCompleted) throw new InvalidOperationException("The COPY operation is completed.");
+        if (message.IsAsynchronous)
+        {
+            return false;
+        }
+        if (IsCompleted)
+        {
+            throw new InvalidOperationException("The COPY operation is completed.");
+        }
         if (message.Kind == BackendMessageKind.ErrorResponse)
         {
-            if (_phase == Phase.Recovery) throw new InvalidDataException("Repeated COPY ErrorResponse.");
+            if (_phase == Phase.Recovery)
+            {
+                throw new InvalidDataException("Repeated COPY ErrorResponse.");
+            }
             Error = message.GetDiagnostics();
             RowsCopied = null;
             _phase = Phase.Recovery;
@@ -83,15 +115,23 @@ public sealed class BinaryCopyOperation
                 return true;
             case (Phase.Command, BackendMessageKind.CommandComplete) when !_failedByClient:
                 string tag = message.GetCommandTag();
-                if (!tag.StartsWith("COPY ", StringComparison.Ordinal) ||
-                    !ulong.TryParse(tag.AsSpan(5), NumberStyles.None, CultureInfo.InvariantCulture, out ulong count))
+                if (!tag.StartsWith("COPY ",
+                        StringComparison.Ordinal) ||
+                    !ulong.TryParse(tag.AsSpan(5),
+                        NumberStyles.None,
+                        CultureInfo.InvariantCulture,
+                        out ulong count))
+                {
                     throw new InvalidDataException("Invalid COPY command tag.");
+                }
                 RowsCopied = count;
                 _phase = Phase.Ready;
                 return true;
             case (Phase.Ready or Phase.Recovery, BackendMessageKind.ReadyForQuery):
                 if (_extendedQuery && !_syncSent)
+                {
                     throw new InvalidDataException("An extended COPY requires a new Sync/ReadyForQuery boundary.");
+                }
                 TransactionStatus = message.GetTransactionStatus();
                 _phase = Phase.Completed;
                 return true;
@@ -101,6 +141,9 @@ public sealed class BinaryCopyOperation
 
     private void RequireImport()
     {
-        if (_phase != Phase.Import) throw new InvalidOperationException("The COPY IN data phase is not active.");
+        if (_phase != Phase.Import)
+        {
+            throw new InvalidOperationException("The COPY IN data phase is not active.");
+        }
     }
 }

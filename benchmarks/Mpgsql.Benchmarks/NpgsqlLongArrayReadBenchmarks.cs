@@ -28,15 +28,21 @@ public class NpgsqlLongArrayReadBenchmarks
         long[] values = NpgsqlArrayVerification.Values(Count);
         // Independent scalar reference, same bytes for all three decoders.
         byte[] bytes = new byte[Int64ArrayConverter.GetByteCount(Count)];
-        Int64ArrayReference.WriteScalar(values, bytes);
-        _payload = NpgsqlArrayVerification.Sequence(bytes, ReaderBufferSize);
-        _harness = new(20, bytes, ReaderBufferSize);
+        Int64ArrayReference.WriteScalar(values,
+            bytes);
+        _payload = NpgsqlArrayVerification.Sequence(bytes,
+            ReaderBufferSize);
+        _harness = new(20,
+            bytes,
+            ReaderBufferSize);
         if (!NpgsqlOriginal().AsSpan().SequenceEqual(values) ||
             !NpgsqlCopied().AsSpan().SequenceEqual(values) ||
             !Mpgsql().Span.SequenceEqual(values) ||
             !_harness.ReadAsync(_harness.Original).GetAwaiter().GetResult().AsSpan().SequenceEqual(values) ||
             !_harness.ReadAsync(_harness.Copy).GetAwaiter().GetResult().AsSpan().SequenceEqual(values))
+        {
             throw new InvalidOperationException("An Npgsql array decoder differs from the expected values.");
+        }
     }
 
     // All paths return owned storage. Reusing Mpgsql's output is measured separately

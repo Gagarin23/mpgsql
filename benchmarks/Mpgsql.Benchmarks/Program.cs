@@ -12,7 +12,11 @@ using Mpgsql.Protocol;
 if (args.Contains("--copy-live"))
 {
     try { Mpgsql.Benchmarks.Live.BinaryCopyLiveBenchmarks.Run(args); }
-    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine(error);
+        Environment.ExitCode = 1;
+    }
     return;
 }
 
@@ -22,23 +26,23 @@ if (args.Contains("--verify"))
     Console.WriteLine("Scalar bigint/nullable bigint results and zero-allocation span/writer/segmented paths verified.");
     new SyncBenchmarks().Setup();
     new ExecuteBenchmarks().Setup();
-    foreach (int length in new[] { 32, 4096 })
-        new ParseBenchmarks { QueryLength = length }.Setup();
-    foreach (int count in new[] { 1, 16 })
-        new BindBenchmarks { Parameters = count }.Setup();
-    foreach (int count in new[] { 1, 8, 64 })
-        foreach (bool fragmented in new[] { false, true })
-            new DataRowBenchmarks { Columns = count, Fragmented = fragmented }.Setup();
-    foreach (bool ready in new[] { false, true })
-        new BackendControlBenchmarks { ReadyForQuery = ready }.Setup();
-    foreach (int count in new[] { 0, 1, 3, 4, 5, 8, 256, 4096, 65536 })
+    foreach (int length in new[] {32, 4096})
+        new ParseBenchmarks {QueryLength = length}.Setup();
+    foreach (int count in new[] {1, 16})
+        new BindBenchmarks {Parameters = count}.Setup();
+    foreach (int count in new[] {1, 8, 64})
+    foreach (bool fragmented in new[] {false, true})
+        new DataRowBenchmarks {Columns = count, Fragmented = fragmented}.Setup();
+    foreach (bool ready in new[] {false, true})
+        new BackendControlBenchmarks {ReadyForQuery = ready}.Setup();
+    foreach (int count in new[] {0, 1, 3, 4, 5, 8, 256, 4096, 65536})
     {
-        var write = new Int64ArrayWriteBenchmarks { Count = count };
+        var write = new Int64ArrayWriteBenchmarks {Count = count};
         write.Setup();
         write.CheckReusableAllocations();
-        foreach (int segmentSize in new[] { 0, 7, 4096 })
+        foreach (int segmentSize in new[] {0, 7, 4096})
         {
-            var read = new Int64ArrayReadBenchmarks { Count = count, SegmentSize = segmentSize };
+            var read = new Int64ArrayReadBenchmarks {Count = count, SegmentSize = segmentSize};
             read.Setup();
             read.CheckReusableAllocations();
         }

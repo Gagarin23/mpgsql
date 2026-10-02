@@ -9,7 +9,8 @@ public interface IFrontendMessage<TSelf> where TSelf : struct, IFrontendMessage<
 {
     static abstract byte? GetMessageType(in TSelf message);
     static abstract int GetByteCount(in TSelf message);
-    static abstract void WritePayload(in TSelf message, Span<byte> destination);
+    static abstract void WritePayload(in TSelf message,
+        Span<byte> destination);
 }
 
 /// <summary>Writes typed frontend messages without dispatching on their kind.</summary>
@@ -18,24 +19,35 @@ public static class FrontendMessageWriter
     public static int GetByteCount<T>(in T message) where T : struct, IFrontendMessage<T> => T.GetByteCount(in message);
 
     /// <summary>Checks complete packet capacity before writing any bytes.</summary>
-    public static int Write<T>(in T message, Span<byte> destination) where T : struct, IFrontendMessage<T>
+    public static int Write<T>(in T message,
+        Span<byte> destination) where T : struct, IFrontendMessage<T>
     {
         int length = T.GetByteCount(in message);
         if (destination.Length < length)
-            throw new ArgumentException("The destination is too small for the PostgreSQL message.", nameof(destination));
-        WriteCore(in message, destination[..length], length);
+        {
+            throw new ArgumentException("The destination is too small for the PostgreSQL message.",
+                nameof(destination));
+        }
+        WriteCore(in message,
+            destination[..length],
+            length);
         return length;
     }
 
-    public static void Write<T>(in T message, IBufferWriter<byte> destination) where T : struct, IFrontendMessage<T>
+    public static void Write<T>(in T message,
+        IBufferWriter<byte> destination) where T : struct, IFrontendMessage<T>
     {
         ArgumentNullException.ThrowIfNull(destination);
         int length = T.GetByteCount(in message);
-        WriteCore(in message, destination.GetSpan(length)[..length], length);
+        WriteCore(in message,
+            destination.GetSpan(length)[..length],
+            length);
         destination.Advance(length);
     }
 
-    private static void WriteCore<T>(in T message, Span<byte> destination, int length) where T : struct, IFrontendMessage<T>
+    private static void WriteCore<T>(in T message,
+        Span<byte> destination,
+        int length) where T : struct, IFrontendMessage<T>
     {
         byte? type = T.GetMessageType(in message);
         int offset = 0;
@@ -45,34 +57,48 @@ public static class FrontendMessageWriter
             offset = 1;
         }
         // Length includes its own four bytes and the body, but not the optional tag.
-        BinaryPrimitives.WriteInt32BigEndian(destination.Slice(offset, 4), length - offset);
-        T.WritePayload(in message, destination[(offset + 4)..]);
+        BinaryPrimitives.WriteInt32BigEndian(destination.Slice(offset,
+                4),
+            length - offset);
+        T.WritePayload(in message,
+            destination[(offset + 4)..]);
     }
 }
 
 internal static class FrontendSize
 {
-    internal static int Packet(int payloadLength, bool tagged = true) => checked(payloadLength + (tagged ? 5 : 4));
+    internal static int Packet(int payloadLength,
+        bool tagged = true) => checked(payloadLength + (tagged ? 5 : 4));
     internal static int Initialized(int length)
     {
         if (length == 0)
+        {
             throw new InvalidOperationException("The frontend message is not initialized.");
+        }
         return length;
     }
     internal static void Count(int count)
     {
         if ((uint)count > ushort.MaxValue)
-            throw new ArgumentOutOfRangeException(nameof(count), "A PostgreSQL Int16 count cannot exceed 65535.");
+        {
+            throw new ArgumentOutOfRangeException(nameof(count),
+                "A PostgreSQL Int16 count cannot exceed 65535.");
+        }
     }
     internal static void Format(FormatCode format)
     {
         if (format is not (FormatCode.Text or FormatCode.Binary))
+        {
             throw new ArgumentOutOfRangeException(nameof(format));
+        }
     }
-    internal static void ParameterFormats(int formatCount, int valueCount)
+    internal static void ParameterFormats(int formatCount,
+        int valueCount)
     {
         if (formatCount != 0 && formatCount != 1 && formatCount != valueCount)
+        {
             throw new ArgumentException("Parameter format count must be 0, 1, or the parameter count.");
+        }
     }
     internal static int Formats(ReadOnlySpan<FormatCode> formats)
     {

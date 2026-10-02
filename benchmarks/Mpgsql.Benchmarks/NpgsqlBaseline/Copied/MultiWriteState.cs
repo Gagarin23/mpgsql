@@ -43,15 +43,21 @@ class MultiWriteState : IDisposable
     public void Dispose()
     {
         if (Data.Array is not { } array)
+        {
             return;
+        }
 
         if (AnyWriteState)
         {
             for (var i = Data.Offset; i < array.Length; i++)
                 if (array[i].WriteState is IDisposable disposable)
+                {
                     disposable.Dispose();
+                }
 
-            Array.Clear(Data.Array, Data.Offset, Data.Count);
+            Array.Clear(Data.Array,
+                Data.Offset,
+                Data.Count);
         }
 
         ArrayPool?.Return(Data.Array);

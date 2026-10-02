@@ -25,37 +25,60 @@ public class Int64ConverterBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        BinaryPrimitives.WriteInt64BigEndian(_bytes, _value);
+        BinaryPrimitives.WriteInt64BigEndian(_bytes,
+            _value);
         _nullablePayload = _bytes;
-        _segmented = NpgsqlArrayVerification.Sequence(_bytes, 3);
+        _segmented = NpgsqlArrayVerification.Sequence(_bytes,
+            3);
         if (WritePrimitive() != WriteConverter() || WriteNullable() != 8 ||
             ReadPrimitive() != ReadConverter() || ReadNullable() != _value ||
             ReadSegmentedPrimitive() != ReadSegmentedConverter())
+        {
             throw new InvalidOperationException("Scalar bigint benchmark results differ.");
+        }
         for (int i = 0; i < 64; i++) ExerciseAllPaths();
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < 1024; i++) ExerciseAllPaths();
         if (GC.GetAllocatedBytesForCurrentThread() != before)
+        {
             throw new InvalidOperationException("Scalar bigint conversion allocated managed memory.");
+        }
     }
 
     private void ExerciseAllPaths()
     {
-        WriteConverter(); WriteNullable(); ReadConverter(); ReadNullable(); ReadSegmentedConverter();
-        _writer.Reset(); Int64Converter.Write(_value, _writer);
-        _writer.Reset(); Int64Converter.Write(_nullableValue, _writer);
-        Int64Converter.Write((long?)null, _bytes);
-        Int64Converter.Write((long?)null, _writer);
+        WriteConverter();
+        WriteNullable();
+        ReadConverter();
+        ReadNullable();
+        ReadSegmentedConverter();
+        _writer.Reset();
+        Int64Converter.Write(_value,
+            _writer);
+        _writer.Reset();
+        Int64Converter.Write(_nullableValue,
+            _writer);
+        Int64Converter.Write((long?)null,
+            _bytes);
+        Int64Converter.Write((long?)null,
+            _writer);
         _ = Int64Converter.ReadNullable((ReadOnlyMemory<byte>?)null);
         _ = Int64Converter.ReadNullable((ReadOnlySequence<byte>?)null);
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("Write")]
-    public int WritePrimitive() { BinaryPrimitives.WriteInt64BigEndian(_bytes, _value); return 8; }
+    public int WritePrimitive()
+    {
+        BinaryPrimitives.WriteInt64BigEndian(_bytes,
+            _value);
+        return 8;
+    }
     [Benchmark, BenchmarkCategory("Write")]
-    public int WriteConverter() => Int64Converter.Write(_value, _bytes);
+    public int WriteConverter() => Int64Converter.Write(_value,
+        _bytes);
     [Benchmark, BenchmarkCategory("Write")]
-    public int WriteNullable() => Int64Converter.Write(_nullableValue, _bytes);
+    public int WriteNullable() => Int64Converter.Write(_nullableValue,
+        _bytes);
 
     [Benchmark(Baseline = true), BenchmarkCategory("Read")]
     public long ReadPrimitive() => BinaryPrimitives.ReadInt64BigEndian(_bytes);

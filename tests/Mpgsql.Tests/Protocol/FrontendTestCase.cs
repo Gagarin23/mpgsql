@@ -26,7 +26,9 @@ public abstract class FrontendTestCase
     {
         private readonly T _message = message;
         public override int GetByteCount() => FrontendMessageWriter.GetByteCount(in _message);
-        public override int Write(Span<byte> destination) => FrontendMessageWriter.Write(in _message, destination);
-        public override void Write(IBufferWriter<byte> destination) => FrontendMessageWriter.Write(in _message, destination);
+        public override int Write(Span<byte> destination) => FrontendMessageWriter.Write(in _message,
+            destination);
+        public override void Write(IBufferWriter<byte> destination) => FrontendMessageWriter.Write(in _message,
+            destination);
     }
 }

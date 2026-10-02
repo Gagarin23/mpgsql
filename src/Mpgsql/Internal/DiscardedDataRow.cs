@@ -13,8 +13,12 @@ internal sealed class DiscardedDataRow
 
     internal void Reset()
     {
-        _prefixBytes = 0; _prefix = 0; _fieldsRemaining = 0;
-        _valueRemaining = 0; _countRead = false; Columns = 0;
+        _prefixBytes = 0;
+        _prefix = 0;
+        _fieldsRemaining = 0;
+        _valueRemaining = 0;
+        _countRead = false;
+        Columns = 0;
     }
 
     internal void Feed(ReadOnlySpan<byte> input)
@@ -23,32 +27,50 @@ internal sealed class DiscardedDataRow
         {
             if (_valueRemaining > 0)
             {
-                int size = Math.Min(_valueRemaining, input.Length);
-                input = input[size..]; _valueRemaining -= size;
+                int size = Math.Min(_valueRemaining,
+                    input.Length);
+                input = input[size..];
+                _valueRemaining -= size;
                 continue;
             }
             if (_countRead && _fieldsRemaining == 0)
+            {
                 throw new InvalidDataException("Trailing bytes in discarded DataRow.");
+            }
             _prefix = (_prefix << 8) | input[0];
-            input = input[1..]; _prefixBytes++;
-            if (_prefixBytes != (_countRead ? 4 : 2)) continue;
+            input = input[1..];
+            _prefixBytes++;
+            if (_prefixBytes != (_countRead ? 4 : 2))
+            {
+                continue;
+            }
             if (!_countRead)
             {
-                Columns = (int)_prefix; _fieldsRemaining = Columns; _countRead = true;
+                Columns = (int)_prefix;
+                _fieldsRemaining = Columns;
+                _countRead = true;
             }
             else
             {
                 int length = unchecked((int)_prefix);
-                if (length < -1) throw new InvalidDataException("Invalid discarded DataRow value length.");
-                _valueRemaining = Math.Max(0, length); _fieldsRemaining--;
+                if (length < -1)
+                {
+                    throw new InvalidDataException("Invalid discarded DataRow value length.");
+                }
+                _valueRemaining = Math.Max(0,
+                    length);
+                _fieldsRemaining--;
             }
-            _prefix = 0; _prefixBytes = 0;
+            _prefix = 0;
+            _prefixBytes = 0;
         }
     }
 
     internal void End()
     {
         if (!_countRead || _fieldsRemaining != 0 || _valueRemaining != 0 || _prefixBytes != 0)
+        {
             throw new InvalidDataException("Truncated discarded DataRow.");
+        }
     }
 }

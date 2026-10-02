@@ -16,37 +16,56 @@ internal sealed class TestScram
 
     internal byte[] First() => Encoding.UTF8.GetBytes("n,," + _firstBare);
 
-    internal byte[] Continue(string serverFirst, string password)
+    internal byte[] Continue(string serverFirst,
+        string password)
     {
         if (password.Any(c => c > 127))
+        {
             throw new NotSupportedException("The live-test helper requires an ASCII password.");
+        }
         var fields = Fields(serverFirst);
-        if (fields.ContainsKey('m') || !fields['r'].StartsWith(_nonce, StringComparison.Ordinal) ||
+        if (fields.ContainsKey('m') || !fields['r'].StartsWith(_nonce,
+                StringComparison.Ordinal) ||
             fields['r'].Length <= _nonce.Length)
+        {
             throw new InvalidDataException("Invalid SCRAM server nonce or mandatory extension.");
+        }
         int iterations = int.Parse(fields['i']);
         if (iterations is < 1 or > 1_000_000)
+        {
             throw new InvalidDataException("Invalid SCRAM iteration count.");
-        byte[] salted = Rfc2898DeriveBytes.Pbkdf2(password, Convert.FromBase64String(fields['s']),
-            iterations, HashAlgorithmName.SHA256, 32);
-        byte[] clientKey = HMACSHA256.HashData(salted, "Client Key"u8);
+        }
+        byte[] salted = Rfc2898DeriveBytes.Pbkdf2(password,
+            Convert.FromBase64String(fields['s']),
+            iterations,
+            HashAlgorithmName.SHA256,
+            32);
+        byte[] clientKey = HMACSHA256.HashData(salted,
+            "Client Key"u8);
         byte[] storedKey = SHA256.HashData(clientKey);
         string finalBare = $"c=biws,r={fields['r']}";
         byte[] authMessage = Encoding.UTF8.GetBytes($"{_firstBare},{serverFirst},{finalBare}");
-        byte[] clientSignature = HMACSHA256.HashData(storedKey, authMessage);
+        byte[] clientSignature = HMACSHA256.HashData(storedKey,
+            authMessage);
         for (int i = 0; i < clientKey.Length; i++)
             clientKey[i] ^= clientSignature[i];
-        byte[] serverKey = HMACSHA256.HashData(salted, "Server Key"u8);
-        _expectedSignature = HMACSHA256.HashData(serverKey, authMessage);
+        byte[] serverKey = HMACSHA256.HashData(salted,
+            "Server Key"u8);
+        _expectedSignature = HMACSHA256.HashData(serverKey,
+            authMessage);
         return Encoding.UTF8.GetBytes($"{finalBare},p={Convert.ToBase64String(clientKey)}");
     }
 
     internal void Verify(string serverFinal)
     {
         var fields = Fields(serverFinal);
-        if (_expectedSignature is null || fields.ContainsKey('e') || !fields.TryGetValue('v', out string? signature) ||
-            !CryptographicOperations.FixedTimeEquals(_expectedSignature, Convert.FromBase64String(signature)))
+        if (_expectedSignature is null || fields.ContainsKey('e') || !fields.TryGetValue('v',
+                out string? signature) ||
+            !CryptographicOperations.FixedTimeEquals(_expectedSignature,
+                Convert.FromBase64String(signature)))
+        {
             throw new InvalidDataException("SCRAM server signature verification failed.");
+        }
         Completed = true;
     }
 

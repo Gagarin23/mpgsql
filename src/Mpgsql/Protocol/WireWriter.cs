@@ -14,31 +14,36 @@ internal ref struct WireWriter(Span<byte> destination)
 
     internal void Int16(short value)
     {
-        BinaryPrimitives.WriteInt16BigEndian(_remaining, value);
+        BinaryPrimitives.WriteInt16BigEndian(_remaining,
+            value);
         _remaining = _remaining[2..];
     }
 
     internal void Count(int value)
     {
-        BinaryPrimitives.WriteUInt16BigEndian(_remaining, checked((ushort)value));
+        BinaryPrimitives.WriteUInt16BigEndian(_remaining,
+            checked((ushort)value));
         _remaining = _remaining[2..];
     }
 
     internal void Int32(int value)
     {
-        BinaryPrimitives.WriteInt32BigEndian(_remaining, value);
+        BinaryPrimitives.WriteInt32BigEndian(_remaining,
+            value);
         _remaining = _remaining[4..];
     }
 
     internal void UInt32(uint value)
     {
-        BinaryPrimitives.WriteUInt32BigEndian(_remaining, value);
+        BinaryPrimitives.WriteUInt32BigEndian(_remaining,
+            value);
         _remaining = _remaining[4..];
     }
 
     internal void CString(string value)
     {
-        int written = WireEncoding.Utf8.GetBytes(value.AsSpan(), _remaining);
+        int written = WireEncoding.Utf8.GetBytes(value.AsSpan(),
+            _remaining);
         _remaining = _remaining[written..];
         Byte(0);
     }
@@ -53,7 +58,9 @@ internal ref struct WireWriter(Span<byte> destination)
     {
         Int32(value?.Length ?? -1);
         if (value.HasValue)
+        {
             Bytes(value.Value.Span);
+        }
     }
 
     internal void Formats(ReadOnlySpan<FormatCode> formats)

@@ -26,10 +26,13 @@ public class ExecuteBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _message = FrontendMessage.Execute(Portal, 100);
+        _message = FrontendMessage.Execute(Portal,
+            100);
 #if PROTOCOL_BASELINE
-        _original = OriginalFrontend.Execute(Portal, 100);
-        PacketVerification.Check(in _message, _original);
+        _original = OriginalFrontend.Execute(Portal,
+            100);
+        PacketVerification.Check(in _message,
+            _original);
 #else
         PacketVerification.Check(in _message);
 #endif
@@ -40,15 +43,18 @@ public class ExecuteBenchmarks
     public int OriginalPrepared()
     {
         int size = _original.GetByteCount();
-        return _original.Write(_buffer.AsSpan(0, size)) + _buffer[size - 1];
+        return _original.Write(_buffer.AsSpan(0,
+            size)) + _buffer[size - 1];
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("PerRequest")]
     public int OriginalPerRequest()
     {
-        var message = OriginalFrontend.Execute(Portal, 100);
+        var message = OriginalFrontend.Execute(Portal,
+            100);
         int size = message.GetByteCount();
-        return message.Write(_buffer.AsSpan(0, size)) + _buffer[size - 1];
+        return message.Write(_buffer.AsSpan(0,
+            size)) + _buffer[size - 1];
     }
 #endif
 
@@ -56,14 +62,17 @@ public class ExecuteBenchmarks
     public int TypedPrepared()
     {
         int size = _message.GetByteCount();
-        return _message.Write(_buffer.AsSpan(0, size)) + _buffer[size - 1];
+        return _message.Write(_buffer.AsSpan(0,
+            size)) + _buffer[size - 1];
     }
 
     [Benchmark, BenchmarkCategory("PerRequest")]
     public int TypedPerRequest()
     {
-        var message = FrontendMessage.Execute(Portal, 100);
+        var message = FrontendMessage.Execute(Portal,
+            100);
         int size = message.GetByteCount();
-        return message.Write(_buffer.AsSpan(0, size)) + _buffer[size - 1];
+        return message.Write(_buffer.AsSpan(0,
+            size)) + _buffer[size - 1];
     }
 }

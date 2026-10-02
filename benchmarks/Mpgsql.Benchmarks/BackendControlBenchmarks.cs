@@ -23,11 +23,13 @@ public class BackendControlBenchmarks
     public void Setup()
     {
         _packet = new ReadOnlySequence<byte>(ReadyForQuery
-            ? new byte[] { (byte)'Z', 0, 0, 0, 5, (byte)'I' }
-            : new byte[] { (byte)'1', 0, 0, 0, 4 });
+            ? [(byte)'Z', 0, 0, 0, 5, (byte)'I']
+            : [(byte)'1', 0, 0, 0, 4]);
 #if PROTOCOL_BASELINE
         if (Original() != Current())
+        {
             throw new InvalidOperationException("Control packet classification differs from the baseline.");
+        }
 #else
         Current();
 #endif
@@ -38,8 +40,11 @@ public class BackendControlBenchmarks
     public int Original()
     {
         var input = _packet;
-        if (!OriginalReader.TryRead(ref input, out var message))
+        if (!OriginalReader.TryRead(ref input,
+                out var message))
+        {
             throw new InvalidOperationException();
+        }
         return (int)message.Kind + (int)message.Payload.Length + (int)input.Length;
     }
 #endif
@@ -48,8 +53,11 @@ public class BackendControlBenchmarks
     public int Current()
     {
         var input = _packet;
-        if (!BackendMessageReader.TryRead(ref input, out var message))
+        if (!BackendMessageReader.TryRead(ref input,
+                out var message))
+        {
             throw new InvalidOperationException();
+        }
         return (int)message.Kind + (int)message.Payload.Length + (int)input.Length;
     }
 }

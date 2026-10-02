@@ -11,7 +11,9 @@ public sealed class MpgsqlServerException : Exception
     public int? QueryIndex { get; }
     public TransactionStatus TransactionStatus { get; }
 
-    internal MpgsqlServerException(DiagnosticMessage diagnostics, int? queryIndex, TransactionStatus status)
+    internal MpgsqlServerException(DiagnosticMessage diagnostics,
+        int? queryIndex,
+        TransactionStatus status)
         : base(diagnostics.Message ?? "PostgreSQL rejected the query group.")
         => (Diagnostics, QueryIndex, TransactionStatus) = (diagnostics, queryIndex, status);
 }

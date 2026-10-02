@@ -41,9 +41,9 @@ struct Indices
     public static Indices Create(int dimensions)
         => dimensions switch
         {
-            0 => new() { Count = dimensions, One = -1 },
-            1 => new() { Count = dimensions },
-            _ => new() { Count = dimensions, Many = new int[dimensions] }
+            0 => new() {Count = dimensions, One = -1},
+            1 => new() {Count = dimensions},
+            _ => new() {Count = dimensions, Many = new int[dimensions]}
         };
 }
 

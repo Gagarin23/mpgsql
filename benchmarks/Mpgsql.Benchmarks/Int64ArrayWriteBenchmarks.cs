@@ -24,17 +24,25 @@ public class Int64ArrayWriteBenchmarks
         _destination = new byte[Int64ArrayConverter.GetByteCount(_value)];
         Scalar();
         var expected = _destination.ToArray();
-        Check(expected, FusedSimd());
-        Check(expected, Packed());
-        Check(expected, PackedFill());
-        Check(expected, PooledPacked());
-        Check(expected, PooledPackedFill());
+        Check(expected,
+            FusedSimd());
+        Check(expected,
+            Packed());
+        Check(expected,
+            PackedFill());
+        Check(expected,
+            PooledPacked());
+        Check(expected,
+            PooledPackedFill());
     }
 
-    private void Check(byte[] expected, int size)
+    private void Check(byte[] expected,
+        int size)
     {
         if (size != expected.Length || !expected.AsSpan().SequenceEqual(_destination))
+        {
             throw new InvalidOperationException("An array encoder differs from the scalar wire bytes.");
+        }
     }
 
     public void CheckReusableAllocations()
@@ -44,23 +52,39 @@ public class Int64ArrayWriteBenchmarks
         {
             for (int i = 0; i < 32; i++) FusedSimd();
             long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int i = 0; i < Math.Max(16, 4096 / Math.Max(1, Count)); i++) FusedSimd();
+            for (int i = 0; i < Math.Max(16,
+                     4096
+                     / Math.Max(1,
+                         Count)); i++) FusedSimd();
             allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-            if (allocated == 0) return;
+            if (allocated == 0)
+            {
+                return;
+            }
         }
         throw new InvalidOperationException($"Writing {Count} elements allocated {allocated} bytes.");
     }
 
     [Benchmark(Baseline = true)]
-    public int Scalar() => Int64ArrayReference.WriteScalar(_value, _destination);
+    public int Scalar() => Int64ArrayReference.WriteScalar(_value,
+        _destination);
     [Benchmark]
-    public int FusedSimd() => Int64ArrayConverter.Write(_value, _destination);
+    public int FusedSimd() => Int64ArrayConverter.Write(_value,
+        _destination);
     [Benchmark]
-    public int Packed() => Int64ArrayReference.WritePacked(_value, _destination, fill: false);
+    public int Packed() => Int64ArrayReference.WritePacked(_value,
+        _destination,
+        fill: false);
     [Benchmark]
-    public int PackedFill() => Int64ArrayReference.WritePacked(_value, _destination, fill: true);
+    public int PackedFill() => Int64ArrayReference.WritePacked(_value,
+        _destination,
+        fill: true);
     [Benchmark]
-    public int PooledPacked() => Int64ArrayReference.WritePooled(_value, _destination, fill: false);
+    public int PooledPacked() => Int64ArrayReference.WritePooled(_value,
+        _destination,
+        fill: false);
     [Benchmark]
-    public int PooledPackedFill() => Int64ArrayReference.WritePooled(_value, _destination, fill: true);
+    public int PooledPackedFill() => Int64ArrayReference.WritePooled(_value,
+        _destination,
+        fill: true);
 }
