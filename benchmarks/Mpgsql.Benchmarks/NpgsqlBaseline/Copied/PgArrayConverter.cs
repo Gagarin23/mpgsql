@@ -181,7 +181,8 @@ readonly partial struct PgArrayConverter
                 Count = count, Indices = indices, Lengths = lengths,
                 ArrayPool = arrayPool, Data = new(data,
                     0,
-                    count), AnyWriteState = elemStateDisposable
+                    count),
+                AnyWriteState = elemStateDisposable
             };
         }
 
@@ -396,7 +397,9 @@ readonly partial struct PgArrayConverter
 
             var elem = elemData?[i++];
             var size = elem?.Size ?? (elemTypeDbNullable && IsDbNull(values,
-                indices) ? -1 : bufferRequirements.Write);
+                indices)
+                ? -1
+                : bufferRequirements.Write);
             if (size.Kind is SizeKind.Unknown)
             {
                 throw new InvalidOperationException(nameof(size.Kind) + " must be known at this point.");

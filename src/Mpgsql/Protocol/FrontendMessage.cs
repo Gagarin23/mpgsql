@@ -23,11 +23,18 @@ public static class FrontendMessage
     public static StartupMessage Startup(string user,
         string? database = null) =>
         Startup(database is null
-            ? new KeyValuePair<string, string>[] {new("user",
-                user)}
-            : new KeyValuePair<string, string>[] {new("user",
-                user), new("database",
-                database)});
+            ? new KeyValuePair<string, string>[]
+            {
+                new("user",
+                    user)
+            }
+            : new KeyValuePair<string, string>[]
+            {
+                new("user",
+                    user),
+                new("database",
+                    database)
+            });
     public static StartupMessage Startup(ReadOnlyMemory<KeyValuePair<string, string>> parameters) => new(parameters);
     public static EncryptionRequestMessage SslRequest() => new(80877103,
         FrontendMessageKind.SslRequest);

@@ -108,9 +108,10 @@ public sealed class CancellationTests
         request.Cancel();
         foreach (var batch in cancelled) await batch.DisposeAsync();
         long before = wire.Session.CopiedRowBytes;
-        for (int i = 0; i < cancelled.Length; i++) await wire.WriteAsync(Join(Query(i),
-                Ready()),
-            fragment: 1);
+        for (int i = 0; i < cancelled.Length; i++)
+            await wire.WriteAsync(Join(Query(i),
+                    Ready()),
+                fragment: 1);
         await Task.WhenAll(cancelled.Select(batch => batch.Completion)).WaitAsync(TestTimeout,
             TestContext.Current.CancellationToken);
         Assert.Equal(before,

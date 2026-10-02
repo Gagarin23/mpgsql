@@ -167,8 +167,9 @@ public static class NullableInt64ArrayConverter
             destination.Length);
         destination = destination[..count];
         var outputBytes = AsBytes(destination);
-        foreach (var segment in payload) RequireSeparateStorage(segment.Span,
-            outputBytes);
+        foreach (var segment in payload)
+            RequireSeparateStorage(segment.Span,
+                outputBytes);
         ReadSegmentedRecords(ref reader,
             destination);
         return count;

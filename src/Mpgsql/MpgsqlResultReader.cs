@@ -31,8 +31,11 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
             _end = true;
             throw;
         }
-        finally { Volatile.Write(ref _busy,
-            0); }
+        finally
+        {
+            Volatile.Write(ref _busy,
+                0);
+        }
     }
 
     private async ValueTask<bool> ReadCoreAsync()
@@ -76,8 +79,11 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
             _end = true;
             throw;
         }
-        finally { Volatile.Write(ref _busy,
-            0); }
+        finally
+        {
+            Volatile.Write(ref _busy,
+                0);
+        }
     }
 
     private async ValueTask<bool> MoveResultAsync()
@@ -193,7 +199,10 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
             ReleaseCurrent();
             await _batch.DiscardResultsAsync().ConfigureAwait(false);
         }
-        finally { Volatile.Write(ref _busy,
-            0); }
+        finally
+        {
+            Volatile.Write(ref _busy,
+                0);
+        }
     }
 }

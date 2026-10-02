@@ -30,8 +30,10 @@ public class Int64ArrayReadBenchmarks
         byte[] bytes = new byte[Int64ArrayConverter.GetByteCount(values)];
         Int64ArrayReference.WriteScalar(values,
             bytes);
-        _payload = SegmentSize == 0 ? new ReadOnlySequence<byte>(bytes) : Segment(bytes,
-            SegmentSize);
+        _payload = SegmentSize == 0
+            ? new ReadOnlySequence<byte>(bytes)
+            : Segment(bytes,
+                SegmentSize);
         _destination = new long[Count];
         if (Scalar() != Count || !_destination.AsSpan().SequenceEqual(values) ||
             FusedSimd() != Count || !_destination.AsSpan().SequenceEqual(values) ||
@@ -58,10 +60,12 @@ public class Int64ArrayReadBenchmarks
         {
             for (int i = 0; i < 32; i++) FusedSimd();
             long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int i = 0; i < Math.Max(16,
+            for (int i = 0;
+                 i < Math.Max(16,
                      4096
                      / Math.Max(1,
-                         Count)); i++) FusedSimd();
+                         Count));
+                 i++) FusedSimd();
             allocated = GC.GetAllocatedBytesForCurrentThread() - before;
             if (allocated == 0)
             {
@@ -93,7 +97,7 @@ public class Int64ArrayReadBenchmarks
         internal SegmentNode(ReadOnlyMemory<byte> memory) => Memory = memory;
         internal SegmentNode Append(ReadOnlyMemory<byte> memory)
         {
-            var node = new SegmentNode(memory) { RunningIndex = RunningIndex + Memory.Length };
+            var node = new SegmentNode(memory) {RunningIndex = RunningIndex + Memory.Length};
             Next = node;
             return node;
         }

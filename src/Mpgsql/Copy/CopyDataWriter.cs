@@ -118,8 +118,11 @@ public sealed class CopyDataWriter : IBufferWriter<byte>, IDisposable
 
     private void WritePacket(int count)
     {
-        try { _stream.Write(_buffer!.AsSpan(0,
-            count)); }
+        try
+        {
+            _stream.Write(_buffer!.AsSpan(0,
+                count));
+        }
         catch
         {
             _faulted = true;

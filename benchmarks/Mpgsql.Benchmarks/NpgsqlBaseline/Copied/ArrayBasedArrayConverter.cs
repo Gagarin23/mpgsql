@@ -54,14 +54,14 @@ sealed class ArrayBasedArrayConverter<T, TElement>(PgConverterResolution elemRes
         Debug.Assert(indices.Count > 0);
         switch (indices.Count)
         {
-        case 1:
-            // Justification: exact type Unsafe.As used to avoid the cast overhead for per element calls.
-            Debug.Assert(collection is TElement?[]);
-            return Unsafe.As<TElement?[]>(collection)[indices.One];
-        default:
-            // Justification: exact type Unsafe.As used to avoid the cast overhead for per element calls.
-            Debug.Assert(collection is Array);
-            return (TElement?)Unsafe.As<Array>(collection).GetValue(indices.Many!);
+            case 1:
+                // Justification: exact type Unsafe.As used to avoid the cast overhead for per element calls.
+                Debug.Assert(collection is TElement?[]);
+                return Unsafe.As<TElement?[]>(collection)[indices.One];
+            default:
+                // Justification: exact type Unsafe.As used to avoid the cast overhead for per element calls.
+                Debug.Assert(collection is Array);
+                return (TElement?)Unsafe.As<Array>(collection).GetValue(indices.Many!);
         }
     }
 
@@ -90,17 +90,17 @@ sealed class ArrayBasedArrayConverter<T, TElement>(PgConverterResolution elemRes
     object IElementOperations.CreateCollection(ReadOnlySpan<int> lengths)
         => lengths.Length switch
         {
-            0 => Array.Empty<TElement?>(),
+            0                      => Array.Empty<TElement?>(),
             1 when lengths[0] == 0 => Array.Empty<TElement?>(),
-            1 => new TElement?[lengths[0]],
-            2 => new TElement?[lengths[0], lengths[1]],
-            3 => new TElement?[lengths[0], lengths[1], lengths[2]],
-            4 => new TElement?[lengths[0], lengths[1], lengths[2], lengths[3]],
-            5 => new TElement?[lengths[0], lengths[1], lengths[2], lengths[3], lengths[4]],
-            6 => new TElement?[lengths[0], lengths[1], lengths[2], lengths[3], lengths[4], lengths[5]],
-            7 => new TElement?[lengths[0], lengths[1], lengths[2], lengths[3], lengths[4], lengths[5], lengths[6]],
-            8 => new TElement?[lengths[0], lengths[1], lengths[2], lengths[3], lengths[4], lengths[5], lengths[6], lengths[7]],
-            _ => throw new InvalidOperationException("Postgres arrays can have at most 8 dimensions.")
+            1                      => new TElement?[lengths[0]],
+            2                      => new TElement?[lengths[0], lengths[1]],
+            3                      => new TElement?[lengths[0], lengths[1], lengths[2]],
+            4                      => new TElement?[lengths[0], lengths[1], lengths[2], lengths[3]],
+            5                      => new TElement?[lengths[0], lengths[1], lengths[2], lengths[3], lengths[4]],
+            6                      => new TElement?[lengths[0], lengths[1], lengths[2], lengths[3], lengths[4], lengths[5]],
+            7                      => new TElement?[lengths[0], lengths[1], lengths[2], lengths[3], lengths[4], lengths[5], lengths[6]],
+            8                      => new TElement?[lengths[0], lengths[1], lengths[2], lengths[3], lengths[4], lengths[5], lengths[6], lengths[7]],
+            _                      => throw new InvalidOperationException("Postgres arrays can have at most 8 dimensions.")
         };
 
     int IElementOperations.GetCollectionCount(object collection,

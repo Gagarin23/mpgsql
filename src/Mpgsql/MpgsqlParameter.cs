@@ -59,12 +59,15 @@ public readonly struct MpgsqlParameter
     {
         switch (_kind)
         {
-            case 1: Int64Converter.Write(_number,
-                destination); break;
-            case 2: Int64ArrayConverter.Write(_array,
-                destination); break;
-            case 3: NullableInt64ArrayConverter.Write(_nullableArray,
-                destination); break;
+            case 1:
+                Int64Converter.Write(_number,
+                    destination); break;
+            case 2:
+                Int64ArrayConverter.Write(_array,
+                    destination); break;
+            case 3:
+                NullableInt64ArrayConverter.Write(_nullableArray,
+                    destination); break;
             default: throw new InvalidOperationException("The MpgsqlParameter is not initialized.");
         }
     }

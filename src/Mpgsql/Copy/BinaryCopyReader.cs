@@ -143,8 +143,10 @@ public sealed class BinaryCopyReader
         for (int i = 0; i < count; i++)
         {
             values.TryReadBigEndian(out int length);
-            fields.Span[i] = length == -1 ? null : values.Sequence.Slice(values.Position,
-                length);
+            fields.Span[i] = length == -1
+                ? null
+                : values.Sequence.Slice(values.Position,
+                    length);
             if (length > 0)
             {
                 values.Advance(length);
@@ -202,8 +204,10 @@ public sealed class BinaryCopyReader
             return BinaryCopyReadStatus.NeedMoreData;
         }
         // A complete one-field row needs no second validation/indexing pass.
-        fields.Span[0] = length == -1 ? null : input.Slice(6,
-            length);
+        fields.Span[0] = length == -1
+            ? null
+            : input.Slice(6,
+                length);
         input = input.Slice(size);
         row = new BinaryCopyRow(fields[..1]);
         RowsRead++;

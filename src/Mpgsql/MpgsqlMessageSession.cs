@@ -275,8 +275,11 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
                         throw new EndOfStreamException(_frames.HasPartialFrame ? "Truncated backend frame." : "The backend closed the transport.");
                     }
                 }
-                finally { _input.AdvanceTo(input.Start,
-                    read.Buffer.End); }
+                finally
+                {
+                    _input.AdvanceTo(input.Start,
+                        read.Buffer.End);
+                }
             }
         }
         catch (Exception error)

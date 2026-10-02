@@ -131,8 +131,10 @@ public static partial class Int64ArrayConverter
     private static void ReadRecords(ReadOnlySpan<byte> source,
         Span<long> destination)
     {
-        int i = CanShuffle && destination.Length >= 4 ? ReadVectorRecords(source,
-            destination) : 0;
+        int i = CanShuffle && destination.Length >= 4
+            ? ReadVectorRecords(source,
+                destination)
+            : 0;
         for (int offset = i * RecordSize; i < destination.Length; i++, offset += RecordSize)
             destination[i] = ReadRecord(source[offset..]);
     }

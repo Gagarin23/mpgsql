@@ -46,8 +46,10 @@ public class DataRowBenchmarks
         BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(1,
                 4),
             bytes.Length - 1);
-        _packet = Fragmented ? Segment(bytes,
-            7) : new ReadOnlySequence<byte>(bytes);
+        _packet = Fragmented
+            ? Segment(bytes,
+                7)
+            : new ReadOnlySequence<byte>(bytes);
         _storage = new ReadOnlySequence<byte>?[Columns];
 
         long expected = CurrentUnindexed();

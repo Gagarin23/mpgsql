@@ -20,9 +20,13 @@ public sealed class FrontendMessageTests
             "00000030 00030000 7573657200 7500 646174616261736500 6400 636c69656e745f656e636f64696e6700 5554463800 00"
         },
         {
-            FrontendMessage.Startup(new KeyValuePair<string, string>[] {new("user",
-                "u"), new("client_encoding",
-                "UTF8")}),
+            FrontendMessage.Startup(new KeyValuePair<string, string>[]
+            {
+                new("user",
+                    "u"),
+                new("client_encoding",
+                    "UTF8")
+            }),
             "00000025 00030000 7573657200 7500 636c69656e745f656e636f64696e6700 5554463800 00"
         },
         {FrontendMessage.SslRequest(), "00000008 04d2162f"},
@@ -80,14 +84,23 @@ public sealed class FrontendMessageTests
                 resultFormats: new[] {FormatCode.Binary, FormatCode.Text}),
             "42 0000001d 00 00 0002 0000 0001 0002 00000001 37 00000000 0002 0001 0000"
         },
-        {FrontendMessage.Describe(StatementOrPortal.Statement,
-            "s"), "44 00000007 53 7300"},
+        {
+            FrontendMessage.Describe(StatementOrPortal.Statement,
+                "s"),
+            "44 00000007 53 7300"
+        },
         {FrontendMessage.Describe(StatementOrPortal.Portal), "44 00000006 50 00"},
-        {FrontendMessage.Close(StatementOrPortal.Statement,
-            "s"), "43 00000007 53 7300"},
+        {
+            FrontendMessage.Close(StatementOrPortal.Statement,
+                "s"),
+            "43 00000007 53 7300"
+        },
         {FrontendMessage.Close(StatementOrPortal.Portal), "43 00000006 50 00"},
-        {FrontendMessage.Execute("p",
-            42), "45 0000000a 7000 0000002a"},
+        {
+            FrontendMessage.Execute("p",
+                42),
+            "45 0000000a 7000 0000002a"
+        },
         {FrontendMessage.Execute(), "45 00000009 00 00000000"},
         {FrontendMessage.Flush(), "48 00000004"},
         {FrontendMessage.Sync(), "53 00000004"},
@@ -95,11 +108,17 @@ public sealed class FrontendMessageTests
         {FrontendMessage.Password("pw"), "70 00000007 707700"},
         {FrontendMessage.Password(""), "70 00000005 00"},
         {FrontendMessage.GssResponse(TestWire.Bytes("00ff")), "70 00000006 00ff"},
-        {FrontendMessage.SaslInitialResponse("M",
-            TestWire.Bytes("0102")), "70 0000000c 4d00 00000002 0102"},
+        {
+            FrontendMessage.SaslInitialResponse("M",
+                TestWire.Bytes("0102")),
+            "70 0000000c 4d00 00000002 0102"
+        },
         {FrontendMessage.SaslInitialResponse("M"), "70 0000000a 4d00 ffffffff"},
-        {FrontendMessage.SaslInitialResponse("M",
-            ReadOnlyMemory<byte>.Empty), "70 0000000a 4d00 00000000"},
+        {
+            FrontendMessage.SaslInitialResponse("M",
+                ReadOnlyMemory<byte>.Empty),
+            "70 0000000a 4d00 00000000"
+        },
         {FrontendMessage.SaslResponse(TestWire.Bytes("0102")), "70 00000006 0102"},
         {FrontendMessage.CopyData(TestWire.Bytes("00ff")), "64 00000006 00ff"},
         {FrontendMessage.CopyData(ReadOnlyMemory<byte>.Empty), "64 00000004"},
@@ -120,8 +139,11 @@ public sealed class FrontendMessageTests
             "46 0000001c fffffffe 0001 0001 0002 00000004 0000002a ffffffff 0001"
         },
         {FrontendMessage.FunctionCall(1), "46 0000000e 00000001 0000 0000 0000"},
-        {FrontendMessage.Raw((byte)'P',
-            TestWire.Bytes("010203")), "50 00000007 010203"},
+        {
+            FrontendMessage.Raw((byte)'P',
+                TestWire.Bytes("010203")),
+            "50 00000007 010203"
+        },
         {
             FrontendMessage.RawStartup(TestWire.Bytes("00030000 7573657200 7500 00")),
             "00000010 00030000 7573657200 7500 00"
@@ -202,8 +224,11 @@ public sealed class FrontendMessageTests
     public void InvalidStringsDoNotModifyDestination()
     {
         // Attribute strings are encoded in metadata as UTF-8, so construct invalid UTF-16 at runtime.
-        foreach (string text in new[] {"x\0y", new string((char)0xd800,
-                     1)})
+        foreach (string text in new[]
+                 {
+                     "x\0y", new string((char)0xd800,
+                         1)
+                 })
         {
             var destination = Enumerable.Repeat((byte)0xcc,
                 100).ToArray();
@@ -277,20 +302,35 @@ public sealed class FrontendMessageTests
     {
         Assert.Throws<ArgumentException>(() => FrontendMessage.Startup("").GetByteCount());
         Assert.Throws<ArgumentException>(() => FrontendMessage.Startup(
-            new KeyValuePair<string, string>[] {new("database",
-                "d")}).GetByteCount());
+            new KeyValuePair<string, string>[]
+            {
+                new("database",
+                    "d")
+            }).GetByteCount());
         Assert.Throws<ArgumentException>(() => FrontendMessage.Startup(
-            new KeyValuePair<string, string>[] {new("user",
-                "u"), new("client_encoding",
-                "LATIN1")}).GetByteCount());
+            new KeyValuePair<string, string>[]
+            {
+                new("user",
+                    "u"),
+                new("client_encoding",
+                    "LATIN1")
+            }).GetByteCount());
         Assert.Throws<ArgumentException>(() => FrontendMessage.Startup(
-            new KeyValuePair<string, string>[] {new("user",
-                "u"), new("user",
-                "v")}).GetByteCount());
+            new KeyValuePair<string, string>[]
+            {
+                new("user",
+                    "u"),
+                new("user",
+                    "v")
+            }).GetByteCount());
         Assert.Throws<ArgumentException>(() => FrontendMessage.Startup(
-            new KeyValuePair<string, string>[] {new("user",
-                "u"), new("",
-                "v")}).GetByteCount());
+            new KeyValuePair<string, string>[]
+            {
+                new("user",
+                    "u"),
+                new("",
+                    "v")
+            }).GetByteCount());
     }
 
     [Fact]

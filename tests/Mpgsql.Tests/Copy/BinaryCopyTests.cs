@@ -283,8 +283,10 @@ public class BinaryCopyTests
         for (int length = 0; length <= bytes.Length; length++)
         {
             var reader = ReadyReader(1);
-            var input = fragmented ? TestWire.ByteSegments(bytes[..length]) : new ReadOnlySequence<byte>(bytes.AsMemory(0,
-                length));
+            var input = fragmented
+                ? TestWire.ByteSegments(bytes[..length])
+                : new ReadOnlySequence<byte>(bytes.AsMemory(0,
+                    length));
             var original = input;
             ReadOnlySequence<byte>?[] fields = [new ReadOnlySequence<byte>([42])];
             var status = reader.TryReadRow(ref input,

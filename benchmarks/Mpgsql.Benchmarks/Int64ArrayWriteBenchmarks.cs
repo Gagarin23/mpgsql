@@ -52,10 +52,12 @@ public class Int64ArrayWriteBenchmarks
         {
             for (int i = 0; i < 32; i++) FusedSimd();
             long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int i = 0; i < Math.Max(16,
+            for (int i = 0;
+                 i < Math.Max(16,
                      4096
                      / Math.Max(1,
-                         Count)); i++) FusedSimd();
+                         Count));
+                 i++) FusedSimd();
             allocated = GC.GetAllocatedBytesForCurrentThread() - before;
             if (allocated == 0)
             {

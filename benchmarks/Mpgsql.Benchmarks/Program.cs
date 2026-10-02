@@ -22,6 +22,13 @@ if (args.Contains("--copy-live"))
 
 if (args.Contains("--verify"))
 {
+    try { BuiltinConverterVerification.Run(); }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine(error);
+        Environment.ExitCode = 1;
+        return;
+    }
     new Int64ConverterBenchmarks().Setup();
     Console.WriteLine("Scalar bigint/nullable bigint results and zero-allocation span/writer/segmented paths verified.");
     new SyncBenchmarks().Setup();

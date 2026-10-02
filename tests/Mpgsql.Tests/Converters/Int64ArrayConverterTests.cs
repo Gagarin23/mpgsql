@@ -366,8 +366,12 @@ public sealed class Int64ArrayConverterTests
         for (int index = 0; index < 9; index++)
         {
             int offset = 20 + index * 12;
-            byte[] bytes = [.. original.AsSpan(0,
-                offset), 0xff, 0xff, 0xff, 0xff, .. original.AsSpan(offset + 12)];
+            byte[] bytes =
+            [
+                .. original.AsSpan(0,
+                    offset),
+                0xff, 0xff, 0xff, 0xff, .. original.AsSpan(offset + 12)
+            ];
             BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(4),
                 1);
             long[] storage =

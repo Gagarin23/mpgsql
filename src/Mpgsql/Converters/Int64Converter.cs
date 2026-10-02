@@ -37,8 +37,10 @@ public static class Int64Converter
     /// <summary>Writes a value, or leaves the destination unchanged and returns zero for NULL.</summary>
     public static int Write(long? value,
         Span<byte> destination)
-        => value.HasValue ? Write(value.GetValueOrDefault(),
-            destination) : 0;
+        => value.HasValue
+            ? Write(value.GetValueOrDefault(),
+                destination)
+            : 0;
 
     /// <summary>Reserves and advances exactly eight payload bytes.</summary>
     public static void Write(long value,

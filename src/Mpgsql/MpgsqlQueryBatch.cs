@@ -199,9 +199,11 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
                     Unexpected(message.Kind);
                 }
                 TransactionStatus = message.GetTransactionStatus();
-                Complete(_error is { } error ? new MpgsqlServerException(error,
-                    _errorIndex,
-                    TransactionStatus.Value) : null);
+                Complete(_error is { } error
+                    ? new MpgsqlServerException(error,
+                        _errorIndex,
+                        TransactionStatus.Value)
+                    : null);
                 return;
             }
             if (_responseQuery >= _queryCount || _phase == Phase.Recovery)

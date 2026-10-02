@@ -70,8 +70,10 @@ internal sealed class NpgsqlCopyHarness : IDisposable
             new NpgsqlParameter[1]);
         object pgWriter = buffer.GetType().GetMethod("GetWriter",
             Members)!.Invoke(buffer,
-            [catalog, Enum.Parse(Type("Npgsql.Internal.FlushMode"),
-                "None")])!;
+        [
+            catalog, Enum.Parse(Type("Npgsql.Internal.FlushMode"),
+                "None")
+        ])!;
         importerType.GetField("_pgWriter",
             Members)!.SetValue(_importer,
             pgWriter);
@@ -165,8 +167,9 @@ internal sealed class NpgsqlCopyHarness : IDisposable
         {
             WriteFrame(payload.AsSpan(0,
                 19 + rowSize));
-            for (int i = 1; i < rows; i++) WriteFrame(payload.AsSpan(19 + i * rowSize,
-                rowSize));
+            for (int i = 1; i < rows; i++)
+                WriteFrame(payload.AsSpan(19 + i * rowSize,
+                    rowSize));
             WriteFrame(payload.AsSpan(payload.Length - 2));
         }
         var footer = new ArrayBufferWriter<byte>();

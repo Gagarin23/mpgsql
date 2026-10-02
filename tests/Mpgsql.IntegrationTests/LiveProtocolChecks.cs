@@ -16,6 +16,7 @@ internal static class LiveProtocolChecks
         Int64Checks.Run(connection);
         LongArrayChecks.Run(connection);
         NullableLongArrayChecks.Run(connection);
+        BuiltinConverterChecks.Run(connection);
         BinaryCopyChecks.Run(connection);
         Pipeline(connection);
         ErrorRecovery(connection);

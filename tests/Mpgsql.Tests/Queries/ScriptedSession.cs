@@ -34,7 +34,9 @@ internal sealed class ScriptedSession : IAsyncDisposable
     internal async Task WriteAsync(byte[] bytes,
         int fragment = int.MaxValue)
     {
-        for (int i = 0; i < bytes.Length; i += Math.Min(fragment,
+        for (int i = 0;
+             i < bytes.Length;
+             i += Math.Min(fragment,
                  bytes.Length - i))
             await Incoming.Writer.WriteAsync(bytes.AsMemory(i,
                     Math.Min(fragment,
