@@ -112,7 +112,101 @@ internal static class BinaryCopyChecks
         connection.Send(FrontendMessage.Sync()); malformed.SyncSent();
         Finish(connection, malformed);
         Check(malformed.Error?.SqlState == "22P04" && Count(connection) == 4, "server-detected binary COPY error and reuse");
+        NullableArrays(connection);
+        NullableScalars(connection);
         Console.WriteLine("PASS binary COPY IN/OUT, bigint/bigint[]/bytea, NULL/empty, buffer boundaries, simple/extended cancellation and ReadyForQuery recovery");
+    }
+
+    private static void NullableScalars(TestConnection connection)
+    {
+        connection.Query("CREATE TEMP TABLE mpgsql_nullable_int64 (id bigint, value bigint)");
+        long?[] values = [long.MinValue, null, 0, 0x0102030405060708, long.MaxValue];
+        var import = Begin(connection, "COPY mpgsql_nullable_int64 FROM STDIN (FORMAT binary)", import: true);
+        using (var frames = new CopyDataWriter(connection.CopyStream, 31))
+        {
+            var writer = new BinaryCopyWriter(frames, 2);
+            for (int i = 0; i < values.Length; i++)
+            {
+                writer.StartRow(); writer.WriteInt64(i); writer.WriteInt64(values[i]);
+            }
+            writer.Complete(); frames.WriteCopyDone();
+        }
+        import.CopyDoneSent(); Finish(connection, import);
+        Check(import.RowsCopied == (ulong)values.Length, "nullable scalar COPY IN count");
+        var export = Begin(connection,
+            "COPY (SELECT id, value FROM mpgsql_nullable_int64 ORDER BY id) TO STDOUT (FORMAT binary)", import: false);
+        var chunks = new List<ReadOnlyMemory<byte>>();
+        while (true)
+        {
+            var message = connection.Receive();
+            if (!export.Accept(message)) continue;
+            if (message.Kind == BackendMessageKind.CopyDone) break;
+            Check(message.Kind == BackendMessageKind.CopyData, "nullable scalar COPY OUT data phase");
+            foreach (var chunk in message.GetCopyData()) chunks.Add(chunk);
+        }
+        var input = Sequence(chunks);
+        var reader = new BinaryCopyReader(2);
+        Check(reader.TryReadHeader(ref input), "nullable scalar COPY OUT header");
+        var fields = new ReadOnlySequence<byte>?[2];
+        for (int i = 0; i < values.Length; i++)
+            Check(reader.TryReadRow(ref input, fields, out var row) == BinaryCopyReadStatus.Row &&
+                row.ReadInt64(0) == i && row.ReadNullableInt64(1) == values[i], "nullable scalar COPY OUT values");
+        Check(reader.TryReadRow(ref input, fields, out _) == BinaryCopyReadStatus.Completed && input.IsEmpty,
+            "nullable scalar COPY OUT trailer");
+        reader.EndData(); Finish(connection, export);
+        Check(export.RowsCopied == (ulong)values.Length, "nullable scalar COPY OUT count");
+        Console.WriteLine("PASS scalar nullable bigint binary COPY IN/OUT, extremes and outer SQL NULL");
+    }
+
+    private static void NullableArrays(TestConnection connection)
+    {
+        connection.Query("CREATE TEMP TABLE mpgsql_nullable_copy (id bigint, values bigint[])");
+        long?[] large = Enumerable.Range(0, 4097).Select(i => i % 3 == 0 ? (long?)null : long.MinValue + i).ToArray();
+        long?[]?[] cases = [large, [null], [], null];
+        var import = Begin(connection, "COPY mpgsql_nullable_copy FROM STDIN (FORMAT binary)", import: true);
+        using (var frames = new CopyDataWriter(connection.CopyStream, 31))
+        {
+            var writer = new BinaryCopyWriter(frames, 2);
+            for (int i = 0; i < cases.Length; i++)
+            {
+                writer.StartRow(); writer.WriteInt64(i);
+                if (cases[i] is { } values) writer.WriteNullableLongArray(values); else writer.WriteNull();
+            }
+            writer.Complete(); frames.WriteCopyDone();
+        }
+        import.CopyDoneSent(); Finish(connection, import);
+        Check(import.RowsCopied == (ulong)cases.Length, "nullable COPY IN count");
+        var export = Begin(connection, "COPY (SELECT id, values FROM mpgsql_nullable_copy ORDER BY id) TO STDOUT (FORMAT binary)", import: false);
+        var chunks = new List<ReadOnlyMemory<byte>>();
+        while (true)
+        {
+            var message = connection.Receive();
+            if (!export.Accept(message)) continue;
+            if (message.Kind == BackendMessageKind.CopyDone) break;
+            Check(message.Kind == BackendMessageKind.CopyData, "nullable COPY OUT data phase");
+            foreach (var chunk in message.GetCopyData()) chunks.Add(chunk);
+        }
+        var input = Sequence(chunks);
+        var reader = new BinaryCopyReader(2);
+        Check(reader.TryReadHeader(ref input), "nullable COPY OUT header");
+        var fields = new ReadOnlySequence<byte>?[2];
+        var storage = new long?[large.Length];
+        for (int i = 0; i < cases.Length; i++)
+        {
+            Check(reader.TryReadRow(ref input, fields, out var row) == BinaryCopyReadStatus.Row && row.ReadInt64(0) == i,
+                "nullable COPY OUT row");
+            if (cases[i] is { } values)
+            {
+                Check(row.ReadNullableLongArray(1).Span.SequenceEqual(values), "nullable COPY owned values");
+                int count = row.ReadNullableLongArray(1, storage);
+                Check(count == values.Length && storage.AsSpan(0, count).SequenceEqual(values), "nullable COPY reused values");
+            }
+            else Check(row.IsNull(1), "nullable COPY outer SQL NULL");
+        }
+        Check(reader.TryReadRow(ref input, fields, out _) == BinaryCopyReadStatus.Completed && input.IsEmpty, "nullable COPY trailer");
+        reader.EndData(); Finish(connection, export);
+        Check(export.RowsCopied == (ulong)cases.Length, "nullable COPY OUT count");
+        Console.WriteLine("PASS nullable bigint[] binary COPY IN/OUT, mixed/all NULL, empty and outer SQL NULL");
     }
 
     private static BinaryCopyOperation Begin(TestConnection connection, string sql, bool import, bool extended = false, bool earlySync = false)

@@ -7,7 +7,7 @@ using Mpgsql.Tests.Protocol;
 
 namespace Mpgsql.Tests.Converters;
 
-public sealed class LongArrayConverterTests
+public sealed class Int64ArrayConverterTests
 {
     // Array payload vectors exclude the outer Bind/DataRow field length.
     public static TheoryData<long[], string> Payloads => new()
@@ -24,17 +24,17 @@ public sealed class LongArrayConverterTests
     public void WritesAndReadsLiteralBigEndianPayload(long[] values, string hex)
     {
         byte[] expected = TestWire.Bytes(hex);
-        Assert.Equal(expected.Length, LongArrayConverter.GetByteCount(values));
-        Assert.Equal(expected.Length, LongArrayConverter.GetByteCount(values.Length));
+        Assert.Equal(expected.Length, Int64ArrayConverter.GetByteCount(values));
+        Assert.Equal(expected.Length, Int64ArrayConverter.GetByteCount(values.Length));
         byte[] bytes = Enumerable.Repeat((byte)0xcc, expected.Length + 10).ToArray();
-        Assert.Equal(expected.Length, LongArrayConverter.Write(values, bytes.AsSpan(3)));
+        Assert.Equal(expected.Length, Int64ArrayConverter.Write(values, bytes.AsSpan(3)));
         Assert.Equal(expected, bytes.AsSpan(3, expected.Length).ToArray());
         Assert.All(bytes[..3].Concat(bytes[(3 + expected.Length)..]), value => Assert.Equal((byte)0xcc, value));
-        Assert.Equal(values, LongArrayConverter.Read(expected.AsSpan()).ToArray());
-        Assert.Equal(values, LongArrayConverter.Read(TestWire.ByteSegments(expected)).ToArray());
+        Assert.Equal(values, Int64ArrayConverter.Read(expected.AsSpan()).ToArray());
+        Assert.Equal(values, Int64ArrayConverter.Read(TestWire.ByteSegments(expected)).ToArray());
 
         var writer = new RecordingWriter(expected.Length);
-        LongArrayConverter.Write(values, writer);
+        Int64ArrayConverter.Write(values, writer);
         Assert.Equal(expected.Length, writer.SizeHint);
         Assert.Equal(expected.Length, writer.Advanced);
         Assert.Equal(1, writer.GetSpanCalls);
@@ -47,12 +47,12 @@ public sealed class LongArrayConverterTests
     public void DefaultMemoryIsAnEmptyArrayAndOneDimensionalEmptyIsAccepted()
     {
         byte[] bytes = new byte[12];
-        LongArrayConverter.Write(default, bytes);
+        Int64ArrayConverter.Write(default, bytes);
         Assert.Equal(TestWire.Bytes("00000000 00000000 00000014"), bytes);
         byte[] dimensional = TestWire.Bytes("00000001 00000000 00000014 00000000 fffffffe");
-        Assert.True(LongArrayConverter.Read(dimensional.AsSpan()).IsEmpty);
-        Assert.True(LongArrayConverter.Read(TestWire.ByteSegments(dimensional)).IsEmpty);
-        Assert.Equal(0, LongArrayConverter.Read(dimensional.AsSpan(), Span<long>.Empty));
+        Assert.True(Int64ArrayConverter.Read(dimensional.AsSpan()).IsEmpty);
+        Assert.True(Int64ArrayConverter.Read(TestWire.ByteSegments(dimensional)).IsEmpty);
+        Assert.Equal(0, Int64ArrayConverter.Read(dimensional.AsSpan(), Span<long>.Empty));
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public sealed class LongArrayConverterTests
         ReadOnlyMemory<long> slice = backing.AsMemory(1, 4);
         byte[] bytes = Encode(slice);
         Assert.Equal(before, backing);
-        Assert.Equal(before[1..5], LongArrayConverter.Read(bytes.AsSpan()).ToArray());
+        Assert.Equal(before[1..5], Int64ArrayConverter.Read(bytes.AsSpan()).ToArray());
     }
 
     [Theory]
@@ -77,17 +77,17 @@ public sealed class LongArrayConverterTests
         byte[] expected = ScalarEncode(values);
         Assert.Equal(expected, Encode(values));
         var storage = Enumerable.Repeat(42L, count + 4).ToArray();
-        Assert.Equal(count, LongArrayConverter.Read(expected.AsSpan(), storage.AsSpan(2)));
+        Assert.Equal(count, Int64ArrayConverter.Read(expected.AsSpan(), storage.AsSpan(2)));
         Assert.Equal(values, storage.AsSpan(2, count).ToArray());
         Assert.Equal(new long[] { 42, 42 }, storage[..2]);
         Assert.Equal(new long[] { 42, 42 }, storage[(count + 2)..]);
-        Assert.Equal(values, LongArrayConverter.Read(expected.AsSpan()).ToArray());
+        Assert.Equal(values, Int64ArrayConverter.Read(expected.AsSpan()).ToArray());
         var chunks = Enumerable.Range(0, (expected.Length + 4095) / 4096)
             .Select(i => (ReadOnlyMemory<byte>)expected.AsMemory(i * 4096, Math.Min(4096, expected.Length - i * 4096))).ToArray();
         var sequence = TestWire.Chunks(chunks);
-        Assert.Equal(count, LongArrayConverter.Read(sequence, storage.AsSpan(2)));
+        Assert.Equal(count, Int64ArrayConverter.Read(sequence, storage.AsSpan(2)));
         Assert.Equal(values, storage.AsSpan(2, count).ToArray());
-        Assert.Equal(values, LongArrayConverter.Read(sequence).ToArray());
+        Assert.Equal(values, Int64ArrayConverter.Read(sequence).ToArray());
     }
 
     [Fact]
@@ -99,14 +99,14 @@ public sealed class LongArrayConverterTests
         {
             var sequence = TestWire.Chunks(ReadOnlyMemory<byte>.Empty, bytes.AsMemory(0, split),
                 ReadOnlyMemory<byte>.Empty, bytes.AsMemory(split), ReadOnlyMemory<byte>.Empty);
-            Assert.Equal(values, LongArrayConverter.Read(sequence).ToArray());
+            Assert.Equal(values, Int64ArrayConverter.Read(sequence).ToArray());
             var storage = new long[values.Length];
-            Assert.Equal(values.Length, LongArrayConverter.Read(sequence, storage));
+            Assert.Equal(values.Length, Int64ArrayConverter.Read(sequence, storage));
             Assert.Equal(values, storage);
         }
         var singleBytes = TestWire.ByteSegments(bytes);
         var output = new long[values.Length];
-        Assert.Equal(values.Length, LongArrayConverter.Read(singleBytes, output));
+        Assert.Equal(values.Length, Int64ArrayConverter.Read(singleBytes, output));
         Assert.Equal(values, output);
     }
 
@@ -117,16 +117,16 @@ public sealed class LongArrayConverterTests
         long[] values = [1, 2, 3, 4];
         byte[] bytes = ScalarEncode(values);
         BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(16), lowerBound);
-        Assert.Equal(values, LongArrayConverter.Read(bytes.AsSpan()).ToArray());
-        Assert.Equal(values, LongArrayConverter.Read(TestWire.ByteSegments(bytes)).ToArray());
+        Assert.Equal(values, Int64ArrayConverter.Read(bytes.AsSpan()).ToArray());
+        Assert.Equal(values, Int64ArrayConverter.Read(TestWire.ByteSegments(bytes)).ToArray());
     }
 
     [Fact]
     public void ReadResultOutlivesInputAndOtherResults()
     {
         byte[] input = ScalarEncode([1, 2, 3, 4, 5]);
-        ReadOnlyMemory<long> first = LongArrayConverter.Read(input.AsSpan());
-        ReadOnlyMemory<long> second = LongArrayConverter.Read(TestWire.ByteSegments(input));
+        ReadOnlyMemory<long> first = Int64ArrayConverter.Read(input.AsSpan());
+        ReadOnlyMemory<long> second = Int64ArrayConverter.Read(TestWire.ByteSegments(input));
         input.AsSpan().Fill(0);
         Assert.Equal(new long[] { 1, 2, 3, 4, 5 }, first.ToArray());
         Assert.Equal(first.ToArray(), second.ToArray());
@@ -139,20 +139,20 @@ public sealed class LongArrayConverterTests
     public void CapacityErrorsDoNotModifyStorage()
     {
         long[] values = [1, 2, 3, 4];
-        byte[] shortOutput = Enumerable.Repeat((byte)42, LongArrayConverter.GetByteCount(values) - 1).ToArray();
-        Assert.Throws<ArgumentException>(() => LongArrayConverter.Write(values, shortOutput));
+        byte[] shortOutput = Enumerable.Repeat((byte)42, Int64ArrayConverter.GetByteCount(values) - 1).ToArray();
+        Assert.Throws<ArgumentException>(() => Int64ArrayConverter.Write(values, shortOutput));
         Assert.All(shortOutput, value => Assert.Equal((byte)42, value));
         byte[] payload = ScalarEncode(values);
         long[] shortStorage = [42, 42, 42];
-        Assert.Throws<ArgumentException>(() => LongArrayConverter.Read(payload.AsSpan(), shortStorage));
-        Assert.Throws<ArgumentException>(() => LongArrayConverter.Read(TestWire.ByteSegments(payload), shortStorage));
+        Assert.Throws<ArgumentException>(() => Int64ArrayConverter.Read(payload.AsSpan(), shortStorage));
+        Assert.Throws<ArgumentException>(() => Int64ArrayConverter.Read(TestWire.ByteSegments(payload), shortStorage));
         Assert.Equal(new long[] { 42, 42, 42 }, shortStorage);
-        Assert.Throws<ArgumentNullException>(() => LongArrayConverter.Write(values, (IBufferWriter<byte>)null!));
-        Assert.Throws<ArgumentOutOfRangeException>(() => LongArrayConverter.GetByteCount(-1));
-        Assert.Throws<OverflowException>(() => LongArrayConverter.GetByteCount(int.MaxValue));
+        Assert.Throws<ArgumentNullException>(() => Int64ArrayConverter.Write(values, (IBufferWriter<byte>)null!));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Int64ArrayConverter.GetByteCount(-1));
+        Assert.Throws<OverflowException>(() => Int64ArrayConverter.GetByteCount(int.MaxValue));
         int maximumCount = (int.MaxValue - 20) / 12;
-        Assert.Equal(20 + maximumCount * 12, LongArrayConverter.GetByteCount(maximumCount));
-        Assert.Throws<OverflowException>(() => LongArrayConverter.GetByteCount(maximumCount + 1));
+        Assert.Equal(20 + maximumCount * 12, Int64ArrayConverter.GetByteCount(maximumCount));
+        Assert.Throws<OverflowException>(() => Int64ArrayConverter.GetByteCount(maximumCount + 1));
     }
 
     [Fact]
@@ -189,11 +189,11 @@ public sealed class LongArrayConverterTests
         {
             byte[] bytes = ScalarEncode(MakeValues(9));
             BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(20 + index * 12), length);
-            Assert.Throws<InvalidDataException>(() => LongArrayConverter.Read(bytes.AsSpan()));
-            Assert.Throws<InvalidDataException>(() => LongArrayConverter.Read(TestWire.ByteSegments(bytes)));
+            Assert.Throws<InvalidDataException>(() => Int64ArrayConverter.Read(bytes.AsSpan()));
+            Assert.Throws<InvalidDataException>(() => Int64ArrayConverter.Read(TestWire.ByteSegments(bytes)));
             // Split inside a later SIMD block as well as before it.
             var sequence = TestWire.Chunks(bytes.AsMemory(0, 75), bytes.AsMemory(75));
-            Assert.Throws<InvalidDataException>(() => LongArrayConverter.Read(sequence, new long[9]));
+            Assert.Throws<InvalidDataException>(() => Int64ArrayConverter.Read(sequence, new long[9]));
         }
     }
 
@@ -204,10 +204,10 @@ public sealed class LongArrayConverterTests
         byte[] matrix = TestWire.Bytes("00000002 00000000 00000014 00000001 00000001 00000001 00000001 00000008 000000000000002a");
         foreach (byte[] bytes in new[] { nullArray, matrix })
         {
-            Assert.Throws<NotSupportedException>(() => LongArrayConverter.Read(bytes.AsSpan()));
-            Assert.Throws<NotSupportedException>(() => LongArrayConverter.Read(TestWire.ByteSegments(bytes)));
+            Assert.Throws<NotSupportedException>(() => Int64ArrayConverter.Read(bytes.AsSpan()));
+            Assert.Throws<NotSupportedException>(() => Int64ArrayConverter.Read(TestWire.ByteSegments(bytes)));
             long[] storage = [42];
-            Assert.Throws<NotSupportedException>(() => LongArrayConverter.Read(bytes.AsSpan(), storage));
+            Assert.Throws<NotSupportedException>(() => Int64ArrayConverter.Read(bytes.AsSpan(), storage));
             Assert.Equal(42, storage[0]);
         }
     }
@@ -219,12 +219,12 @@ public sealed class LongArrayConverterTests
         long[] values = MakeValues(count);
         byte[] bytes = ScalarEncode(values);
         BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(4), 1);
-        Assert.Equal(values, LongArrayConverter.Read(bytes.AsSpan()).ToArray());
-        Assert.Equal(values, LongArrayConverter.Read(TestWire.ByteSegments(bytes)).ToArray());
+        Assert.Equal(values, Int64ArrayConverter.Read(bytes.AsSpan()).ToArray());
+        Assert.Equal(values, Int64ArrayConverter.Read(TestWire.ByteSegments(bytes)).ToArray());
         var storage = new long[count];
-        Assert.Equal(count, LongArrayConverter.Read(bytes.AsSpan(), storage));
+        Assert.Equal(count, Int64ArrayConverter.Read(bytes.AsSpan(), storage));
         Assert.Equal(values, storage);
-        Assert.Equal(count, LongArrayConverter.Read(TestWire.ByteSegments(bytes), storage));
+        Assert.Equal(count, Int64ArrayConverter.Read(TestWire.ByteSegments(bytes), storage));
         Assert.Equal(values, storage);
     }
 
@@ -238,10 +238,10 @@ public sealed class LongArrayConverterTests
             byte[] bytes = [..original.AsSpan(0, offset), 0xff, 0xff, 0xff, 0xff, ..original.AsSpan(offset + 12)];
             BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(4), 1);
             long[] storage = Enumerable.Repeat(42L, 9).ToArray();
-            Assert.Throws<NotSupportedException>(() => LongArrayConverter.Read(bytes.AsSpan()));
-            Assert.Throws<NotSupportedException>(() => LongArrayConverter.Read(TestWire.ByteSegments(bytes)));
-            Assert.Throws<NotSupportedException>(() => LongArrayConverter.Read(bytes.AsSpan(), storage));
-            Assert.Throws<NotSupportedException>(() => LongArrayConverter.Read(TestWire.ByteSegments(bytes), storage));
+            Assert.Throws<NotSupportedException>(() => Int64ArrayConverter.Read(bytes.AsSpan()));
+            Assert.Throws<NotSupportedException>(() => Int64ArrayConverter.Read(TestWire.ByteSegments(bytes)));
+            Assert.Throws<NotSupportedException>(() => Int64ArrayConverter.Read(bytes.AsSpan(), storage));
+            Assert.Throws<NotSupportedException>(() => Int64ArrayConverter.Read(TestWire.ByteSegments(bytes), storage));
             Assert.All(storage, value => Assert.Equal(42, value));
         }
         byte[] invalid = ScalarEncode(MakeValues(9));
@@ -256,14 +256,14 @@ public sealed class LongArrayConverterTests
         long[] backing = new long[10];
         backing[0] = 42;
         var before = backing.ToArray();
-        Assert.Throws<ArgumentException>(() => LongArrayConverter.Write(backing.AsMemory(0, 4), MemoryMarshal.AsBytes(backing.AsSpan())));
+        Assert.Throws<ArgumentException>(() => Int64ArrayConverter.Write(backing.AsMemory(0, 4), MemoryMarshal.AsBytes(backing.AsSpan())));
         Assert.Equal(before, backing);
 
         byte[] payload = ScalarEncode(MakeValues(4));
         var original = payload.ToArray();
-        Assert.Throws<ArgumentException>(() => LongArrayConverter.Read(payload.AsSpan(), MemoryMarshal.Cast<byte, long>(payload.AsSpan(0, 32))));
+        Assert.Throws<ArgumentException>(() => Int64ArrayConverter.Read(payload.AsSpan(), MemoryMarshal.Cast<byte, long>(payload.AsSpan(0, 32))));
         var sequence = TestWire.Chunks(payload.AsMemory(0, 24), payload.AsMemory(24));
-        Assert.Throws<ArgumentException>(() => LongArrayConverter.Read(sequence, MemoryMarshal.Cast<byte, long>(payload.AsSpan(24, 32))));
+        Assert.Throws<ArgumentException>(() => Int64ArrayConverter.Read(sequence, MemoryMarshal.Cast<byte, long>(payload.AsSpan(24, 32))));
         Assert.Equal(original, payload);
     }
 
@@ -285,23 +285,23 @@ public sealed class LongArrayConverterTests
         var storage = new ReadOnlySequence<byte>?[1];
         Assert.True(BackendMessageReader.TryRead(ref input, storage, out _, out var indexedRow));
         Assert.True(input.IsEmpty);
-        Assert.Equal(values, LongArrayConverter.Read(indexedRow.Values.Span[0]!.Value).ToArray());
+        Assert.Equal(values, Int64ArrayConverter.Read(indexedRow.Values.Span[0]!.Value).ToArray());
     }
 
     private static void AssertInvalid(byte[] bytes)
     {
-        Assert.Throws<InvalidDataException>(() => LongArrayConverter.Read(bytes.AsSpan()));
-        Assert.Throws<InvalidDataException>(() => LongArrayConverter.Read(TestWire.ByteSegments(bytes)));
+        Assert.Throws<InvalidDataException>(() => Int64ArrayConverter.Read(bytes.AsSpan()));
+        Assert.Throws<InvalidDataException>(() => Int64ArrayConverter.Read(TestWire.ByteSegments(bytes)));
         var storage = Enumerable.Repeat(42L, 9).ToArray();
-        Assert.Throws<InvalidDataException>(() => LongArrayConverter.Read(bytes.AsSpan(), storage));
-        Assert.Throws<InvalidDataException>(() => LongArrayConverter.Read(TestWire.ByteSegments(bytes), storage));
+        Assert.Throws<InvalidDataException>(() => Int64ArrayConverter.Read(bytes.AsSpan(), storage));
+        Assert.Throws<InvalidDataException>(() => Int64ArrayConverter.Read(TestWire.ByteSegments(bytes), storage));
         Assert.All(storage, value => Assert.Equal(42, value));
     }
 
     private static byte[] Encode(ReadOnlyMemory<long> values)
     {
-        byte[] bytes = new byte[LongArrayConverter.GetByteCount(values)];
-        LongArrayConverter.Write(values, bytes);
+        byte[] bytes = new byte[Int64ArrayConverter.GetByteCount(values)];
+        Int64ArrayConverter.Write(values, bytes);
         return bytes;
     }
 

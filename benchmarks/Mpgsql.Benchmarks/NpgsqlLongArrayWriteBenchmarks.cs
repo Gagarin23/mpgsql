@@ -27,7 +27,7 @@ public class NpgsqlLongArrayWriteBenchmarks
     {
         _values = NpgsqlArrayVerification.Values(Count);
         _memory = _values;
-        _harness = new(Math.Max(20, LongArrayConverter.GetByteCount(_memory)));
+        _harness = new(Math.Max(20, Int64ArrayConverter.GetByteCount(_memory)));
         _originalMetadata = _harness.Prepare(_harness.Original, _values);
         _copiedMetadata = _harness.Prepare(_harness.Copy, _values);
         NpgsqlOriginal();
@@ -38,8 +38,8 @@ public class NpgsqlLongArrayWriteBenchmarks
         Check(expected, _harness.WriteAsync(_harness.Original, _values).GetAwaiter().GetResult());
         Check(expected, _harness.WriteAsync(_harness.Copy, _values).GetAwaiter().GetResult());
         int size = Mpgsql();
-        if (size != LongArrayConverter.GetByteCount(Count) ||
-            !LongArrayConverter.Read(_harness.Output.WrittenSpan).Span.SequenceEqual(_values) ||
+        if (size != Int64ArrayConverter.GetByteCount(Count) ||
+            !Int64ArrayConverter.Read(_harness.Output.WrittenSpan).Span.SequenceEqual(_values) ||
             (Count != 0 && !expected.AsSpan().SequenceEqual(_harness.Output.WrittenSpan)))
             throw new InvalidOperationException("Mpgsql bytes differ from the original Npgsql converter.");
         // Empty arrays are valid with either ndims=0 (12 bytes) or ndims=1, count=0 (20 bytes).
@@ -64,9 +64,9 @@ public class NpgsqlLongArrayWriteBenchmarks
     [Benchmark, BenchmarkCategory("SizeAndWrite")]
     public int Mpgsql()
     {
-        _ = LongArrayConverter.GetByteCount(_memory);
+        _ = Int64ArrayConverter.GetByteCount(_memory);
         _harness.Output.Reset();
-        LongArrayConverter.Write(_memory, _harness.Output);
+        Int64ArrayConverter.Write(_memory, _harness.Output);
         return _harness.Output.WrittenCount;
     }
 
@@ -80,7 +80,7 @@ public class NpgsqlLongArrayWriteBenchmarks
     public int MpgsqlPrepared()
     {
         _harness.Output.Reset();
-        LongArrayConverter.Write(_memory, _harness.Output);
+        Int64ArrayConverter.Write(_memory, _harness.Output);
         return _harness.Output.WrittenCount;
     }
 

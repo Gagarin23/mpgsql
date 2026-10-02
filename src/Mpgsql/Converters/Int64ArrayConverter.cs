@@ -12,10 +12,10 @@ namespace Mpgsql.Converters;
 /// Only zero/one-dimensional arrays without NULL elements are supported.
 /// Reading normalizes PostgreSQL lower bounds to the memory's zero-based indexing.
 /// </remarks>
-public static partial class LongArrayConverter
+public static partial class Int64ArrayConverter
 {
-    public const uint ElementTypeOid = 20;
-    public const uint ArrayTypeOid = 1016;
+    public const uint ElementTypeOid = (uint)TypeOid.Int64;
+    public const uint ArrayTypeOid = (uint)TypeOid.Int64Array;
 
     private const int EmptyHeaderSize = 12;
     private const int HeaderSize = 20;

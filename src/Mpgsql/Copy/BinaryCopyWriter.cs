@@ -54,6 +54,13 @@ public sealed class BinaryCopyWriter
         FinishColumn();
     }
 
+    /// <summary>Writes a bigint value or the outer COPY field's SQL NULL length.</summary>
+    public void WriteInt64(long? value)
+    {
+        if (value.HasValue) WriteInt64(value.GetValueOrDefault());
+        else WriteNull();
+    }
+
     /// <summary>Writes already encoded PostgreSQL field bytes; empty is distinct from NULL.</summary>
     public void WriteRaw(ReadOnlySpan<byte> value)
     {
@@ -70,12 +77,20 @@ public sealed class BinaryCopyWriter
     public void WriteLongArray(ReadOnlyMemory<long> value)
     {
         RequireColumn();
-        int payloadSize = LongArrayConverter.GetByteCount(value);
+        int payloadSize = Int64ArrayConverter.GetByteCount(value);
         int size = checked(4 + payloadSize);
         var bytes = _destination.GetSpan(size)[..size];
-        LongArrayConverter.Write(value, bytes[4..]);
+        Int64ArrayConverter.Write(value, bytes[4..]);
         BinaryPrimitives.WriteInt32BigEndian(bytes, payloadSize);
         _destination.Advance(size);
+        FinishColumn();
+    }
+
+    /// <summary>Encodes a non-NULL bigint[] containing nullable elements directly into the output.</summary>
+    public void WriteNullableLongArray(ReadOnlyMemory<long?> value)
+    {
+        RequireColumn();
+        NullableInt64ArrayConverter.WriteCopyField(value, _destination);
         FinishColumn();
     }
 

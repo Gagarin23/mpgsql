@@ -11,7 +11,7 @@ namespace Mpgsql.Benchmarks;
 [IterationTime(150)]
 [GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
 [CategoriesColumn]
-public class LongArrayReadBenchmarks
+public class Int64ArrayReadBenchmarks
 {
     [Params(1, 8, 4096, 65536)]
     public int Count { get; set; }
@@ -27,22 +27,22 @@ public class LongArrayReadBenchmarks
         long[] values = new long[Count];
         for (int i = 0; i < values.Length; i++)
             values[i] = unchecked((long)(0x0123456789abcdefUL * (ulong)(i + 1)));
-        byte[] bytes = new byte[LongArrayConverter.GetByteCount(values)];
-        LongArrayReference.WriteScalar(values, bytes);
+        byte[] bytes = new byte[Int64ArrayConverter.GetByteCount(values)];
+        Int64ArrayReference.WriteScalar(values, bytes);
         _payload = SegmentSize == 0 ? new ReadOnlySequence<byte>(bytes) : Segment(bytes, SegmentSize);
         _destination = new long[Count];
         if (Scalar() != Count || !_destination.AsSpan().SequenceEqual(values) ||
             FusedSimd() != Count || !_destination.AsSpan().SequenceEqual(values) ||
-            !LongArrayConverter.Read(_payload).Span.SequenceEqual(values))
+            !Int64ArrayConverter.Read(_payload).Span.SequenceEqual(values))
             throw new InvalidOperationException("An array decoder differs from the expected values.");
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("Reuse")]
-    public int Scalar() => LongArrayReference.ReadScalar(_payload, _destination);
+    public int Scalar() => Int64ArrayReference.ReadScalar(_payload, _destination);
     [Benchmark, BenchmarkCategory("Reuse")]
-    public int FusedSimd() => LongArrayConverter.Read(_payload, _destination);
+    public int FusedSimd() => Int64ArrayConverter.Read(_payload, _destination);
     [Benchmark, BenchmarkCategory("Owned")]
-    public ReadOnlyMemory<long> Owned() => LongArrayConverter.Read(_payload);
+    public ReadOnlyMemory<long> Owned() => Int64ArrayConverter.Read(_payload);
 
     public void CheckReusableAllocations()
     {

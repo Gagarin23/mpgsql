@@ -7,7 +7,7 @@ using System.Runtime.Intrinsics.X86;
 
 namespace Mpgsql.Converters;
 
-public static partial class LongArrayConverter
+public static partial class Int64ArrayConverter
 {
     private static bool CanShuffle => BitConverter.IsLittleEndian && (Ssse3.IsSupported || AdvSimd.Arm64.IsSupported);
 

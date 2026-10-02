@@ -23,9 +23,11 @@ internal sealed class NpgsqlArrayHarness : IDisposable
     private readonly MemoryStream? _readStream;
     private readonly int _fieldLength;
     private readonly bool _bufferedRead;
+    private PgConverter<long?[]>? _nullableOriginal;
 
     internal PgConverter<long[]> Original { get; }
     internal PgConverter<long[]> Copy { get; } = CopiedConverterFactory.CreateLongArrayConverter();
+    internal PgConverter<long?[]> NullableOriginal => _nullableOriginal ??= CreateNullableConverter();
     internal FixedBufferWriter Output { get; }
 
     internal NpgsqlArrayHarness(int outputCapacity, byte[]? input = null, int readBufferSize = 0)
@@ -71,14 +73,28 @@ internal sealed class NpgsqlArrayHarness : IDisposable
             Expression.Empty())).Compile();
     }
 
-    internal ValueMetadata Prepare(PgConverter<long[]> converter, long[] value)
+    private PgConverter<long?[]> CreateNullableConverter()
+    {
+        var elementType = Type("Npgsql.Internal.Converters.Int8Converter`1").MakeGenericType(typeof(long));
+        var element = (PgConverter<long>)Activator.CreateInstance(elementType, nonPublic: true)!;
+        var nullableType = Type("Npgsql.Internal.Converters.NullableConverter`1").MakeGenericType(typeof(long));
+        var nullable = (PgConverter<long?>)Activator.CreateInstance(nullableType, Members, binder: null, [element], culture: null)!;
+        var arrayType = Type("Npgsql.Internal.Converters.ArrayBasedArrayConverter`2").MakeGenericType(typeof(long?[]), typeof(long?));
+        var converter = (PgConverter<long?[]>)Activator.CreateInstance(arrayType, Members, binder: null,
+            [new PgConverterResolution(nullable, new Oid(20)), null, 1], culture: null)!;
+        if (!converter.CanConvert(DataFormat.Binary, out var requirements) || !requirements.Equals(_requirements))
+            throw new InvalidOperationException("Nullable converter buffer requirements differ.");
+        return converter;
+    }
+
+    internal ValueMetadata Prepare<T>(PgConverter<T> converter, T value) where T : notnull
     {
         object? state = null;
         var size = converter.GetSize(new SizeContext(DataFormat.Binary, _requirements.Write), value, ref state);
         return new ValueMetadata { Format = DataFormat.Binary, Size = size, BufferRequirement = _requirements.Write, WriteState = state };
     }
 
-    internal int Write(PgConverter<long[]> converter, long[] value)
+    internal int Write<T>(PgConverter<T> converter, T value) where T : notnull
     {
         var metadata = Prepare(converter, value);
         int count = WritePrepared(converter, value, metadata);
@@ -86,7 +102,7 @@ internal sealed class NpgsqlArrayHarness : IDisposable
         return count;
     }
 
-    internal int WritePrepared(PgConverter<long[]> converter, long[] value, ValueMetadata metadata)
+    internal int WritePrepared<T>(PgConverter<T> converter, T value, ValueMetadata metadata) where T : notnull
     {
         Output.Reset();
         _initWriter();
@@ -96,7 +112,7 @@ internal sealed class NpgsqlArrayHarness : IDisposable
         return Output.WrittenCount;
     }
 
-    internal async ValueTask<int> WriteAsync(PgConverter<long[]> converter, long[] value)
+    internal async ValueTask<int> WriteAsync<T>(PgConverter<T> converter, T value) where T : notnull
     {
         var metadata = Prepare(converter, value);
         Output.Reset();
@@ -108,7 +124,7 @@ internal sealed class NpgsqlArrayHarness : IDisposable
         return Output.WrittenCount;
     }
 
-    internal long[] Read(PgConverter<long[]> converter)
+    internal T Read<T>(PgConverter<T> converter)
     {
         ResetReader();
         var reader = _reader!;
@@ -119,7 +135,7 @@ internal sealed class NpgsqlArrayHarness : IDisposable
         return result;
     }
 
-    internal async ValueTask<long[]> ReadAsync(PgConverter<long[]> converter)
+    internal async ValueTask<T> ReadAsync<T>(PgConverter<T> converter)
     {
         ResetReader();
         var reader = _reader!;

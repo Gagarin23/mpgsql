@@ -18,6 +18,8 @@ if (args.Contains("--copy-live"))
 
 if (args.Contains("--verify"))
 {
+    new Int64ConverterBenchmarks().Setup();
+    Console.WriteLine("Scalar bigint/nullable bigint results and zero-allocation span/writer/segmented paths verified.");
     new SyncBenchmarks().Setup();
     new ExecuteBenchmarks().Setup();
     foreach (int length in new[] { 32, 4096 })
@@ -31,18 +33,19 @@ if (args.Contains("--verify"))
         new BackendControlBenchmarks { ReadyForQuery = ready }.Setup();
     foreach (int count in new[] { 0, 1, 3, 4, 5, 8, 256, 4096, 65536 })
     {
-        var write = new LongArrayWriteBenchmarks { Count = count };
+        var write = new Int64ArrayWriteBenchmarks { Count = count };
         write.Setup();
         write.CheckReusableAllocations();
         foreach (int segmentSize in new[] { 0, 7, 4096 })
         {
-            var read = new LongArrayReadBenchmarks { Count = count, SegmentSize = segmentSize };
+            var read = new Int64ArrayReadBenchmarks { Count = count, SegmentSize = segmentSize };
             read.Setup();
             read.CheckReusableAllocations();
         }
     }
     Console.WriteLine("All array encoder bytes, decoder results, and zero-allocation reusable paths verified.");
     Mpgsql.Benchmarks.NpgsqlBaseline.NpgsqlArrayVerification.Run();
+    NullableInt64ArrayVerification.Run();
     BinaryCopyBenchmarks.Verify();
 
 #if PROTOCOL_BASELINE

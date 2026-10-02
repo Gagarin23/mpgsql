@@ -12,7 +12,9 @@ internal static class LiveProtocolChecks
         Check(connection.AsynchronousMessages.Any(m => m.Kind == BackendMessageKind.ParameterStatus), "Startup ParameterStatus");
         SimpleQuery(connection);
         ExtendedQuery(connection);
+        Int64Checks.Run(connection);
         LongArrayChecks.Run(connection);
+        NullableLongArrayChecks.Run(connection);
         BinaryCopyChecks.Run(connection);
         Pipeline(connection);
         ErrorRecovery(connection);

@@ -11,6 +11,33 @@ public class BinaryCopyTests
     private const string Header = "5047434f50590aff0d0a00 00000000 00000000";
 
     [Fact]
+    public void NullableInt64UsesOuterNullLengthAndPreservesRowState()
+    {
+        var output = new ArrayBufferWriter<byte>();
+        var writer = new BinaryCopyWriter(output, 4);
+        Assert.Throws<InvalidOperationException>(() => writer.WriteInt64((long?)null));
+        writer.StartRow();
+        writer.WriteInt64((long?)long.MinValue);
+        writer.WriteInt64((long?)null);
+        writer.WriteInt64((long?)0);
+        writer.WriteInt64((long?)long.MaxValue);
+        Assert.Equal(1ul, writer.Complete());
+        Assert.Throws<InvalidOperationException>(() => writer.WriteInt64((long?)null));
+        Assert.Equal(TestWire.Bytes(Header + " 0004 00000008 8000000000000000 ffffffff" +
+            " 00000008 0000000000000000 00000008 7fffffffffffffff ffff"), output.WrittenSpan.ToArray());
+        var input = TestWire.ByteSegments(output.WrittenSpan.ToArray());
+        var reader = new BinaryCopyReader(4);
+        Assert.True(reader.TryReadHeader(ref input));
+        Assert.Equal(BinaryCopyReadStatus.Row, reader.TryReadRow(ref input, new ReadOnlySequence<byte>?[4], out var row));
+        Assert.Equal(long.MinValue, row.ReadNullableInt64(0));
+        Assert.Null(row.ReadNullableInt64(1));
+        Assert.Equal(0L, row.ReadNullableInt64(2));
+        Assert.Equal(long.MaxValue, row.ReadNullableInt64(3));
+        Assert.Throws<InvalidOperationException>(() => row.ReadInt64(1));
+        Assert.Equal(BinaryCopyReadStatus.Completed, reader.TryReadRow(ref input, new ReadOnlySequence<byte>?[4], out _));
+    }
+
+    [Fact]
     public void WritesCompleteLiteralStreamAndFramedPacket()
     {
         using var stream = new MemoryStream();
@@ -63,6 +90,34 @@ public class BinaryCopyTests
         var destination = new long[2];
         Assert.Equal(2, row.ReadLongArray(0, destination));
         Assert.Equal(new long[] { -1, long.MinValue }, destination);
+    }
+
+    [Fact]
+    public void WritesLiteralNullableBigintArrayAndDistinguishesOuterNull()
+    {
+        var output = new ArrayBufferWriter<byte>();
+        var writer = new BinaryCopyWriter(output, 3);
+        writer.StartRow();
+        writer.WriteNullableLongArray(new long?[] { null, long.MinValue, null });
+        writer.WriteNullableLongArray(default);
+        writer.WriteNull();
+        writer.Complete();
+        Assert.Equal(TestWire.Bytes(Header +
+            " 0003 00000028 00000001 00000001 00000014 00000003 00000001" +
+            " ffffffff 00000008 8000000000000000 ffffffff" +
+            " 0000000c 00000000 00000000 00000014 ffffffff ffff"), output.WrittenSpan.ToArray());
+        var input = TestWire.ByteSegments(output.WrittenSpan.ToArray());
+        var reader = new BinaryCopyReader(3);
+        Assert.True(reader.TryReadHeader(ref input));
+        Assert.Equal(BinaryCopyReadStatus.Row, reader.TryReadRow(ref input, new ReadOnlySequence<byte>?[3], out var row));
+        Assert.Equal(new long?[] { null, long.MinValue, null }, row.ReadNullableLongArray(0).ToArray());
+        long?[] reused = [42, 42, 42];
+        Assert.Equal(3, row.ReadNullableLongArray(0, reused));
+        Assert.Equal(new long?[] { null, long.MinValue, null }, reused);
+        Assert.True(row.ReadNullableLongArray(1).IsEmpty);
+        Assert.True(row.IsNull(2));
+        Assert.Throws<InvalidOperationException>(() => row.ReadNullableLongArray(2));
+        Assert.Equal(BinaryCopyReadStatus.Completed, reader.TryReadRow(ref input, new ReadOnlySequence<byte>?[3], out _));
     }
 
     [Theory]

@@ -7,7 +7,7 @@ namespace Mpgsql.Benchmarks;
 [WarmupCount(3)]
 [IterationCount(8)]
 [IterationTime(150)]
-public class LongArrayWriteBenchmarks
+public class Int64ArrayWriteBenchmarks
 {
     [Params(1, 4, 8, 256, 4096, 65536)]
     public int Count { get; set; }
@@ -21,7 +21,7 @@ public class LongArrayWriteBenchmarks
         for (int i = 0; i < value.Length; i++)
             value[i] = unchecked((long)(0x0123456789abcdefUL * (ulong)(i + 1)));
         _value = value;
-        _destination = new byte[LongArrayConverter.GetByteCount(_value)];
+        _destination = new byte[Int64ArrayConverter.GetByteCount(_value)];
         Scalar();
         var expected = _destination.ToArray();
         Check(expected, FusedSimd());
@@ -52,15 +52,15 @@ public class LongArrayWriteBenchmarks
     }
 
     [Benchmark(Baseline = true)]
-    public int Scalar() => LongArrayReference.WriteScalar(_value, _destination);
+    public int Scalar() => Int64ArrayReference.WriteScalar(_value, _destination);
     [Benchmark]
-    public int FusedSimd() => LongArrayConverter.Write(_value, _destination);
+    public int FusedSimd() => Int64ArrayConverter.Write(_value, _destination);
     [Benchmark]
-    public int Packed() => LongArrayReference.WritePacked(_value, _destination, fill: false);
+    public int Packed() => Int64ArrayReference.WritePacked(_value, _destination, fill: false);
     [Benchmark]
-    public int PackedFill() => LongArrayReference.WritePacked(_value, _destination, fill: true);
+    public int PackedFill() => Int64ArrayReference.WritePacked(_value, _destination, fill: true);
     [Benchmark]
-    public int PooledPacked() => LongArrayReference.WritePooled(_value, _destination, fill: false);
+    public int PooledPacked() => Int64ArrayReference.WritePooled(_value, _destination, fill: false);
     [Benchmark]
-    public int PooledPackedFill() => LongArrayReference.WritePooled(_value, _destination, fill: true);
+    public int PooledPackedFill() => Int64ArrayReference.WritePooled(_value, _destination, fill: true);
 }

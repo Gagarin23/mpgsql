@@ -6,7 +6,7 @@ using Mpgsql.Converters;
 namespace Mpgsql.Benchmarks;
 
 // Deliberately straightforward, fully checked alternatives; not production converters.
-internal static class LongArrayReference
+internal static class Int64ArrayReference
 {
     internal static int WriteScalar(ReadOnlyMemory<long> value, Span<byte> destination)
     {
@@ -59,7 +59,7 @@ internal static class LongArrayReference
 
     private static int Header(ReadOnlyMemory<long> value, Span<byte> destination)
     {
-        int size = LongArrayConverter.GetByteCount(value);
+        int size = Int64ArrayConverter.GetByteCount(value);
         if (destination.Length < size) throw new ArgumentException("Insufficient capacity.");
         if (MemoryMarshal.AsBytes(value.Span).Overlaps(destination[..size])) throw new ArgumentException("Overlapping storage.");
         BinaryPrimitives.WriteInt32BigEndian(destination, value.IsEmpty ? 0 : 1);

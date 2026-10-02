@@ -23,8 +23,13 @@ public readonly struct BinaryCopyRow
         return result;
     }
 
-    public ReadOnlyMemory<long> ReadLongArray(int index) => LongArrayConverter.Read(RequireValue(index));
-    public int ReadLongArray(int index, Span<long> destination) => LongArrayConverter.Read(RequireValue(index), destination);
+    public long? ReadNullableInt64(int index) => Int64Converter.ReadNullable(this[index]);
+
+    public ReadOnlyMemory<long> ReadLongArray(int index) => Int64ArrayConverter.Read(RequireValue(index));
+    public int ReadLongArray(int index, Span<long> destination) => Int64ArrayConverter.Read(RequireValue(index), destination);
+
+    public ReadOnlyMemory<long?> ReadNullableLongArray(int index) => NullableInt64ArrayConverter.Read(RequireValue(index));
+    public int ReadNullableLongArray(int index, Span<long?> destination) => NullableInt64ArrayConverter.Read(RequireValue(index), destination);
 
     private ReadOnlySequence<byte> RequireValue(int index) => this[index]
         ?? throw new InvalidOperationException("The COPY field is SQL NULL.");

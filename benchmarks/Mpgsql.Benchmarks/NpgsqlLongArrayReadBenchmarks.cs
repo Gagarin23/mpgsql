@@ -27,8 +27,8 @@ public class NpgsqlLongArrayReadBenchmarks
     {
         long[] values = NpgsqlArrayVerification.Values(Count);
         // Independent scalar reference, same bytes for all three decoders.
-        byte[] bytes = new byte[LongArrayConverter.GetByteCount(Count)];
-        LongArrayReference.WriteScalar(values, bytes);
+        byte[] bytes = new byte[Int64ArrayConverter.GetByteCount(Count)];
+        Int64ArrayReference.WriteScalar(values, bytes);
         _payload = NpgsqlArrayVerification.Sequence(bytes, ReaderBufferSize);
         _harness = new(20, bytes, ReaderBufferSize);
         if (!NpgsqlOriginal().AsSpan().SequenceEqual(values) ||
@@ -46,7 +46,7 @@ public class NpgsqlLongArrayReadBenchmarks
     [Benchmark]
     public long[] NpgsqlCopied() => _harness.Read(_harness.Copy);
     [Benchmark]
-    public ReadOnlyMemory<long> Mpgsql() => LongArrayConverter.Read(_payload);
+    public ReadOnlyMemory<long> Mpgsql() => Int64ArrayConverter.Read(_payload);
 
     [GlobalCleanup]
     public void Cleanup() => _harness?.Dispose();

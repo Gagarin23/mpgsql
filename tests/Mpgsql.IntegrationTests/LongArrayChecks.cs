@@ -11,11 +11,11 @@ internal static class LongArrayChecks
         for (int i = 0; i < large.Length; i++)
             large[i] = unchecked((long)(0x0123456789abcdefUL * (ulong)(i + 1)));
         long[][] cases = [[], [0x0102030405060708], [long.MinValue, -1, 0, 1, long.MaxValue, 42, -42], large];
-        connection.Append(FrontendMessage.Parse("select $1::bigint[]", "wire_long_memory", new[] { LongArrayConverter.ArrayTypeOid }));
+        connection.Append(FrontendMessage.Parse("select $1::bigint[]", "wire_long_memory", new[] { Int64ArrayConverter.ArrayTypeOid }));
         foreach (long[] values in cases)
         {
-            byte[] payload = new byte[LongArrayConverter.GetByteCount(values)];
-            LongArrayConverter.Write(values, payload);
+            byte[] payload = new byte[Int64ArrayConverter.GetByteCount(values)];
+            Int64ArrayConverter.Write(values, payload);
             connection.Append(FrontendMessage.Bind(statement: "wire_long_memory",
                 parameters: new ReadOnlyMemory<byte>?[] { payload },
                 parameterFormats: new[] { FormatCode.Binary }, resultFormats: new[] { FormatCode.Binary }));
@@ -30,13 +30,13 @@ internal static class LongArrayChecks
         {
             connection.Expect(BackendMessageKind.BindComplete);
             var fields = connection.Expect(BackendMessageKind.RowDescription).GetRowDescription();
-            Check(fields.Length == 1 && fields.Span[0].DataTypeOid == LongArrayConverter.ArrayTypeOid &&
+            Check(fields.Length == 1 && fields.Span[0].DataTypeOid == Int64ArrayConverter.ArrayTypeOid &&
                 fields.Span[0].Format == FormatCode.Binary, "bigint[] RowDescription");
             connection.Expect(BackendMessageKind.DataRow, out var row);
             Check(row.Count == 1 && row.Values.Span[0].HasValue, "bigint[] non-NULL field");
             var payload = row.Values.Span[0]!.Value;
-            Check(LongArrayConverter.Read(payload).Span.SequenceEqual(values), "bigint[] owned round trip");
-            int count = LongArrayConverter.Read(payload, reusable);
+            Check(Int64ArrayConverter.Read(payload).Span.SequenceEqual(values), "bigint[] owned round trip");
+            int count = Int64ArrayConverter.Read(payload, reusable);
             Check(count == values.Length && reusable.AsSpan(0, count).SequenceEqual(values), "bigint[] reused round trip");
             if (values.Length == 0) Check(payload.Length == 12, "PostgreSQL empty array canonical header");
             Complete(connection);
@@ -51,17 +51,17 @@ internal static class LongArrayChecks
         connection.Expect(BackendMessageKind.DataRow, out var serverRow);
         Check(serverRow.Count == 3, "server array field count");
         var serverValues = serverRow.Values.Span;
-        Check(serverValues[0].HasValue && LongArrayConverter.Read(serverValues[0]!.Value).Span
+        Check(serverValues[0].HasValue && Int64ArrayConverter.Read(serverValues[0]!.Value).Span
             .SequenceEqual(new long[] { long.MinValue, 0x0102030405060708, -1, long.MaxValue }), "server lower bound and extremes");
         Check(serverValues[1] is null, "SQL NULL array remains an outer NULL field");
-        Check(serverValues[2].HasValue && LongArrayConverter.Read(serverValues[2]!.Value).IsEmpty, "empty array remains a non-NULL field");
+        Check(serverValues[2].HasValue && Int64ArrayConverter.Read(serverValues[2]!.Value).IsEmpty, "empty array remains a non-NULL field");
         Complete(connection);
 
         connection.Query("CREATE TEMP TABLE mpgsql_long_bitmap (value bigint[]); " +
             "INSERT INTO mpgsql_long_bitmap VALUES (array[null::bigint]); UPDATE mpgsql_long_bitmap SET value[1] = 42");
         Begin(connection, "select value from mpgsql_long_bitmap");
         connection.Expect(BackendMessageKind.DataRow, out var bitmapRow);
-        Check(LongArrayConverter.Read(bitmapRow.Values.Span[0]!.Value).Span.SequenceEqual(new long[] { 42 }),
+        Check(Int64ArrayConverter.Read(bitmapRow.Values.Span[0]!.Value).Span.SequenceEqual(new long[] { 42 }),
             "retained NULL bitmap without actual NULL elements");
         Complete(connection);
 
@@ -70,7 +70,7 @@ internal static class LongArrayChecks
             Begin(connection, sql);
             connection.Expect(BackendMessageKind.DataRow, out var unsupported);
             bool rejected = false;
-            try { _ = LongArrayConverter.Read(unsupported.Values.Span[0]!.Value); }
+            try { _ = Int64ArrayConverter.Read(unsupported.Values.Span[0]!.Value); }
             catch (NotSupportedException) { rejected = true; }
             Check(rejected, "unrepresentable server array is explicitly rejected");
             Complete(connection);
