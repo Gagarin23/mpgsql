@@ -1,0 +1,50 @@
+name: mpgsql-upper-tests
+services:
+  postgres:
+    image: postgres:17.11
+    environment:
+      POSTGRES_USER: mpgsql
+      POSTGRES_PASSWORD: mpgsql-local-only
+      POSTGRES_DB: mpgsql
+    ports: ["127.0.0.1:16430:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mpgsql -d mpgsql"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+  pgbouncer-session:
+    image: edoburu/pgbouncer:v1.25.2-p0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports: ["127.0.0.1:16431:6432"]
+    volumes:
+      - ./pgbouncer-session.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./userlist.txt:/etc/pgbouncer/userlist.txt:ro
+  pgbouncer-transaction:
+    image: edoburu/pgbouncer:v1.25.2-p0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports: ["127.0.0.1:16432:6432"]
+    volumes:
+      - ./pgbouncer-transaction.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./userlist.txt:/etc/pgbouncer/userlist.txt:ro
+  doorman-session:
+    image: ghcr.io/ozontech/pg_doorman:v3.10.6
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports: ["127.0.0.1:16433:6432"]
+    volumes:
+      - ./doorman-session.yaml:/etc/pg_doorman/pg_doorman.yaml:ro
+    command: ["pg_doorman", "/etc/pg_doorman/pg_doorman.yaml"]
+  doorman-transaction:
+    image: ghcr.io/ozontech/pg_doorman:v3.10.6
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports: ["127.0.0.1:16434:6432"]
+    volumes:
+      - ./doorman-transaction.yaml:/etc/pg_doorman/pg_doorman.yaml:ro
+    command: ["pg_doorman", "/etc/pg_doorman/pg_doorman.yaml"]

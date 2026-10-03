@@ -11,10 +11,12 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
 {
     private enum Phase
     {
+        Idle,
         Parse,
         Bind,
         Describe,
         Rows,
+        Close,
         Recovery
     }
 
@@ -25,11 +27,12 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
 
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _sealed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource<bool> _firstPublished = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly CancellationTokenRegistration _registration;
     private readonly MpgsqlMessageSession _session;
     private readonly HashSet<OutboundWork> _pendingWrites = [];
+    private readonly Queue<PendingResponse> _responses = new();
     private int _queryCount;
-    private int _responseQuery;
     private int _columnCount;
     private bool _hasRows;
     private bool _isSealed;
@@ -53,6 +56,7 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
                 var batch = (MpgsqlQueryBatch)state!;
                 Volatile.Write(ref batch._discard,
                     1);
+                batch._session.WakeRowBudget();
                 batch._session.ScheduleDiscard(batch);
             },
             this);
@@ -75,6 +79,7 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
     public Task Sealed => _sealed.Task;
     /// <summary>Completes at ReadyForQuery; SQL/transport errors fault this task even when consumption was cancelled.</summary>
     public Task Completion => _completion.Task;
+    internal Task<bool> FirstPublished => _firstPublished.Task;
     public TransactionStatus? TransactionStatus { get; private set; }
 
     public ValueTask SendQueryAsync(string sql,
@@ -84,6 +89,29 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
         return _session.SendQueryAsync(this,
             sql,
             parameters);
+    }
+
+    /// <summary>Queues named Parse without Sync. Await statement.Prepared only after sending Sync.</summary>
+    public ValueTask SendPrepareAsync(MpgsqlPreparedStatement statement)
+    {
+        ThrowForSend();
+        return _session.SendPrepareAsync(this, statement);
+    }
+
+    /// <summary>Queues binary Bind, portal Describe and unlimited Execute without another Parse or Sync.</summary>
+    public ValueTask SendQueryAsync(MpgsqlPreparedStatement statement,
+        ReadOnlyMemory<MpgsqlParameter> parameters = default)
+    {
+        ThrowForSend();
+        return _session.SendQueryAsync(this, statement, parameters);
+    }
+
+    /// <summary>Queues Close without Sync and prevents further executions of this statement.</summary>
+    /// <remarks>Await Completion for acknowledgement. Retry a skipped Close in a new batch after recovery.</remarks>
+    public ValueTask SendCloseAsync(MpgsqlPreparedStatement statement)
+    {
+        ThrowForSend();
+        return _session.SendCloseAsync(this, statement);
     }
 
     /// <summary>Queues exactly one Sync after all previously submitted sends, including sends not yet awaited.</summary>
@@ -129,11 +157,16 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
         }
     }
 
-    internal void RegisterQuery()
+    internal void RegisterOperation(MessageOperationKind kind, MpgsqlPreparedStatement? statement)
     {
         lock (_gate)
         {
-            _queryCount++;
+            int? queryIndex = kind is MessageOperationKind.Query or MessageOperationKind.PreparedQuery
+                ? _queryCount++ : null;
+            _responses.Enqueue(new(kind, statement, queryIndex));
+            _firstPublished.TrySetResult(true);
+            if (_phase == Phase.Idle)
+                StartResponse();
         }
     }
 
@@ -142,6 +175,7 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
         lock (_gate)
         {
             _isSealed = true;
+            _firstPublished.TrySetResult(false);
             _sealed.TrySetResult();
         }
     }
@@ -174,8 +208,22 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
     }
     internal void ReleaseRegistration() => _registration.Unregister();
 
+    // Upper admission can be cancelled before this group ever owns a wire boundary.
+    internal void CompleteIfUnpublished()
+    {
+        lock (_gate)
+        {
+            if (_syncQueued != 0 || _pendingWrites.Count != 0 || _queryCount != 0) return;
+            _firstPublished.TrySetResult(false);
+            _sealed.TrySetResult();
+            Complete(null);
+        }
+        _session.ReleaseBatch(this);
+    }
+
     internal void Accept(BackendMessage message,
-        ref IMemoryOwner<byte>? owner)
+        ref IMemoryOwner<byte>? owner,
+        ref RowBufferBudget? reservation)
     {
         lock (_gate)
         {
@@ -186,7 +234,7 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
                     Unexpected(message.Kind);
                 }
                 _error = message.GetDiagnostics();
-                _errorIndex = _responseQuery == _queryCount ? null : _responseQuery;
+                _errorIndex = _responses.TryPeek(out var failed) ? failed.QueryIndex : null;
                 _phase = Phase.Recovery;
                 DrainEvents();
                 return;
@@ -194,25 +242,42 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
             if (message.Kind == BackendMessageKind.ReadyForQuery)
             {
                 if (!_isSealed || (_phase != Phase.Recovery &&
-                                   (_phase != Phase.Parse || _responseQuery != _queryCount)))
+                                   (_phase != Phase.Idle || _responses.Count != 0)))
                 {
                     Unexpected(message.Kind);
                 }
                 TransactionStatus = message.GetTransactionStatus();
-                Complete(_error is { } error
+                var failure = _error is { } error
                     ? new MpgsqlServerException(error,
                         _errorIndex,
                         TransactionStatus.Value)
-                    : null);
+                    : null;
+                if (failure is not null)
+                    FailPreparations(failure);
+                _responses.Clear();
+                Complete(failure);
                 return;
             }
-            if (_responseQuery >= _queryCount || _phase == Phase.Recovery)
+            if (_responses.Count == 0 || _phase == Phase.Recovery)
             {
                 Unexpected(message.Kind);
             }
+            var response = _responses.Peek();
             switch (_phase, message.Kind)
             {
-                case (Phase.Parse, BackendMessageKind.ParseComplete): _phase = Phase.Bind; break;
+                case (Phase.Parse, BackendMessageKind.ParseComplete):
+                    if (response.Kind == MessageOperationKind.Prepare)
+                    {
+                        response.Statement!.ConfirmPrepared();
+                        EndResponse();
+                    }
+                    else
+                        _phase = Phase.Bind;
+                    break;
+                case (Phase.Close, BackendMessageKind.CloseComplete):
+                    response.Statement!.ConfirmClosed();
+                    EndResponse();
+                    break;
                 case (Phase.Bind, BackendMessageKind.BindComplete): _phase = Phase.Describe; break;
                 case (Phase.Describe, BackendMessageKind.RowDescription):
                     if (DiscardsRows)
@@ -232,14 +297,14 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
                     _columnCount = columns.Length;
                     _hasRows = true;
                     _phase = Phase.Rows;
-                    Publish(new(_responseQuery,
-                        columns));
+                    Publish(new(response.QueryIndex!.Value,
+                        columns, IsRowSet: true));
                     break;
                 case (Phase.Describe, BackendMessageKind.NoData):
                     _columnCount = 0;
                     _hasRows = false;
                     _phase = Phase.Rows;
-                    Publish(new(_responseQuery,
+                    Publish(new(response.QueryIndex!.Value,
                         default));
                     break;
                 case (Phase.Rows, BackendMessageKind.DataRow):
@@ -247,32 +312,58 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
                     if (!DiscardsRows)
                     {
                         var row = new OwnedRow(message,
-                            owner);
+                            owner, reservation);
+                        reservation = null;
                         if (owner is null)
                         {
                             _session.RecordRowCopy(message.Payload.Length);
                         }
                         owner = null;
-                        Publish(new(_responseQuery,
+                        Publish(new(response.QueryIndex!.Value,
                             default,
                             row));
                     }
                     break;
                 case (Phase.Rows, BackendMessageKind.CommandComplete):
                 case (Phase.Rows, BackendMessageKind.EmptyQueryResponse):
-                    Publish(new(_responseQuery,
+                    Publish(new(response.QueryIndex!.Value,
                         default,
                         CommandTag:
                         !DiscardsRows && message.Kind == BackendMessageKind.CommandComplete
                             ? message.GetCommandTag()
                             : null,
                         IsEnd: true));
-                    _responseQuery++;
-                    _phase = Phase.Parse;
+                    EndResponse();
                     break;
                 default: Unexpected(message.Kind); break;
             }
         }
+    }
+
+    private void StartResponse()
+    {
+        _phase = _responses.TryPeek(out var response)
+            ? response.Kind switch
+            {
+                MessageOperationKind.Query or MessageOperationKind.Prepare => Phase.Parse,
+                MessageOperationKind.PreparedQuery => Phase.Bind,
+                MessageOperationKind.Close => Phase.Close,
+                _ => throw new InvalidDataException("Sync does not have an operation response.")
+            }
+            : Phase.Idle;
+    }
+
+    private void EndResponse()
+    {
+        _responses.Dequeue();
+        StartResponse();
+    }
+
+    private void FailPreparations(Exception error)
+    {
+        foreach (var response in _responses)
+            if (response.Kind == MessageOperationKind.Prepare)
+                response.Statement!.FailPreparation(error);
     }
 
     internal void AcceptSkippedRow(int columns)
@@ -316,8 +407,10 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
             Volatile.Write(ref _discard,
                 1);
             foreach (var work in _pendingWrites) work.FailQueued(error);
+            FailPreparations(error);
             DrainEvents();
             _sealed.TrySetException(error);
+            _firstPublished.TrySetResult(false);
             Complete(error);
         }
     }
@@ -362,7 +455,7 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
         }
     }
 
-    internal async ValueTask DiscardResultsAsync()
+    internal void BeginDiscard()
     {
         Volatile.Write(ref _discard,
             1);
@@ -371,6 +464,12 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
             DrainEvents();
             _events.Writer.TryComplete();
         }
+        _session.WakeRowBudget();
+    }
+
+    internal async ValueTask DiscardResultsAsync()
+    {
+        BeginDiscard();
         _reader?.ReleaseCurrent();
         if (Volatile.Read(ref _syncQueued) != 0 && !RequestToken.IsCancellationRequested)
         {
@@ -391,5 +490,5 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
     }
 
     private void Unexpected(BackendMessageKind kind)
-        => throw new InvalidDataException($"Unexpected {kind} in query {_responseQuery}, phase {_phase}.");
+        => throw new InvalidDataException($"Unexpected {kind} in phase {_phase}.");
 }

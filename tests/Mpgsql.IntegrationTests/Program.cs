@@ -10,6 +10,13 @@ try
     string? requestedDatabase = Environment.GetEnvironmentVariable("MPGSQL_TEST_DATABASE");
     string database = requestedDatabase ?? user;
 
+    if (Environment.GetEnvironmentVariable("MPGSQL_TEST_UPPER_ONLY") == "1")
+    {
+        await UpperApiChecks.RunAsync(host, port, user, password, database,
+            Environment.GetEnvironmentVariable("MPGSQL_TEST_POOL_MODE") == "transaction");
+        return;
+    }
+
     TestConnection connection;
     try
     {
@@ -38,9 +45,10 @@ try
     }
 
     Console.WriteLine("All live protocol checks passed.");
+    await UpperApiChecks.RunAsync(host, port, user, password, database, transactionPool: false);
 }
 catch (Exception error)
 {
-    Console.Error.WriteLine(error.Message);
+    Console.Error.WriteLine(error);
     Environment.ExitCode = 1;
 }

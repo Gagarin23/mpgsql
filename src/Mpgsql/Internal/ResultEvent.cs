@@ -8,5 +8,6 @@ internal readonly record struct ResultEvent
     ReadOnlyMemory<RowField> Columns,
     OwnedRow? Row = null,
     string? CommandTag = null,
-    bool IsEnd = false
+    bool IsEnd = false,
+    bool IsRowSet = false
 );

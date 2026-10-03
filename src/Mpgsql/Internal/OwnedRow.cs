@@ -7,12 +7,16 @@ internal sealed class OwnedRow : IDisposable
 {
     private IMemoryOwner<byte>? _owner;
     private ReadOnlySequence<byte>?[]? _values;
+    private RowBufferBudget? _budget;
+    private readonly long _bytes;
     internal int Count { get; }
     internal ReadOnlySequence<byte>? this[int ordinal] => _values![ordinal];
 
     internal OwnedRow(BackendMessage message,
-        IMemoryOwner<byte>? frameOwner)
+        IMemoryOwner<byte>? frameOwner,
+        RowBufferBudget? budget = null)
     {
+        _bytes = message.Payload.Length;
         Count = message.GetDataRow().Count;
         _owner = frameOwner ?? MemoryPool<byte>.Shared.Rent((int)message.Payload.Length);
         try
@@ -31,6 +35,7 @@ internal sealed class OwnedRow : IDisposable
                 Count));
             var reader = new WireReader(payload.Slice(2));
             for (int i = 0; i < Count; i++) _values[i] = reader.Value();
+            _budget = budget; // caller owns the reservation until construction succeeds
         }
         catch
         {
@@ -53,5 +58,6 @@ internal sealed class OwnedRow : IDisposable
         }
         _owner?.Dispose();
         _owner = null;
+        Interlocked.Exchange(ref _budget, null)?.Release(_bytes);
     }
 }

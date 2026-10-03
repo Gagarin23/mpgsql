@@ -7,7 +7,7 @@ public sealed class MpgsqlServerException : Exception
 {
     public DiagnosticMessage Diagnostics { get; }
     public string? SqlState => Diagnostics.SqlState;
-    /// <summary>Zero-based query index; null denotes an error at Sync.</summary>
+    /// <summary>Zero-based query index; null denotes an error at preparation, Close or Sync.</summary>
     public int? QueryIndex { get; }
     public TransactionStatus TransactionStatus { get; }
 

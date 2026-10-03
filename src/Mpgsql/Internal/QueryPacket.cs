@@ -3,16 +3,23 @@ using Mpgsql.Protocol;
 
 namespace Mpgsql.Internal;
 
-// One reservation/publication for Parse, Bind, portal Describe and unlimited Execute.
+// One reservation/publication for an optional Parse, Bind, portal Describe and unlimited Execute.
 // UTF-8 C strings; all lengths, counts, OIDs and values are big-endian.
 internal static class QueryPacket
 {
     internal static int GetByteCount(string sql,
         ReadOnlySpan<MpgsqlParameter> parameters)
     {
-        FrontendSize.Count(parameters.Length);
         int size = checked(5 + 1 + WireEncoding.CStringLength(sql) + 2 + 4 * parameters.Length);
-        size = checked(size + 5 + 2 + 4 + 2 + 4 + 7 + 10);
+        return checked(size + GetPreparedByteCount("", parameters));
+    }
+
+    internal static int GetPreparedByteCount(string statement,
+        ReadOnlySpan<MpgsqlParameter> parameters)
+    {
+        FrontendSize.Count(parameters.Length);
+        // Bind: tag/length, unnamed portal, statement C string, binary format codes and counts.
+        int size = checked(5 + 1 + WireEncoding.CStringLength(statement) + 4 + 2 + 4 + 7 + 10);
         foreach (ref readonly var parameter in parameters)
             size = checked(size + 4 + Math.Max(0,
                 parameter.PayloadLength));
@@ -38,16 +45,35 @@ internal static class QueryPacket
         parse.Byte(0); // unnamed statement
         parse.CString(sql);
         parse.Count(parameters.Length);
-        foreach (ref readonly var parameter in parameters) parse.UInt32(parameter.Oid);
+        foreach (ref readonly var parameter in parameters) parse.UInt32(parameter.PostgresTypeOid);
 
-        int bindSize = size - parseSize - 7 - 10;
-        int offset = parseSize;
+        return parseSize + WritePreparedCore("", parameters, destination[parseSize..], size - parseSize);
+    }
+
+    internal static int WritePrepared(string statement,
+        ReadOnlySpan<MpgsqlParameter> parameters,
+        Span<byte> destination)
+    {
+        int size = GetPreparedByteCount(statement, parameters);
+        if (destination.Length < size)
+            throw new ArgumentException("The destination is too small for the complete prepared query packet.", nameof(destination));
+        return WritePreparedCore(statement, parameters, destination, size);
+    }
+
+    private static int WritePreparedCore(string statement,
+        ReadOnlySpan<MpgsqlParameter> parameters,
+        Span<byte> destination,
+        int size)
+    {
+        int bindSize = size - 7 - 10;
+        int offset = 0;
         destination[offset] = (byte)'B';
         BinaryPrimitives.WriteInt32BigEndian(destination[(offset + 1)..],
             bindSize - 1);
         offset += 5;
         destination[offset++] = 0; // unnamed portal
-        destination[offset++] = 0; // unnamed statement
+        offset += WireEncoding.Utf8.GetBytes(statement.AsSpan(), destination[offset..]);
+        destination[offset++] = 0; // statement C string terminator
         BinaryPrimitives.WriteUInt16BigEndian(destination[offset..],
             1);
         offset += 2;

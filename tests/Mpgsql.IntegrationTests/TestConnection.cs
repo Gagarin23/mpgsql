@@ -18,6 +18,7 @@ internal sealed class TestConnection : IDisposable
     public List<BackendMessage> AsynchronousMessages { get; } = [];
     public string ServerVersion => _parameters["server_version"];
     public string Authentication { get; private set; } = "trust";
+    internal BackendKeyData BackendKey { get; private set; }
     internal Stream CopyStream => _stream;
     internal BackendMessage Receive() => Read(out _);
 
@@ -250,7 +251,8 @@ internal sealed class TestConnection : IDisposable
             }
             else if (message.Kind == BackendMessageKind.BackendKeyData)
             {
-                if (!authenticated || message.GetBackendKeyData().ProcessId <= 0)
+                BackendKey = message.GetBackendKeyData();
+                if (!authenticated || BackendKey.ProcessId <= 0)
                 {
                     throw new InvalidDataException("Invalid startup BackendKeyData.");
                 }

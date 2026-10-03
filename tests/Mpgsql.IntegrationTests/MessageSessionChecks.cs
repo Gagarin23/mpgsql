@@ -16,6 +16,7 @@ internal static class MessageSessionChecks
             lifetime.Token);
         await ConcurrentPipeline(session);
         await TypedParameters(session);
+        await PreparedStatementChecks.RunAsync(session);
         await LargeRows(session);
         await ErrorRecovery(session);
         await DeferredError(session);

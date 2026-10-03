@@ -9,6 +9,7 @@
     <ItemGroup>
         <InternalsVisibleTo Include="Mpgsql.Tests" />
         <InternalsVisibleTo Include="Mpgsql.Benchmarks" />
+        <InternalsVisibleTo Include="Mpgsql.IntegrationTests" />
     </ItemGroup>
 
 </Project>

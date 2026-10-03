@@ -1,3 +1,5 @@
+using Mpgsql.Protocol;
+
 namespace Mpgsql.Internal;
 
 // One FIFO write operation. Cancellation cannot release borrowed parameters while encoding.
@@ -14,7 +16,9 @@ internal sealed class OutboundWork
     private volatile State _state;
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal MpgsqlQueryBatch Batch { get; }
-    internal bool IsSync { get; }
+    internal MessageOperationKind Kind { get; }
+    internal bool IsSync => Kind == MessageOperationKind.Sync;
+    internal MpgsqlPreparedStatement? Statement { get; }
     internal string? Sql { get; private set; }
     internal ReadOnlyMemory<MpgsqlParameter> Parameters { get; private set; }
     internal int Size { get; }
@@ -25,7 +29,42 @@ internal sealed class OutboundWork
         string? sql = null,
         ReadOnlyMemory<MpgsqlParameter> parameters = default,
         int size = 0)
-        => (Batch, IsSync, Sql, Parameters, Size) = (batch, sql is null, sql, parameters, size);
+        => (Batch, Kind, Sql, Parameters, Size) = (batch,
+            sql is null ? MessageOperationKind.Sync : MessageOperationKind.Query, sql, parameters, size);
+
+    internal OutboundWork(MpgsqlQueryBatch batch,
+        MessageOperationKind kind,
+        MpgsqlPreparedStatement statement,
+        int size,
+        ReadOnlyMemory<MpgsqlParameter> parameters = default)
+        => (Batch, Kind, Statement, Size, Parameters) = (batch, kind, statement, size, parameters);
+
+    private void FailUnpublishedPreparation(Exception error)
+    {
+        if (Kind == MessageOperationKind.Prepare)
+            Statement!.FailPreparation(error);
+    }
+
+    internal void Write(Span<byte> destination)
+    {
+        switch (Kind)
+        {
+            case MessageOperationKind.Query:
+                QueryPacket.Write(Sql!, Parameters.Span, destination);
+                break;
+            case MessageOperationKind.Prepare:
+                Statement!.ParseMessage.Write(destination);
+                break;
+            case MessageOperationKind.PreparedQuery:
+                QueryPacket.WritePrepared(Statement!.Name, Parameters.Span, destination);
+                break;
+            case MessageOperationKind.Close:
+                Statement!.CloseMessage.Write(destination);
+                break;
+            default:
+                throw new InvalidOperationException("Sync is written separately.");
+        }
+    }
 
     internal bool TryStart() => Interlocked.CompareExchange(ref _state,
         State.Encoding,
@@ -54,6 +93,7 @@ internal sealed class OutboundWork
         {
             Parameters = default;
             Sql = null;
+            FailUnpublishedPreparation(new OperationCanceledException(Batch.RequestToken));
             _completion.TrySetCanceled(Batch.RequestToken);
         }
         else if (state == State.Published)
@@ -64,6 +104,8 @@ internal sealed class OutboundWork
 
     internal void Complete(Exception? error = null)
     {
+        if (error is not null && _state == State.Encoding)
+            FailUnpublishedPreparation(error);
         Parameters = default;
         Sql = null;
         _state = State.Finished;
@@ -90,6 +132,7 @@ internal sealed class OutboundWork
         {
             Parameters = default;
             Sql = null;
+            FailUnpublishedPreparation(error);
             _completion.TrySetException(error);
         }
         else if (state == State.Published)

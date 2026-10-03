@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.IO.Pipelines;
 using System.Threading.Channels;
 using Mpgsql.Internal;
@@ -20,6 +21,7 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
     private readonly Lock _gate = new();
     private readonly Queue<MpgsqlQueryBatch> _responses = new();
     private readonly HashSet<MpgsqlQueryBatch> _batches = [];
+    private readonly ConcurrentDictionary<string, MpgsqlPreparedStatement> _statements = new(StringComparer.Ordinal);
     private readonly BackendFrameBuffer _frames = new();
 
     private readonly Channel<OutboundWork> _writes = Channel.CreateUnbounded<OutboundWork>(new()
@@ -39,6 +41,32 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
     private Exception? _failure;
     private int _disposed;
     private long _copiedRows;
+    private long _nextStatement;
+    private RowBufferBudget? _rowBudget;
+    private bool _claimed;
+    private TransactionStatus _transactionStatus = TransactionStatus.Idle;
+
+    internal bool IsHealthy
+    {
+        get { lock (_gate) return _failure is null && _disposed == 0 && !_lifetime.IsCancellationRequested; }
+    }
+    internal TransactionStatus LastTransactionStatus { get { lock (_gate) return _transactionStatus; } }
+    internal bool IsClaimedForDataSource { get { lock (_gate) return _claimed; } }
+    internal long BufferedRowBytes => _rowBudget?.Used ?? 0;
+    internal void WakeRowBudget() => _rowBudget?.Pulse();
+
+    internal void ClaimForDataSource(long rowBytes)
+    {
+        lock (_gate)
+        {
+            ThrowIfStopped();
+            if (_claimed || _collecting is not null || _responses.Count != 0 || _batches.Count != 0
+                || _transactionStatus != TransactionStatus.Idle)
+                throw new InvalidOperationException("The factory must return an idle, exclusively owned session.");
+            _claimed = true;
+            _rowBudget = new(rowBytes);
+        }
+    }
 
     public MpgsqlMessageSession(
         PipeReader input,
@@ -75,6 +103,25 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
         }
     }
 
+    /// <summary>Creates a local statement with an owned, complete list of nonzero parameter OIDs.</summary>
+    /// <remarks>No messages are sent. Queue SendPrepareAsync in a batch and explicitly send Sync.</remarks>
+    public MpgsqlPreparedStatement CreatePreparedStatement(string sql,
+        ReadOnlyMemory<uint> parameterTypes = default)
+    {
+        lock (_gate)
+        {
+            ThrowIfStopped();
+            long number = checked(++_nextStatement);
+            var statement = new MpgsqlPreparedStatement(this,
+                "mpgsql_ps_" + number.ToString(CultureInfo.InvariantCulture), sql, parameterTypes);
+            _statements.TryAdd(statement.Name, statement);
+            return statement;
+        }
+    }
+
+    internal void ReleaseStatement(MpgsqlPreparedStatement statement)
+        => _statements.TryRemove(statement.Name, out _);
+
     internal long CopiedRowBytes => Interlocked.Read(ref _copiedRows) + Interlocked.Read(ref _frames.CopiedRowBytes);
     internal void RecordRowCopy(long size) => Interlocked.Add(ref _copiedRows,
         size);
@@ -97,25 +144,78 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
             parameters.Span);
         lock (_gate)
         {
-            ThrowIfStopped();
-            batch.ThrowForSend();
-            if (_collecting is not null && _collecting != batch)
-            {
-                throw new InvalidOperationException("Call SendSyncAsync on the collecting group before sending another group.");
-            }
-            if (_collecting is null)
-            {
-                _collecting = batch;
-                _responses.Enqueue(batch);
-            }
+            CheckSend(batch);
             var work = new OutboundWork(batch,
                 sql,
                 parameters,
                 size);
-            batch.AddWrite(work);
-            _writes.Writer.TryWrite(work);
-            return new(work.Completion);
+            return QueueWrite(work);
         }
+    }
+
+    internal ValueTask SendPrepareAsync(MpgsqlQueryBatch batch, MpgsqlPreparedStatement statement)
+    {
+        lock (_gate)
+        {
+            CheckSend(batch);
+            CheckStatement(statement);
+            statement.QueuePrepare(batch);
+            return QueueWrite(new(batch, MessageOperationKind.Prepare, statement, statement.ParseMessage.GetByteCount()));
+        }
+    }
+
+    internal ValueTask SendQueryAsync(MpgsqlQueryBatch batch, MpgsqlPreparedStatement statement,
+        ReadOnlyMemory<MpgsqlParameter> parameters)
+    {
+        CheckStatement(statement);
+        // Payload validation can scan large arrays; keep it outside the session admission gate.
+        int size = QueryPacket.GetPreparedByteCount(statement.Name, parameters.Span);
+        lock (_gate)
+        {
+            CheckSend(batch);
+            statement.ValidateExecution(batch, parameters.Span);
+            return QueueWrite(new(batch, MessageOperationKind.PreparedQuery, statement, size, parameters));
+        }
+    }
+
+    internal ValueTask SendCloseAsync(MpgsqlQueryBatch batch, MpgsqlPreparedStatement statement)
+    {
+        lock (_gate)
+        {
+            CheckSend(batch);
+            CheckStatement(statement);
+            if (!statement.QueueClose(batch))
+                return ValueTask.CompletedTask;
+            return QueueWrite(new(batch, MessageOperationKind.Close, statement, statement.CloseMessage.GetByteCount()));
+        }
+    }
+
+    private void CheckSend(MpgsqlQueryBatch batch)
+    {
+        ThrowIfStopped();
+        batch.ThrowForSend();
+        if (_collecting is not null && _collecting != batch)
+            throw new InvalidOperationException("Call SendSyncAsync on the collecting group before sending another group.");
+    }
+
+    private void CheckStatement(MpgsqlPreparedStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(statement);
+        if (statement.Session != this)
+            throw new ArgumentException("The prepared statement belongs to another session.", nameof(statement));
+    }
+
+    // Called with the session gate held, after validation and statement admission.
+    private ValueTask QueueWrite(OutboundWork work)
+    {
+        if (_collecting is null)
+        {
+            _collecting = work.Batch;
+            _responses.Enqueue(work.Batch);
+        }
+        work.Batch.AddWrite(work);
+        _writes.Writer.TryWrite(work);
+        return new(work.Completion);
     }
 
     internal ValueTask SendSyncAsync(MpgsqlQueryBatch batch)
@@ -162,14 +262,12 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
                     else
                     {
                         work.Batch.RequestToken.ThrowIfCancellationRequested();
-                        QueryPacket.Write(work.Sql!,
-                            work.Parameters.Span,
-                            _output.GetSpan(work.Size));
+                        work.Write(_output.GetSpan(work.Size));
                         work.Batch.RequestToken.ThrowIfCancellationRequested();
                         lock (_gate)
                         {
                             ThrowIfStopped();
-                            work.Batch.RegisterQuery();
+                            work.Batch.RegisterOperation(work.Kind, work.Statement);
                             _output.Advance(work.Size);
                         }
                     }
@@ -260,8 +358,17 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
                             {
                                 throw new InvalidDataException($"Unexpected idle backend message: {message.Kind}.");
                             }
-                            batch.Accept(message,
-                                ref owner);
+                            RowBufferBudget? reservation = null;
+                            try
+                            {
+                                if (message.Kind == BackendMessageKind.DataRow && _rowBudget is { } budget
+                                    && await budget.ReserveAsync(message.Payload.Length, batch, _lifetime.Token).ConfigureAwait(false))
+                                    reservation = budget;
+                                if (message.Kind == BackendMessageKind.ReadyForQuery)
+                                    lock (_gate) _transactionStatus = message.GetTransactionStatus();
+                                batch.Accept(message, ref owner, ref reservation);
+                            }
+                            finally { reservation?.Release(message.Payload.Length); }
                             if (message.Kind == BackendMessageKind.ReadyForQuery)
                             {
                                 lock (_gate) _responses.Dequeue();
@@ -331,6 +438,7 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
     private void Fail(Exception error)
     {
         MpgsqlQueryBatch[] batches;
+        MpgsqlPreparedStatement[] statements;
         lock (_gate)
         {
             if (_failure is not null || Volatile.Read(ref _disposed) != 0)
@@ -339,8 +447,11 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
             }
             _failure = error;
             batches = [.. _batches.Where(batch => !batch.Completion.IsCompleted)];
+            statements = [.. _statements.Values];
+            _statements.Clear();
             _writes.Writer.TryComplete();
         }
+        foreach (var statement in statements) statement.FailPreparation(error);
         foreach (var batch in batches)
         {
             batch.Fail(error);
@@ -348,8 +459,6 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
         }
         _completion.TrySetException(error);
         _lifetime.Cancel();
-        _input.CancelPendingRead();
-        _output.CancelPendingFlush();
     }
 
     public async ValueTask DisposeAsync()
@@ -360,19 +469,24 @@ public sealed class MpgsqlMessageSession : IAsyncDisposable
             return;
         }
         MpgsqlQueryBatch[] batches;
+        MpgsqlPreparedStatement[] statements;
+        var error = new ObjectDisposedException(nameof(MpgsqlMessageSession));
         lock (_gate)
         {
             batches = [.. _batches];
+            statements = [.. _statements.Values];
+            _statements.Clear();
             _writes.Writer.TryComplete();
         }
+        foreach (var statement in statements) statement.FailPreparation(error);
         foreach (var batch in batches)
         {
-            batch.Fail(new ObjectDisposedException(nameof(MpgsqlMessageSession)));
+            batch.Fail(error);
             batch.ReleaseRegistration();
         }
         _lifetime.Cancel();
-        _input.CancelPendingRead();
-        _output.CancelPendingFlush();
+        // ReadAsync/FlushAsync already use this token. Calling CancelPending* after a stream
+        // adapter concurrently completed can touch its disposed internal cancellation source.
         await _receiveTask.ConfigureAwait(false);
         await _writeTask.ConfigureAwait(false);
         await _controlTask.ConfigureAwait(false);

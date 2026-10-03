@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Runtime.ExceptionServices;
 using Mpgsql.Converters;
 using Mpgsql.Internal;
 using Mpgsql.Protocol;
@@ -13,7 +14,11 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
     private bool _end;
     private bool _finished;
     private int _busy;
-    private bool _disposed;
+    private volatile bool _disposed;
+    private readonly Lock _stateGate = new();
+    private TaskCompletionSource? _idle;
+    internal QueryExecution? Execution { get; set; }
+    internal bool IsRowSet { get; private set; }
     public int QueryIndex { get; private set; } = -1;
     public ReadOnlyMemory<RowField> Columns { get; private set; }
     public string? CommandTag { get; private set; }
@@ -24,18 +29,23 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
     public async ValueTask<bool> ReadAsync()
     {
         Enter();
-        try { return await ReadCoreAsync().ConfigureAwait(false); }
-        catch
+        bool result = false;
+        Exception? error = null;
+        try { result = await ReadCoreAsync().ConfigureAwait(false); }
+        catch (Exception ex)
         {
             _finished = true;
             _end = true;
-            throw;
+            error = ex;
         }
-        finally
+        finally { Exit(); }
+        if (error is not null)
         {
-            Volatile.Write(ref _busy,
-                0);
+            if (Execution is { } execution)
+                try { await execution.EndReaderAsync(discard: true).ConfigureAwait(false); } catch { }
+            ExceptionDispatchInfo.Throw(error);
         }
+        return result;
     }
 
     private async ValueTask<bool> ReadCoreAsync()
@@ -47,6 +57,11 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
             return false;
         }
         var result = await _batch.ReadEventAsync().ConfigureAwait(false);
+        if (_disposed)
+        {
+            result?.Row?.Dispose();
+            throw new ObjectDisposedException(nameof(MpgsqlResultReader));
+        }
         if (result is not { } value)
         {
             throw new InvalidDataException("Result ended without CommandComplete.");
@@ -68,22 +83,28 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
     public async ValueTask<bool> NextResultAsync()
     {
         Enter();
+        bool result = false;
+        Exception? error = null;
         try
         {
             while (await ReadCoreAsync().ConfigureAwait(false)) { }
-            return await MoveResultAsync().ConfigureAwait(false);
+            result = await MoveResultAsync().ConfigureAwait(false);
         }
-        catch
+        catch (Exception ex)
         {
             _finished = true;
             _end = true;
-            throw;
+            error = ex;
         }
-        finally
+        finally { Exit(); }
+        if (error is not null)
         {
-            Volatile.Write(ref _busy,
-                0);
+            if (Execution is { } execution)
+                try { await execution.EndReaderAsync(discard: true).ConfigureAwait(false); } catch { }
+            ExceptionDispatchInfo.Throw(error);
         }
+        if (_finished && Execution is { } owner) await owner.EndReaderAsync(discard: false).ConfigureAwait(false);
+        return result;
     }
 
     private async ValueTask<bool> MoveResultAsync()
@@ -95,6 +116,7 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
             return false;
         }
         var result = await _batch.ReadEventAsync().ConfigureAwait(false);
+        if (_disposed) throw new ObjectDisposedException(nameof(MpgsqlResultReader));
         if (result is not { } value)
         {
             _finished = true;
@@ -107,6 +129,7 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
         }
         QueryIndex = value.QueryIndex;
         Columns = value.Columns;
+        IsRowSet = value.IsRowSet;
         CommandTag = null;
         _end = false;
         return true;
@@ -133,6 +156,24 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
         RequireType(ordinal,
             Int64Converter.TypeOid);
         return Int64Converter.ReadNullable(GetRawValue(ordinal));
+    }
+
+    public bool IsDBNull(int ordinal) => GetRawValue(ordinal) is null;
+
+    /// <summary>Reads an explicitly supported CLR representation. Raw bytes remain borrowed, while
+    /// decoded arrays and strings own their storage. SQL NULL requires a nullable representation.</summary>
+    public T GetFieldValue<T>(int ordinal)
+    {
+        var payload = GetRawValue(ordinal);
+        var column = Columns.Span[ordinal];
+        if (column.Format != FormatCode.Binary || !FieldValueDecoder<T>.Supports(column.DataTypeOid))
+            throw new InvalidCastException($"Column {ordinal} cannot be read as {typeof(T)}.");
+        if (payload is not { } bytes)
+        {
+            if (default(T) is null) return default!;
+            throw new InvalidOperationException("SQL NULL requires a nullable CLR representation.");
+        }
+        return FieldValueDecoder<T>.Read(column.DataTypeOid, bytes);
     }
 
     public ReadOnlyMemory<long>? GetInt64Array(int ordinal)
@@ -170,13 +211,32 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
 
     private void Enter()
     {
-        ObjectDisposedException.ThrowIf(_disposed,
-            this);
-        if (Interlocked.CompareExchange(ref _busy,
-                1,
-                0) != 0)
+        lock (_stateGate)
         {
-            throw new InvalidOperationException("Concurrent reader movement or disposal is not supported.");
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_busy != 0) throw new InvalidOperationException("Concurrent reader movement or disposal is not supported.");
+            _busy = 1;
+        }
+    }
+
+    private void Exit()
+    {
+        lock (_stateGate)
+        {
+            if (_disposed) ReleaseCurrent();
+            _busy = 0;
+            _idle?.TrySetResult();
+            _idle = null;
+        }
+    }
+
+    internal Task InvalidateFromOwner()
+    {
+        lock (_stateGate)
+        {
+            _disposed = true;
+            if (_busy == 0) { ReleaseCurrent(); return Task.CompletedTask; }
+            return (_idle ??= new(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
         }
     }
 
@@ -190,6 +250,7 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
     {
         if (_disposed)
         {
+            if (Execution is { } owner) await owner.EndReaderAsync(discard: true).ConfigureAwait(false);
             return;
         }
         Enter();
@@ -197,12 +258,9 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
         {
             _disposed = true;
             ReleaseCurrent();
-            await _batch.DiscardResultsAsync().ConfigureAwait(false);
         }
-        finally
-        {
-            Volatile.Write(ref _busy,
-                0);
-        }
+        finally { Exit(); }
+        if (Execution is { } execution) await execution.EndReaderAsync(discard: true).ConfigureAwait(false);
+        else await _batch.DiscardResultsAsync().ConfigureAwait(false);
     }
 }
