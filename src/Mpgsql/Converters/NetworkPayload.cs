@@ -33,7 +33,7 @@ internal static class NetworkPayload
         return value.IsIPv6 ? 20 : 8;
     }
 
-    internal static void Write(PgInet value, Span<byte> destination,
+    internal static int Write(PgInet value, Span<byte> destination,
         bool cidr)
     {
         // PostgreSQL's family numbers (2,3), prefix bits, is_cidr, address byte length, network-order address.
@@ -49,6 +49,7 @@ internal static class NetworkPayload
         {
             BinaryPrimitives.WriteUInt32BigEndian(destination[4..], (uint)value.Address);
         }
+        return value.IsIPv6 ? 20 : 8;
     }
 
     internal static PgInet Read(ReadOnlySpan<byte> payload, bool cidr)

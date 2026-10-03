@@ -9,7 +9,6 @@ internal readonly struct TimestampCodec : IBinaryCodec<PgTimestamp>
 {
     public static uint Oid => (uint)TypeOid.Timestamp;
     public static int FixedSize => 8;
-    public static bool NeedsValidation => true;
     public static bool MayOverlap => false;
     public static int Measure(PgTimestamp value)
     {
@@ -21,9 +20,10 @@ internal readonly struct TimestampCodec : IBinaryCodec<PgTimestamp>
     }
     public static void CheckOverlap(PgTimestamp value, Span<byte> destination) { }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Write(PgTimestamp value, Span<byte> destination)
+    public static int Write(PgTimestamp value, Span<byte> destination)
     {
         BinaryPrimitives.WriteInt64BigEndian(destination, value.MicrosecondsSinceEpoch);
+        return FixedSize;
     }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static PgTimestamp Read(ReadOnlySpan<byte> payload)

@@ -9,7 +9,6 @@ internal readonly struct UuidCodec : IBinaryCodec<Guid>
 {
     public static uint Oid => (uint)TypeOid.Uuid;
     public static int FixedSize => 16;
-    public static bool NeedsValidation => false;
     public static bool MayOverlap => false;
     public static int Measure(Guid value)
     {
@@ -17,9 +16,10 @@ internal readonly struct UuidCodec : IBinaryCodec<Guid>
     }
     public static void CheckOverlap(Guid value, Span<byte> destination) { }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Write(Guid value, Span<byte> destination)
+    public static int Write(Guid value, Span<byte> destination)
     {
         value.TryWriteBytes(destination, bigEndian: true, out _);
+        return FixedSize;
     }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Guid Read(ReadOnlySpan<byte> payload)

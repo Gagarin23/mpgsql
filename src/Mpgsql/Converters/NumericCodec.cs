@@ -9,7 +9,6 @@ internal readonly struct NumericCodec : IBinaryCodec<PgNumeric>
 {
     public static uint Oid => (uint)TypeOid.Numeric;
     public static int FixedSize => 0;
-    public static bool NeedsValidation => true;
     public static bool MayOverlap => true;
     private static readonly UInt128 DecimalMax = ((UInt128)1 << 96) - 1;
 
@@ -20,21 +19,16 @@ internal readonly struct NumericCodec : IBinaryCodec<PgNumeric>
         {
             throw new ArgumentException("Invalid PostgreSQL numeric header.", nameof(value));
         }
-        foreach (ushort digit in value.Digits.Span)
-            if (digit > 9999)
-            {
-                throw new ArgumentException("Numeric digits must be in [0,9999].", nameof(value));
-            }
         return 8 + 2 * value.Digits.Length;
     }
 
     public static void CheckOverlap(PgNumeric value, Span<byte> destination)
         => BinaryPayload.RequireSeparate(MemoryMarshal.AsBytes(value.Digits.Span), destination);
 
-    public static void Write(PgNumeric value, Span<byte> destination)
+    public static int Write(PgNumeric value, Span<byte> destination)
         => WriteParts(value.Weight, value.Scale, value.Sign, value.Digits.Span, destination);
 
-    internal static void WriteParts(short weight, ushort scale,
+    internal static int WriteParts(short weight, ushort scale,
         PgNumericSign sign, ReadOnlySpan<ushort> digits,
         Span<byte> bytes)
     {
@@ -49,6 +43,7 @@ internal readonly struct NumericCodec : IBinaryCodec<PgNumeric>
             BinaryPrimitives.WriteUInt16BigEndian(bytes[offset..], digit);
             offset += 2;
         }
+        return offset;
     }
 
     private static bool ValidSign(PgNumericSign sign) => sign is PgNumericSign.Positive or PgNumericSign.Negative or
@@ -208,11 +203,6 @@ internal readonly struct NumericCodec : IBinaryCodec<PgNumeric>
             throw new OverflowException("Decimal cannot represent numeric NaN or infinity.");
         }
         int start = 0, end = digits.Length;
-        foreach (ushort digit in digits)
-            if (digit > 9999)
-            {
-                throw new InvalidDataException("Invalid numeric digit.");
-            }
         while (start < end && digits[start] == 0) start++;
         while (end > start && digits[end - 1] == 0) end--;
         if (start == end)
@@ -220,7 +210,15 @@ internal readonly struct NumericCodec : IBinaryCodec<PgNumeric>
             return new decimal(0, 0, 0, sign == PgNumericSign.Negative, (byte)Math.Min(scale, (ushort)28));
         }
         UInt128 coefficient = 0;
-        for (int i = start; i < end; i++) coefficient = checked(coefficient * 10000 + digits[i]);
+        for (int i = start; i < end; i++)
+        {
+            ushort digit = digits[i];
+            if (digit > 9999)
+            {
+                throw new InvalidDataException("Invalid numeric digit.");
+            }
+            coefficient = checked(coefficient * 10000 + digit);
+        }
         int power = 4 * (weight - end + 1);
         while (power < 0 && coefficient % 10 == 0)
         {

@@ -2,6 +2,8 @@ using System.Buffers;
 using System.Text;
 using Mpgsql.Converters;
 using Mpgsql.Protocol;
+using Mpgsql.Tests.Converters;
+using Mpgsql.Tests.Protocol;
 using static Mpgsql.Tests.Queries.ScriptedSession;
 
 namespace Mpgsql.Tests.Queries;
@@ -195,6 +197,48 @@ public sealed class UpperApiTests
         // Return the explicit lease before asking the same transport to multiplex.
         await connection.DisposeAsync(); await ThroughSync(wire); await wire.WriteAsync(Join(Query(1), Ready()));
         Assert.Equal(-1, await select);
+    }
+
+    [Fact]
+    public async Task JsonbGettersUseOwnedMemoryAndPreserveNullability()
+    {
+        await using var wire = new ScriptedSession();
+        await using var source = Source(wire);
+        var task = source.ExecuteReaderAsync("select jsonb_values", cancellationToken: TestContext.Current.CancellationToken).AsTask();
+        await ThroughSync(wire);
+        byte[] scalar = TestWire.Bytes("017b2278223a22d0aff09f9880227d");
+        byte[] array = ConverterAssertions.ArrayBytes(3802, scalar, scalar);
+        byte[] nullableArray = ConverterAssertions.ArrayBytes(3802, scalar, null);
+        await wire.WriteAsync(Join(Begin(3802, 3802, 3807, 3807, 3807, 3807),
+            Row(scalar, null, array, nullableArray, null, null), Command(), Ready()));
+        await using var reader = await task;
+        Assert.True(await reader.ReadAsync());
+        var value = reader.GetFieldValue<Memory<byte>>(0);
+        Assert.Equal(scalar[1..], value.ToArray());
+        Assert.Equal(scalar[1..], reader.GetFieldValue<Memory<byte>?>(0)!.Value.ToArray());
+        Assert.Null(reader.GetFieldValue<Memory<byte>?>(1));
+        Assert.Throws<InvalidOperationException>(() => reader.GetFieldValue<Memory<byte>>(1));
+        Assert.Throws<InvalidCastException>(() => reader.GetFieldValue<string>(0));
+        Assert.Throws<InvalidCastException>(() => reader.GetFieldValue<string>(1));
+        var values = reader.GetFieldValue<ReadOnlyMemory<Memory<byte>>>(2);
+        Assert.Equal(scalar[1..], values.Span[0].ToArray());
+        Assert.Equal(scalar[1..], reader.GetFieldValue<ReadOnlyMemory<Memory<byte>>?>(2)!.Value.Span[1].ToArray());
+        var nullable = reader.GetFieldValue<ReadOnlyMemory<Memory<byte>?>>(3);
+        Assert.Equal(scalar[1..], nullable.Span[0]!.Value.ToArray());
+        Assert.Null(nullable.Span[1]);
+        Assert.Null(reader.GetFieldValue<ReadOnlyMemory<Memory<byte>?>?>(3)!.Value.Span[1]);
+        Assert.Throws<NotSupportedException>(() => reader.GetFieldValue<ReadOnlyMemory<Memory<byte>>>(3));
+        Assert.Throws<InvalidCastException>(() => reader.GetFieldValue<ReadOnlyMemory<string?>>(2));
+        Assert.Null(reader.GetFieldValue<ReadOnlyMemory<Memory<byte>>?>(4));
+        Assert.Null(reader.GetFieldValue<ReadOnlyMemory<Memory<byte>?>?>(5));
+        Assert.Throws<InvalidOperationException>(() => reader.GetFieldValue<ReadOnlyMemory<Memory<byte>>>(4));
+        Assert.False(await reader.NextResultAsync());
+        await reader.DisposeAsync();
+        Assert.Equal(scalar[1..], value.ToArray());
+        Assert.Equal(scalar[1..], values.Span[0].ToArray());
+        Assert.Equal(scalar[1..], nullable.Span[0]!.Value.ToArray());
+        value.Span[0] = (byte)'[';
+        Assert.Equal((byte)'{', values.Span[0].Span[0]);
     }
 
     [Fact]

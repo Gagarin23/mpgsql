@@ -9,7 +9,6 @@ internal readonly struct DateCodec : IBinaryCodec<PgDate>
 {
     public static uint Oid => (uint)TypeOid.Date;
     public static int FixedSize => 4;
-    public static bool NeedsValidation => true;
     public static bool MayOverlap => false;
     public static int Measure(PgDate value)
     {
@@ -21,9 +20,10 @@ internal readonly struct DateCodec : IBinaryCodec<PgDate>
     }
     public static void CheckOverlap(PgDate value, Span<byte> destination) { }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Write(PgDate value, Span<byte> destination)
+    public static int Write(PgDate value, Span<byte> destination)
     {
         BinaryPrimitives.WriteInt32BigEndian(destination, value.DaysSinceEpoch);
+        return FixedSize;
     }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static PgDate Read(ReadOnlySpan<byte> payload)

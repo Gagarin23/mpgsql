@@ -26,9 +26,15 @@ without a concrete use in the driver.
   that capability.
 - Design connection and scheduling code with multiplexed, pipelined requests in
   mind. Do not silently assume one active request per physical connection.
-- Prioritize performance, but make claims measurable: identify allocations,
-  copies, or contention that a change removes and benchmark complex or `unsafe`
-  alternatives before retaining them.
+- High performance is a mandatory, primary requirement of this project.
+  Do not add content-validation scans (`Contains`, UTF-8 prevalidation, or
+  separate array walks) to hot paths when the server validates the value or
+  decoding already performs the necessary work. Keep checks required for buffer
+  bounds, protocol framing, and explicit API contracts; combine necessary
+  element checks with existing size, encoding, or decoding loops where possible.
+  Make performance claims measurable: identify removed scans, allocations,
+  copies, or contention and benchmark complex or `unsafe` alternatives before
+  retaining them.
 - Use modern idiomatic C#. Nullable reference types and implicit usings are
   enabled; maintain nullable correctness in new code.
 

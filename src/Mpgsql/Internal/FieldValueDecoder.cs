@@ -31,8 +31,8 @@ internal static class FieldValueDecoder<T>
         TypeOid.UuidArray => (typeof(T) == typeof(ReadOnlyMemory<Guid>) || typeof(T) == typeof(ReadOnlyMemory<Guid>?)) || (typeof(T) == typeof(ReadOnlyMemory<Guid?>) || typeof(T) == typeof(ReadOnlyMemory<Guid?>?)),
         TypeOid.Json => (typeof(T) == typeof(string)),
         TypeOid.JsonArray => (typeof(T) == typeof(ReadOnlyMemory<string?>) || typeof(T) == typeof(ReadOnlyMemory<string?>?)),
-        TypeOid.Jsonb => (typeof(T) == typeof(string)),
-        TypeOid.JsonbArray => (typeof(T) == typeof(ReadOnlyMemory<string?>) || typeof(T) == typeof(ReadOnlyMemory<string?>?)),
+        TypeOid.Jsonb => (typeof(T) == typeof(Memory<byte>) || typeof(T) == typeof(Memory<byte>?)),
+        TypeOid.JsonbArray => (typeof(T) == typeof(ReadOnlyMemory<Memory<byte>>) || typeof(T) == typeof(ReadOnlyMemory<Memory<byte>>?)) || (typeof(T) == typeof(ReadOnlyMemory<Memory<byte>?>) || typeof(T) == typeof(ReadOnlyMemory<Memory<byte>?>?)),
         TypeOid.Xml => (typeof(T) == typeof(string)),
         TypeOid.XmlArray => (typeof(T) == typeof(ReadOnlyMemory<string?>) || typeof(T) == typeof(ReadOnlyMemory<string?>?)),
         TypeOid.Date => (typeof(T) == typeof(PgDate) || typeof(T) == typeof(PgDate?)) || (typeof(T) == typeof(DateOnly) || typeof(T) == typeof(DateOnly?)),
@@ -143,10 +143,11 @@ internal static class FieldValueDecoder<T>
                 if (typeof(T) == typeof(ReadOnlyMemory<string?>) || typeof(T) == typeof(ReadOnlyMemory<string?>?)) return (T)(object)BinaryReferenceArray<string, JsonCodec>.Read(payload);
                 break;
             case TypeOid.Jsonb:
-                if (typeof(T) == typeof(string)) return (T)(object)JsonbCodec.Read(payload);
+                if (typeof(T) == typeof(Memory<byte>) || typeof(T) == typeof(Memory<byte>?)) return (T)(object)JsonbCodec.Read(payload);
                 break;
             case TypeOid.JsonbArray:
-                if (typeof(T) == typeof(ReadOnlyMemory<string?>) || typeof(T) == typeof(ReadOnlyMemory<string?>?)) return (T)(object)BinaryReferenceArray<string, JsonbCodec>.Read(payload);
+                if (typeof(T) == typeof(ReadOnlyMemory<Memory<byte>>) || typeof(T) == typeof(ReadOnlyMemory<Memory<byte>>?)) return (T)(object)BinaryArray<Memory<byte>, JsonbCodec>.Read(payload);
+                if (typeof(T) == typeof(ReadOnlyMemory<Memory<byte>?>) || typeof(T) == typeof(ReadOnlyMemory<Memory<byte>?>?)) return (T)(object)BinaryNullableArray<Memory<byte>, JsonbCodec>.Read(payload);
                 break;
             case TypeOid.Xml:
                 if (typeof(T) == typeof(string)) return (T)(object)XmlCodec.Read(payload);

@@ -58,23 +58,34 @@ internal static class BinaryReferenceArray<T, TCodec>
         }
     }
 
-    private static void WriteCore(ReadOnlySpan<T?> source, Span<byte> bytes,
+    // Called only after the query encoder measured all parameters and checked packet capacity.
+    internal static int WriteMeasured(ReadOnlyMemory<T?> value, Span<byte> destination)
+    {
+        CheckOverlap(value.Span, destination);
+        return WriteCore(value.Span, destination, false);
+    }
+
+    private static int WriteCore(ReadOnlySpan<T?> source, Span<byte> bytes,
         bool hasNull)
     {
         ArrayPayload.WriteHeader(bytes, source.Length, hasNull, TCodec.Oid);
         int offset = source.IsEmpty ? ArrayPayload.EmptyHeaderSize : ArrayPayload.HeaderSize;
         foreach (var item in source)
         {
-            int length = item is null ? -1 : TCodec.FixedSize != 0 ? TCodec.FixedSize : TCodec.Measure(item);
-            BinaryPrimitives.WriteInt32BigEndian(bytes[offset..], length);
+            int lengthOffset = offset;
             offset += 4;
-            if (length == -1)
+            if (item is null)
             {
+                hasNull = true;
+                BinaryPrimitives.WriteInt32BigEndian(bytes[lengthOffset..], -1);
                 continue;
             }
-            TCodec.Write(item!, bytes.Slice(offset, length));
+            int length = TCodec.Write(item, bytes[offset..]);
+            BinaryPrimitives.WriteInt32BigEndian(bytes[lengthOffset..], length);
             offset += length;
         }
+        if (hasNull) BinaryPrimitives.WriteInt32BigEndian(bytes[4..], 1);
+        return offset;
     }
 
     internal static ReadOnlyMemory<T?> Read(ReadOnlySpan<byte> payload)

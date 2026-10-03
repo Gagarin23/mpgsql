@@ -9,7 +9,6 @@ internal readonly struct MoneyCodec : IBinaryCodec<long>
 {
     public static uint Oid => (uint)TypeOid.Money;
     public static int FixedSize => 8;
-    public static bool NeedsValidation => false;
     public static bool MayOverlap => false;
     public static int Measure(long value)
     {
@@ -17,9 +16,10 @@ internal readonly struct MoneyCodec : IBinaryCodec<long>
     }
     public static void CheckOverlap(long value, Span<byte> destination) { }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Write(long value, Span<byte> destination)
+    public static int Write(long value, Span<byte> destination)
     {
         BinaryPrimitives.WriteInt64BigEndian(destination, value);
+        return FixedSize;
     }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static long Read(ReadOnlySpan<byte> payload)

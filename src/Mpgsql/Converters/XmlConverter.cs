@@ -2,7 +2,7 @@ using System.Buffers;
 
 namespace Mpgsql.Converters;
 
-/// <summary>PostgreSQL Xml binary payload in UTF-8; jsonb includes version byte 1.</summary>
+/// <summary>PostgreSQL xml binary payload in UTF-8.</summary>
 /// <remarks>NULL writes no bytes. Capacity and UTF-16 validity are checked before writing. Syntax is checked by PostgreSQL.</remarks>
 public static class XmlConverter
 {
@@ -21,7 +21,7 @@ public static class XmlConverter
     public static string Read(ReadOnlySequence<byte> payload) => XmlCodec.Read(payload);
     public static string? ReadNullable(ReadOnlyMemory<byte>? payload) => payload is { } value ? Read(value.Span) : null;
     public static string? ReadNullable(ReadOnlySequence<byte>? payload) => payload is { } value ? Read(value) : null;
-    /// <summary>Returns validated borrowed UTF-8 bytes; consume before releasing the input buffer.</summary>
+    /// <summary>Returns borrowed bytes without content validation; consume before releasing the input buffer.</summary>
     public static ReadOnlySpan<byte> ReadUtf8(ReadOnlySpan<byte> payload) => Utf8Payload.ReadUtf8(payload, false);
     public static ReadOnlySequence<byte> ReadUtf8(ReadOnlySequence<byte> payload) => Utf8Payload.ReadUtf8(payload, false);
     public static int WriteUtf8(ReadOnlySpan<byte> value, Span<byte> destination) => Utf8Payload.WriteUtf8(value, destination, false);

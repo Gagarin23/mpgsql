@@ -66,7 +66,7 @@ public static partial class Int64ArrayConverter
         int count = ReadHeader(payload,
             out int headerSize,
             out bool nullable);
-        if (nullable)
+        if (nullable && payload.Length - headerSize != (long)RecordSize * count)
         {
             ValidateNullableRecords(payload[headerSize..],
                 count);
@@ -89,7 +89,7 @@ public static partial class Int64ArrayConverter
         int count = ReadHeader(payload,
             out int headerSize,
             out bool nullable);
-        if (nullable)
+        if (nullable && payload.Length - headerSize != (long)RecordSize * count)
         {
             ValidateNullableRecords(payload[headerSize..],
                 count);
@@ -114,7 +114,7 @@ public static partial class Int64ArrayConverter
         var reader = new SequenceReader<byte>(payload);
         int count = ReadHeader(ref reader,
             out bool nullable);
-        if (nullable)
+        if (nullable && reader.Remaining != (long)RecordSize * count)
         {
             ValidateNullableRecords(reader,
                 count);
@@ -142,7 +142,7 @@ public static partial class Int64ArrayConverter
         var reader = new SequenceReader<byte>(payload);
         int count = ReadHeader(ref reader,
             out bool nullable);
-        if (nullable)
+        if (nullable && reader.Remaining != (long)RecordSize * count)
         {
             ValidateNullableRecords(reader,
                 count);
@@ -270,8 +270,8 @@ public static partial class Int64ArrayConverter
         }
         // Validate exact framing before allocating from an untrusted element count.
         long expected = headerSize + (long)RecordSize * count;
-        // A nullable record can be only its four-byte -1 length. The rare nullable path validates
-        // every actual prefix before allocating/writing, accepting flags=1 without actual NULLs.
+        // A NULL record has only its four-byte -1 length. Shorter payloads take the rejection
+        // path before mutation; full-sized records validate their prefixes while decoding.
         if (nullable ? payloadLength < headerSize + 4L * count || payloadLength > expected : payloadLength != expected)
         {
             throw new InvalidDataException("The bigint[] payload length does not match its element count.");

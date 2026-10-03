@@ -64,21 +64,23 @@ public readonly partial struct MpgsqlParameter
         }
     }
 
-    internal void WritePayload(Span<byte> destination)
+    internal bool IsNull => _isNull;
+
+    internal int WritePayload(Span<byte> destination)
     {
         switch (_kind)
         {
             case 1:
-                Int64Converter.Write(_number,
-                    destination); break;
+                return Int64Converter.Write(_number,
+                    destination);
             case 2:
-                Int64ArrayConverter.Write(_array,
-                    destination); break;
+                return Int64ArrayConverter.Write(_array,
+                    destination);
             case 3:
-                NullableInt64ArrayConverter.Write(_nullableArray,
-                    destination); break;
+                return NullableInt64ArrayConverter.Write(_nullableArray,
+                    destination);
             case 4:
-                _value!.Write(destination); break;
+                return _value!.Write(destination);
             default: throw new InvalidOperationException("The MpgsqlParameter is not initialized.");
         }
     }

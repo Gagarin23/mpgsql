@@ -9,7 +9,6 @@ internal readonly struct IntervalCodec : IBinaryCodec<PgInterval>
 {
     public static uint Oid => (uint)TypeOid.Interval;
     public static int FixedSize => 16;
-    public static bool NeedsValidation => false;
     public static bool MayOverlap => false;
     public static int Measure(PgInterval value)
     {
@@ -17,11 +16,12 @@ internal readonly struct IntervalCodec : IBinaryCodec<PgInterval>
     }
     public static void CheckOverlap(PgInterval value, Span<byte> destination) { }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Write(PgInterval value, Span<byte> destination)
+    public static int Write(PgInterval value, Span<byte> destination)
     {
         BinaryPrimitives.WriteInt64BigEndian(destination, value.Microseconds);
         BinaryPrimitives.WriteInt32BigEndian(destination[8..], value.Days);
         BinaryPrimitives.WriteInt32BigEndian(destination[12..], value.Months);
+        return FixedSize;
     }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static PgInterval Read(ReadOnlySpan<byte> payload)

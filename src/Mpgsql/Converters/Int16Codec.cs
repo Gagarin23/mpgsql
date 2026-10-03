@@ -9,7 +9,6 @@ internal readonly struct Int16Codec : IBinaryCodec<short>
 {
     public static uint Oid => (uint)TypeOid.Int16;
     public static int FixedSize => 2;
-    public static bool NeedsValidation => false;
     public static bool MayOverlap => false;
     public static int Measure(short value)
     {
@@ -17,9 +16,10 @@ internal readonly struct Int16Codec : IBinaryCodec<short>
     }
     public static void CheckOverlap(short value, Span<byte> destination) { }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Write(short value, Span<byte> destination)
+    public static int Write(short value, Span<byte> destination)
     {
         BinaryPrimitives.WriteInt16BigEndian(destination, value);
+        return FixedSize;
     }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static short Read(ReadOnlySpan<byte> payload)

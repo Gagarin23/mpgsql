@@ -103,13 +103,12 @@ public sealed class BuiltinEdgeTests
     }
 
     [Fact]
-    public void InvalidCalendarValuesFailBeforeOutputMutation()
+    public void InvalidScalarCalendarValuesFailBeforeOutputMutation()
     {
         byte[] output = Enumerable.Repeat((byte)0xcc, 64).ToArray();
         Assert.Throws<ArgumentOutOfRangeException>(() => DateConverter.Write(new PgDate(PgDate.MinFiniteDays - 1), output));
         Assert.Throws<ArgumentOutOfRangeException>(() => TimestampConverter.Write(new PgTimestamp(PgTimestamp.MaxFiniteMicroseconds + 1), output));
         Assert.Throws<ArgumentOutOfRangeException>(() => TimeTzConverter.Write(new PgTimeTz(default, 57600), output));
-        Assert.Throws<ArgumentOutOfRangeException>(() => TimeArrayConverter.Write(new[] {default(PgTime), new PgTime(-1)}, output));
         Assert.All(output, b => Assert.Equal((byte)0xcc, b));
         byte[] payload = new byte[8];
         BinaryPrimitives.WriteInt64BigEndian(payload, -1);
@@ -117,6 +116,32 @@ public sealed class BuiltinEdgeTests
         Assert.Throws<InvalidDataException>(() => TimeConverter.Read(TestWire.ByteSegments(payload)));
         BinaryPrimitives.WriteInt64BigEndian(payload, PgTimestamp.MinFiniteMicroseconds - 1);
         Assert.Throws<InvalidDataException>(() => TimestampConverter.Read(payload));
+    }
+
+    [Fact]
+    public void FixedArraySizingDoesNotPrevalidateEveryValue()
+    {
+        PgTime[] values = [default, new(-1)];
+        byte[] payload = new byte[44];
+        Assert.Equal(44, TimeArrayConverter.GetByteCount(values));
+        Assert.Equal(44, TimeArrayConverter.Write(values, payload));
+        Assert.Equal(-1L, BinaryPrimitives.ReadInt64BigEndian(payload.AsSpan(36)));
+        Assert.Throws<InvalidDataException>(() => TimeArrayConverter.Read(payload));
+        PgTime?[] nullable = [new(-1), null];
+        Assert.Equal(36, NullableTimeArrayConverter.GetByteCount(nullable));
+        Assert.Equal(36, NullableTimeArrayConverter.Write(nullable, payload));
+    }
+
+    [Fact]
+    public void ClrArrayConversionErrorsCanLeaveEarlierElementsWritten()
+    {
+        DateTime[] values = [new(2000, 1, 1), new(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc)];
+        byte[] payload = Enumerable.Repeat((byte)0xcc, 64).ToArray();
+        Assert.Equal(44, TimestampArrayConverter.GetByteCount(values));
+        Assert.Throws<ArgumentException>(() => TimestampArrayConverter.Write(values, payload));
+        Assert.Equal(8, BinaryPrimitives.ReadInt32BigEndian(payload.AsSpan(20)));
+        Assert.Equal(0L, BinaryPrimitives.ReadInt64BigEndian(payload.AsSpan(24)));
+        Assert.All(payload[32..], b => Assert.Equal((byte)0xcc, b));
     }
 
     [Theory]

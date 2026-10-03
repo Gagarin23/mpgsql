@@ -66,9 +66,13 @@ public sealed class NumericEdgeTests
         BinaryPrimitives.WriteUInt16BigEndian(badDigit.AsSpan(8), 10000);
         Assert.Throws<InvalidDataException>(() => NumericConverter.Read(badDigit));
         Assert.Throws<InvalidDataException>(() => NumericConverter.Read(TestWire.ByteSegments(badDigit)));
+        var invalid = value with {Digits = new ushort[] {10000}};
         byte[] output = Enumerable.Repeat((byte)0xcc, 32).ToArray();
-        Assert.Throws<ArgumentException>(() => NumericConverter.Write(value with {Digits = new ushort[] {10000}}, output));
-        Assert.All(output, b => Assert.Equal((byte)0xcc, b));
+        Assert.Equal(10, NumericConverter.GetByteCount(invalid));
+        Assert.Equal(10, NumericConverter.Write(invalid, output));
+        Assert.Equal(10000, BinaryPrimitives.ReadUInt16BigEndian(output.AsSpan(8)));
+        Assert.All(output[10..], b => Assert.Equal((byte)0xcc, b));
+        Assert.Throws<InvalidDataException>(() => invalid.ToDecimal());
     }
 
     [Fact]

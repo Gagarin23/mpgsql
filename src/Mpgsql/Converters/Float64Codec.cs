@@ -9,7 +9,6 @@ internal readonly struct Float64Codec : IBinaryCodec<double>
 {
     public static uint Oid => (uint)TypeOid.Float64;
     public static int FixedSize => 8;
-    public static bool NeedsValidation => false;
     public static bool MayOverlap => false;
     public static int Measure(double value)
     {
@@ -17,9 +16,10 @@ internal readonly struct Float64Codec : IBinaryCodec<double>
     }
     public static void CheckOverlap(double value, Span<byte> destination) { }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Write(double value, Span<byte> destination)
+    public static int Write(double value, Span<byte> destination)
     {
         BinaryPrimitives.WriteDoubleBigEndian(destination, value);
+        return FixedSize;
     }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static double Read(ReadOnlySpan<byte> payload)

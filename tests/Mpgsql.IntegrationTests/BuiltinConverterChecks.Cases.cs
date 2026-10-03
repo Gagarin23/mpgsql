@@ -73,9 +73,9 @@ internal static partial class BuiltinConverterChecks
         ReferenceValue(connection, TypeOid.Json, "json", "'{\"x\":\"Я😀\"}'::json", "{\"x\":\"Я😀\"}",
             JsonConverter.GetByteCount, JsonConverter.Write, JsonConverter.Read,
             JsonArrayConverter.GetByteCount, JsonArrayConverter.Write, JsonArrayConverter.Read);
-        ReferenceValue(connection, TypeOid.Jsonb, "jsonb", "'{\"x\": \"Я😀\"}'::jsonb", "{\"x\": \"Я😀\"}",
+        Value<Memory<byte>>(connection, TypeOid.Jsonb, "jsonb", "'{\"x\": \"Я😀\"}'::jsonb", "{\"x\": \"Я😀\"}"u8.ToArray(),
             JsonbConverter.GetByteCount, JsonbConverter.Write, JsonbConverter.Read,
-            JsonbArrayConverter.GetByteCount, JsonbArrayConverter.Write, JsonbArrayConverter.Read);
+            NullableJsonbArrayConverter.GetByteCount, NullableJsonbArrayConverter.Write, NullableJsonbArrayConverter.Read);
         ReferenceValue(connection, TypeOid.Xml, "xml", "'<a>Я😀</a>'::xml", "<a>Я😀</a>",
             XmlConverter.GetByteCount, XmlConverter.Write, XmlConverter.Read,
             XmlArrayConverter.GetByteCount, XmlArrayConverter.Write, XmlArrayConverter.Read);

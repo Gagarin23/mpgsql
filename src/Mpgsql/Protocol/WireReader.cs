@@ -87,8 +87,15 @@ internal ref struct WireReader(ReadOnlySequence<byte> payload)
         {
             throw new InvalidDataException("Unterminated PostgreSQL string.");
         }
-        WireEncoding.ValidateUtf8(value);
         return value;
+    }
+
+    internal void SkipCString()
+    {
+        if (!_reader.TryAdvanceTo((byte)0, advancePastDelimiter: true))
+        {
+            throw new InvalidDataException("Unterminated PostgreSQL string.");
+        }
     }
 
     internal string CString() => WireEncoding.Decode(CStringBytes());

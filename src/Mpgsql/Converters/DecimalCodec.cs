@@ -6,7 +6,6 @@ internal readonly struct DecimalCodec : IBinaryCodec<decimal>
 {
     public static uint Oid => (uint)TypeOid.Numeric;
     public static int FixedSize => 0;
-    public static bool NeedsValidation => false;
     public static bool MayOverlap => false;
     public static int Measure(decimal value)
     {
@@ -14,11 +13,11 @@ internal readonly struct DecimalCodec : IBinaryCodec<decimal>
         return 8 + 2 * NumericCodec.DecimalParts(value, digits, out _, out _, out _);
     }
     public static void CheckOverlap(decimal value, Span<byte> destination) { }
-    public static void Write(decimal value, Span<byte> destination)
+    public static int Write(decimal value, Span<byte> destination)
     {
         Span<ushort> digits = stackalloc ushort[8];
         int count = NumericCodec.DecimalParts(value, digits, out short weight, out ushort scale, out var sign);
-        NumericCodec.WriteParts(weight, scale, sign, digits[..count], destination);
+        return NumericCodec.WriteParts(weight, scale, sign, digits[..count], destination);
     }
     public static decimal Read(ReadOnlySpan<byte> payload) => NumericCodec.ReadDecimal(payload);
     public static decimal Read(ReadOnlySequence<byte> payload) => NumericCodec.ReadDecimal(payload);

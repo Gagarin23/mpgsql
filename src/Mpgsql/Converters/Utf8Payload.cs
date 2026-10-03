@@ -6,26 +6,14 @@ namespace Mpgsql.Converters;
 
 internal static class Utf8Payload
 {
-    internal static int Measure(string value, bool jsonb)
+    internal static int Measure(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        if (value.AsSpan().Contains('\0'))
-        {
-            throw new ArgumentException("PostgreSQL strings cannot contain NUL.", nameof(value));
-        }
-        return checked(WireEncoding.Utf8.GetByteCount(value) + (jsonb ? 1 : 0));
+        return WireEncoding.Utf8.GetByteCount(value);
     }
 
-    internal static void Write(string value, Span<byte> destination,
-        bool jsonb)
-    {
-        if (jsonb)
-        {
-            destination[0] = 1;
-            destination = destination[1..];
-        }
-        WireEncoding.Utf8.GetBytes(value, destination);
-    }
+    internal static int Write(string value, Span<byte> destination)
+        => WireEncoding.Utf8.GetBytes(value, destination);
 
     internal static ReadOnlySpan<byte> ReadUtf8(ReadOnlySpan<byte> payload, bool jsonb)
     {
@@ -37,10 +25,7 @@ internal static class Utf8Payload
             }
             payload = payload[1..];
         }
-        if (payload.Contains((byte)0) || !System.Text.Unicode.Utf8.IsValid(payload))
-        {
-            throw new InvalidDataException("Invalid PostgreSQL UTF-8 string.");
-        }
+        // Borrowed bytes are opaque. Value validation belongs to PostgreSQL or text decoding.
         return payload;
     }
 
@@ -55,30 +40,26 @@ internal static class Utf8Payload
             }
             payload = payload.Slice(reader.Position);
         }
-        CountCharacters(payload);
         return payload;
     }
 
-    internal static string Read(ReadOnlySpan<byte> payload, bool jsonb)
+    internal static string Read(ReadOnlySpan<byte> payload)
     {
-        payload = ReadUtf8(payload, jsonb);
-        return WireEncoding.Utf8.GetString(payload);
+        try
+        {
+            return WireEncoding.Utf8.GetString(payload);
+        }
+        catch (DecoderFallbackException error)
+        {
+            throw new InvalidDataException("Invalid PostgreSQL UTF-8 string.", error);
+        }
     }
 
-    internal static string Read(ReadOnlySequence<byte> payload, bool jsonb)
+    internal static string Read(ReadOnlySequence<byte> payload)
     {
         if (payload.IsSingleSegment)
         {
-            return Read(payload.FirstSpan, jsonb);
-        }
-        if (jsonb)
-        {
-            var reader = new SequenceReader<byte>(payload);
-            if (!reader.TryRead(out byte version) || version != 1)
-            {
-                throw new InvalidDataException("Unsupported or missing jsonb version.");
-            }
-            payload = payload.Slice(reader.Position);
+            return Read(payload.FirstSpan);
         }
         int count = CountCharacters(payload);
         // One result string; no Decoder object, temporary char array or flattened byte payload.
@@ -116,17 +97,13 @@ internal static class Utf8Payload
                 if (prefix != 0)
                 {
                     bytes = bytes[..prefix];
-                    if (bytes.Contains((byte)0))
-                    {
-                        throw new InvalidDataException("PostgreSQL strings cannot contain NUL.");
-                    }
                     count = checked(count + WireEncoding.Utf8.GetCharCount(bytes));
                     reader.Advance(prefix);
                     continue;
                 }
                 int length = (int)Math.Min(4, reader.Remaining);
                 reader.TryCopyTo(scratch[..length]);
-                if (Rune.DecodeFromUtf8(scratch[..length], out var scalar, out int consumed) != OperationStatus.Done || scalar.Value == 0)
+                if (Rune.DecodeFromUtf8(scratch[..length], out var scalar, out int consumed) != OperationStatus.Done)
                 {
                     throw new InvalidDataException("Invalid PostgreSQL UTF-8 string.");
                 }
@@ -169,7 +146,6 @@ internal static class Utf8Payload
     internal static int WriteUtf8(ReadOnlySpan<byte> value, Span<byte> destination,
         bool jsonb)
     {
-        ReadUtf8(value, false);
         int size = checked(value.Length + (jsonb ? 1 : 0));
         BinaryPayload.RequireCapacity(size, destination.Length);
         destination = destination[..size];

@@ -9,7 +9,6 @@ internal readonly struct BooleanCodec : IBinaryCodec<bool>
 {
     public static uint Oid => (uint)TypeOid.Boolean;
     public static int FixedSize => 1;
-    public static bool NeedsValidation => false;
     public static bool MayOverlap => false;
     public static int Measure(bool value)
     {
@@ -17,9 +16,10 @@ internal readonly struct BooleanCodec : IBinaryCodec<bool>
     }
     public static void CheckOverlap(bool value, Span<byte> destination) { }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Write(bool value, Span<byte> destination)
+    public static int Write(bool value, Span<byte> destination)
     {
         destination[0] = value ? (byte)1 : (byte)0;
+        return FixedSize;
     }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool Read(ReadOnlySpan<byte> payload)

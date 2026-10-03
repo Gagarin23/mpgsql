@@ -57,6 +57,10 @@ internal static class BinaryPayload
     internal static void RequireSeparate<T>(ReadOnlySequence<byte> source, Span<T> destination)
     {
         var output = StorageBytes(destination);
+        if (output.IsEmpty)
+        {
+            return;
+        }
         foreach (var segment in source) RequireSeparate(segment.Span, output);
     }
 

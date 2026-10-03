@@ -7,7 +7,8 @@ namespace Mpgsql.Internal;
 // UTF-8 C strings; all lengths, counts, OIDs and values are big-endian.
 internal static class QueryPacket
 {
-    internal static int GetByteCount(string sql,
+    internal static int GetByteCount(
+        string sql,
         ReadOnlySpan<MpgsqlParameter> parameters)
     {
         int size = checked(5 + 1 + WireEncoding.CStringLength(sql) + 2 + 4 * parameters.Length);
@@ -30,15 +31,14 @@ internal static class QueryPacket
         ReadOnlySpan<MpgsqlParameter> parameters,
         Span<byte> destination)
     {
-        int size = GetByteCount(sql,
-            parameters);
+        int parseSize = checked(5 + 1 + WireEncoding.CStringLength(sql) + 2 + 4 * parameters.Length);
+        int size = checked(parseSize + GetPreparedByteCount("", parameters));
         if (destination.Length < size)
         {
             throw new ArgumentException("The destination is too small for the complete query packet.",
                 nameof(destination));
         }
 
-        int parseSize = checked(5 + 1 + WireEncoding.CStringLength(sql) + 2 + 4 * parameters.Length);
         var parse = new WireWriter(destination[..parseSize]);
         parse.Byte((byte)'P');
         parse.Int32(parseSize - 1);
@@ -66,6 +66,7 @@ internal static class QueryPacket
         int size)
     {
         int bindSize = size - 7 - 10;
+        destination = destination[..size];
         int offset = 0;
         destination[offset] = (byte)'B';
         BinaryPrimitives.WriteInt32BigEndian(destination[(offset + 1)..],
@@ -85,16 +86,16 @@ internal static class QueryPacket
         offset += 2;
         foreach (ref readonly var parameter in parameters)
         {
-            int length = parameter.PayloadLength;
-            BinaryPrimitives.WriteInt32BigEndian(destination[offset..],
-                length);
+            int lengthOffset = offset;
             offset += 4;
-            if (length >= 0)
+            if (parameter.IsNull)
             {
-                parameter.WritePayload(destination.Slice(offset,
-                    length));
-                offset += length;
+                BinaryPrimitives.WriteInt32BigEndian(destination[lengthOffset..], -1);
+                continue;
             }
+            int length = parameter.WritePayload(destination[offset..]);
+            BinaryPrimitives.WriteInt32BigEndian(destination[lengthOffset..], length);
+            offset += length;
         }
         BinaryPrimitives.WriteUInt16BigEndian(destination[offset..],
             1);

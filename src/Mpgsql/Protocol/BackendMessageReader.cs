@@ -151,7 +151,7 @@ public static class BackendMessageReader
                 reader.Int32();
                 break;
             case BackendMessageKind.CommandComplete:
-                reader.CStringBytes();
+                reader.SkipCString();
                 break;
             case BackendMessageKind.ReadyForQuery:
                 if ((TransactionStatus)reader.Byte() is not
@@ -161,13 +161,13 @@ public static class BackendMessageReader
                 }
                 break;
             case BackendMessageKind.ParameterStatus:
-                reader.CStringBytes(); // name, value
-                reader.CStringBytes();
+                reader.SkipCString(); // name, value
+                reader.SkipCString();
                 break;
             case BackendMessageKind.NotificationResponse:
                 reader.Int32(); // notifying PID, channel, payload
-                reader.CStringBytes();
-                reader.CStringBytes();
+                reader.SkipCString();
+                reader.SkipCString();
                 break;
             case BackendMessageKind.ParameterDescription:
                 int parameterCount = reader.Count();
@@ -194,7 +194,7 @@ public static class BackendMessageReader
             case BackendMessageKind.ErrorResponse:
             case BackendMessageKind.NoticeResponse:
                 while (reader.Byte() != 0)
-                    reader.CStringBytes(); // Preserve unknown field identifiers in typed accessors.
+                    reader.SkipCString(); // Preserve unknown field identifiers in typed accessors.
                 break;
             case BackendMessageKind.NegotiateProtocolVersion:
                 if (reader.Int32() < 0)
@@ -205,7 +205,7 @@ public static class BackendMessageReader
                 reader.RequireElements(optionCount,
                     1);
                 for (int i = 0; i < optionCount; i++)
-                    reader.CStringBytes();
+                    reader.SkipCString();
                 break;
             case BackendMessageKind.ParseComplete:
             case BackendMessageKind.BindComplete:
@@ -256,7 +256,7 @@ public static class BackendMessageReader
             19); // NUL and the 18 fixed bytes of each field.
         for (int i = 0; i < count; i++)
         {
-            reader.CStringBytes();
+            reader.SkipCString();
             reader.UInt32(); // table OID
             reader.Int16(); // attribute number; negative for system columns
             reader.UInt32(); // type OID

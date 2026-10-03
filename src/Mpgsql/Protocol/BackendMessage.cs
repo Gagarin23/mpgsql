@@ -2,12 +2,13 @@ using System.Buffers;
 
 namespace Mpgsql.Protocol;
 
-/// <summary>A validated backend frame with typed accessors and the original wire body.</summary>
+/// <summary>A structurally validated backend frame with typed accessors and the original wire body.</summary>
 /// <remarks>
 /// Payload, DataRow values, COPY data, authentication data and function results borrow the input buffer.
 /// Consume them before PipeReader.AdvanceTo releases that buffer. Metadata accessors allocate strings
 /// and arrays on demand; call them once and retain their results when needed. Unknown tags are retained
 /// as Kind=Unknown; deciding whether they are legal belongs to the connection protocol state machine.
+/// UTF-8 is decoded by string accessors, without a separate content-validation pass over the frame.
 /// </remarks>
 public readonly struct BackendMessage
 {

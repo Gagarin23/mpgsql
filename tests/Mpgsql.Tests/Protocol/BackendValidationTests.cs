@@ -30,10 +30,31 @@ public sealed class BackendValidationTests
         "48 00000009 01 0001 0002", "47 00000007 00 0001",
         "76 0000000c ffffffff 00000000", "76 0000000c 00000000 ffffffff",
         "76 0000000c 00000000 7fffffff", "76 0000000d 00000000 00000001 78",
-        "56 00000004", "56 00000008 fffffffe", "56 00000008 00000001", "56 00000009 00000000 ff",
-        "43 00000007 c32800", "43 00000006 c300", // invalid and incomplete UTF-8 scalars
-        "52 0000000b 0000000a c300 00", "53 00000008 c300 7800"
+        "56 00000004", "56 00000008 fffffffe", "56 00000008 00000001", "56 00000009 00000000 ff"
     ];
+
+    [Theory]
+    [InlineData("43 00000007 c32800"), InlineData("43 00000006 c300")]
+    [InlineData("52 0000000b 0000000a c300 00"), InlineData("53 00000008 c300 7800")]
+    public void Utf8IsDecodedOnlyWhenAccessingTheString(string hex)
+    {
+        byte[] bytes = TestWire.Bytes(hex);
+        foreach (bool fragmented in new[] {false, true})
+        {
+            var input = fragmented ? TestWire.ByteSegments(bytes) : new ReadOnlySequence<byte>(bytes);
+            Assert.True(BackendMessageReader.TryRead(ref input, out var message));
+            Assert.True(input.IsEmpty);
+            Assert.Throws<InvalidDataException>(() =>
+            {
+                switch (message.Kind)
+                {
+                    case BackendMessageKind.CommandComplete: message.GetCommandTag(); break;
+                    case BackendMessageKind.Authentication: message.GetAuthentication(); break;
+                    case BackendMessageKind.ParameterStatus: message.GetParameterStatus(); break;
+                }
+            });
+        }
+    }
 
     [Theory]
     [MemberData(nameof(InvalidPackets))]

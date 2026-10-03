@@ -24,8 +24,8 @@ public sealed class VariablePayloadEdgeTests
     }
 
     [Theory]
-    [InlineData("80"), InlineData("c080"), InlineData("eda080"), InlineData("f4908080"), InlineData("e08080"), InlineData("f09f98"), InlineData("410042")]
-    public void InvalidUtf8IsRejectedAtEveryBoundary(string hex)
+    [InlineData("80"), InlineData("c080"), InlineData("eda080"), InlineData("f4908080"), InlineData("e08080"), InlineData("f09f98")]
+    public void InvalidUtf8IsRejectedWhenDecodingAtEveryBoundary(string hex)
     {
         byte[] bytes = TestWire.Bytes(hex);
         Assert.Throws<InvalidDataException>(() => TextConverter.Read(bytes));
@@ -33,8 +33,45 @@ public sealed class VariablePayloadEdgeTests
         {
             var input = TestWire.Chunks(bytes.AsMemory(0, split), ReadOnlyMemory<byte>.Empty, bytes.AsMemory(split));
             Assert.Throws<InvalidDataException>(() => TextConverter.Read(input));
-            Assert.Throws<InvalidDataException>(() => TextConverter.ReadUtf8(input));
+            Assert.Equal(bytes, TextConverter.ReadUtf8(input).ToArray());
         }
+    }
+
+    [Theory]
+    [InlineData("80"), InlineData("c080"), InlineData("eda080"), InlineData("f4908080"), InlineData("e08080"), InlineData("f09f98"), InlineData("410042")]
+    public void RawTextJsonAndXmlPassBytesThroughWithoutContentValidation(string hex)
+    {
+        byte[] bytes = TestWire.Bytes(hex);
+        byte[] output = new byte[bytes.Length + 1];
+        Assert.Equal(bytes, TextConverter.ReadUtf8(bytes).ToArray());
+        Assert.Equal(bytes, JsonConverter.ReadUtf8(bytes).ToArray());
+        Assert.Equal(bytes, XmlConverter.ReadUtf8(bytes).ToArray());
+        Assert.Equal(bytes.Length, TextConverter.WriteUtf8(bytes, output));
+        Assert.Equal(bytes, output[..bytes.Length]);
+        Assert.Equal(bytes.Length, JsonConverter.WriteUtf8(bytes, output));
+        Assert.Equal(bytes, output[..bytes.Length]);
+        Assert.Equal(bytes.Length, XmlConverter.WriteUtf8(bytes, output));
+        Assert.Equal(bytes, output[..bytes.Length]);
+        var sequence = TestWire.ByteSegments(bytes);
+        Assert.Equal(bytes, JsonConverter.ReadUtf8(sequence).ToArray());
+        Assert.Equal(bytes, XmlConverter.ReadUtf8(sequence).ToArray());
+    }
+
+    [Fact]
+    public void LengthDelimitedStringsDoNotScanForNul()
+    {
+        const string value = "A\0B";
+        byte[] bytes = [65, 0, 66];
+        byte[] output = new byte[3];
+        Assert.Equal(3, TextConverter.GetByteCount(value));
+        Assert.Equal(3, TextConverter.Write(value, output));
+        Assert.Equal(bytes, output);
+        Assert.Equal(value, TextConverter.Read(output));
+        Assert.Equal(value, TextConverter.Read(TestWire.ByteSegments(output)));
+        Assert.Equal(3, JsonConverter.Write(value, output));
+        Assert.Equal(value, JsonConverter.Read(TestWire.ByteSegments(output)));
+        Assert.Equal(3, XmlConverter.Write(value, output));
+        Assert.Equal(value, XmlConverter.Read(TestWire.ByteSegments(output)));
     }
 
     [Fact]

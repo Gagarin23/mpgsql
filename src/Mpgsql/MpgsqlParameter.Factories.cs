@@ -36,8 +36,9 @@ public readonly partial struct MpgsqlParameter
     public static MpgsqlParameter NullableUuidArray(ReadOnlyMemory<Guid?>? value) => NullableArray<Guid, UuidCodec>((uint)TypeOid.UuidArray, value);
     public static MpgsqlParameter Json(string? value) => Reference<string, JsonCodec>((uint)TypeOid.Json, value);
     public static MpgsqlParameter JsonArray(ReadOnlyMemory<string?>? value) => ReferenceArray<string, JsonCodec>((uint)TypeOid.JsonArray, value);
-    public static MpgsqlParameter Jsonb(string? value) => Reference<string, JsonbCodec>((uint)TypeOid.Jsonb, value);
-    public static MpgsqlParameter JsonbArray(ReadOnlyMemory<string?>? value) => ReferenceArray<string, JsonbCodec>((uint)TypeOid.JsonbArray, value);
+    public static MpgsqlParameter Jsonb(Memory<byte>? value) => Scalar<Memory<byte>, JsonbCodec>((uint)TypeOid.Jsonb, value);
+    public static MpgsqlParameter JsonbArray(ReadOnlyMemory<Memory<byte>>? value) => Array<Memory<byte>, JsonbCodec>((uint)TypeOid.JsonbArray, value);
+    public static MpgsqlParameter NullableJsonbArray(ReadOnlyMemory<Memory<byte>?>? value) => NullableArray<Memory<byte>, JsonbCodec>((uint)TypeOid.JsonbArray, value);
     public static MpgsqlParameter Xml(string? value) => Reference<string, XmlCodec>((uint)TypeOid.Xml, value);
     public static MpgsqlParameter XmlArray(ReadOnlyMemory<string?>? value) => ReferenceArray<string, XmlCodec>((uint)TypeOid.XmlArray, value);
     public static MpgsqlParameter Date(PgDate? value) => Scalar<PgDate, DateCodec>((uint)TypeOid.Date, value);

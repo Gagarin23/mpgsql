@@ -30,7 +30,6 @@ public sealed class XmlConvertersTests
         string invalidUtf16 = new(new[] {(char)0xd800});
         byte[] destination = Enumerable.Repeat((byte)0xcc, 32).ToArray();
         Assert.Throws<System.Text.EncoderFallbackException>(() => XmlConverter.Write(invalidUtf16, destination));
-        Assert.Throws<ArgumentException>(() => XmlConverter.Write("a\0b", destination));
         Assert.All(destination, b => Assert.Equal((byte)0xcc, b));
     }
 }

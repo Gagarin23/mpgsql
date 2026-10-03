@@ -93,6 +93,8 @@ internal static class BuiltinConverterVerification
         PgNumeric?[] numbers = [numeric, null, numeric];
         string text = new('x', 4096);
         string?[] strings = [text, null, text];
+        Memory<byte> jsonb = System.Text.Encoding.UTF8.GetBytes(text);
+        Memory<byte>?[] jsonbValues = [jsonb, null, jsonb];
         var output = new byte[16384];
         var writer = new FixedBufferWriter(output.Length);
         ushort[] digits = new ushort[8];
@@ -119,7 +121,12 @@ internal static class BuiltinConverterVerification
             TextConverter.Write(text, output);
             TextArrayConverter.Write(strings, output);
             JsonConverter.Write(text, output);
-            JsonbConverter.Write(text, output);
+            JsonbConverter.Write(jsonb, output);
+            NullableJsonbArrayConverter.Write(jsonbValues, output);
+            writer.Reset();
+            JsonbConverter.Write(jsonb, writer);
+            writer.Reset();
+            NullableJsonbArrayConverter.Write(jsonbValues, writer);
             XmlConverter.Write(text, output);
             writer.Reset();
             TextArrayConverter.Write(strings, writer);

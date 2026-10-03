@@ -29,8 +29,34 @@ internal static partial class UpperApiChecks
         await Value<PgInet>(source, "cidr", "'192.0.2.0/24'::cidr", PgInet.FromIPAddress(IPAddress.Parse("192.0.2.0"), 24), MpgsqlParameter.Cidr, MpgsqlParameter.NullableCidrArray, token);
         await ReferenceValue(source, "text", "'Я😀'::text", "Я😀", MpgsqlParameter.Text, MpgsqlParameter.TextArray, token);
         await ReferenceValue(source, "json", "'{\"x\":\"Я😀\"}'::json", "{\"x\":\"Я😀\"}", MpgsqlParameter.Json, MpgsqlParameter.JsonArray, token);
-        await ReferenceValue(source, "jsonb", "'{\"x\": \"Я😀\"}'::jsonb", "{\"x\": \"Я😀\"}", MpgsqlParameter.Jsonb, MpgsqlParameter.JsonbArray, token);
+        await Value<Memory<byte>>(source, "jsonb", "'{\"x\": \"Я😀\"}'::jsonb", "{\"x\": \"Я😀\"}"u8.ToArray(), MpgsqlParameter.Jsonb, MpgsqlParameter.NullableJsonbArray, token);
+        await JsonbMemoryAsync(source, token);
         await ReferenceValue(source, "xml", "'<a>Я😀</a>'::xml", "<a>Я😀</a>", MpgsqlParameter.Xml, MpgsqlParameter.XmlArray, token);
+    }
+
+    private static async Task JsonbMemoryAsync(MpgsqlDataSource source, CancellationToken token)
+    {
+        Memory<byte> json = "{\"x\": \"Я😀\"}"u8.ToArray();
+        Memory<byte> jsonNull = "null"u8.ToArray();
+        MpgsqlParameter[] parameters = [MpgsqlParameter.JsonbArray(new Memory<byte>[] {json, jsonNull}), MpgsqlParameter.Jsonb(jsonNull)];
+        var reader = await source.ExecuteReaderAsync("select $1, ARRAY['{\"x\": \"Я😀\"}'::jsonb, 'null'::jsonb], $2, 'null'::jsonb", parameters, token);
+        await using (reader)
+        {
+            Check(await reader.ReadAsync(), "jsonb owned memory row");
+            for (int i = 0; i < 4; i += 2)
+                Check(reader.GetRawValue(i)!.Value.ToArray().AsSpan().SequenceEqual(reader.GetRawValue(i + 1)!.Value.ToArray()), "jsonb non-null array and JSON null bytes");
+            var array = reader.GetFieldValue<ReadOnlyMemory<Memory<byte>>>(0);
+            var nullable = reader.GetFieldValue<ReadOnlyMemory<Memory<byte>?>?>(0)!.Value;
+            var scalar = reader.GetFieldValue<Memory<byte>?>(2)!.Value;
+            Check(array.Length == 2 && array.Span[0].Span.SequenceEqual(json.Span) && array.Span[1].Span.SequenceEqual(jsonNull.Span), "jsonb non-null array getter");
+            Check(nullable.Span[0]!.Value.Span.SequenceEqual(json.Span) && nullable.Span[1]!.Value.Span.SequenceEqual(jsonNull.Span), "jsonb nullable array getter without NULL elements");
+            Check(!reader.IsDBNull(2) && scalar.Span.SequenceEqual(jsonNull.Span), "JSON null differs from SQL NULL");
+            try { reader.GetFieldValue<string>(2); throw new InvalidDataException("Jsonb accepted a string getter."); }
+            catch (InvalidCastException) { }
+            Check(!await reader.NextResultAsync(), "jsonb result boundary");
+            await reader.DisposeAsync();
+            Check(array.Span[0].Span.SequenceEqual(json.Span) && scalar.Span.SequenceEqual(jsonNull.Span), "jsonb memory outlives the result reader");
+        }
     }
 
     private static async Task Value<T>(MpgsqlDataSource source, string sqlType, string literal, T value,
