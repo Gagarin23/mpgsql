@@ -45,10 +45,12 @@ public readonly struct DiagnosticMessage(ReadOnlyMemory<DiagnosticField> fields)
     public string? GetField(byte code)
     {
         foreach (var field in Fields.Span)
+        {
             if (field.Code == code)
             {
                 return field.Value;
             }
+        }
         return null;
     }
 }
@@ -66,8 +68,11 @@ public readonly struct DataRow
         _values = values;
     }
 
-    public Enumerator GetEnumerator() => new(Count,
-        _values);
+    public Enumerator GetEnumerator()
+    {
+        return new Enumerator(Count,
+            _values);
+    }
 
     public ref struct Enumerator
     {

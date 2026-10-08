@@ -12,9 +12,9 @@ public sealed class JsonbConvertersTests
         Memory<byte> value = "{\"x\":\"Я😀\"}"u8.ToArray();
         ConverterAssertions.CheckScalar(value, "017b2278223a22d0aff09f9880227d", JsonbConverter.GetByteCount, JsonbConverter.Write,
             JsonbConverter.Write, JsonbConverter.Read, JsonbConverter.Read);
-        ConverterAssertions.CheckNullableScalar<Memory<byte>>(JsonbConverter.Write, JsonbConverter.Write,
+        ConverterAssertions.CheckNullableScalar(JsonbConverter.Write, JsonbConverter.Write,
             JsonbConverter.GetByteCount, JsonbConverter.ReadNullable, JsonbConverter.ReadNullable);
-        ConverterAssertions.CheckArray(new Memory<byte>[] {value, value}, (uint)TypeOid.Jsonb, "017b2278223a22d0aff09f9880227d",
+        ConverterAssertions.CheckArray(new[] {value, value}, (uint)TypeOid.Jsonb, "017b2278223a22d0aff09f9880227d",
             JsonbArrayConverter.GetByteCount, JsonbArrayConverter.Write, JsonbArrayConverter.Write,
             JsonbArrayConverter.Read, JsonbArrayConverter.Read, JsonbArrayConverter.Read, JsonbArrayConverter.Read);
         ConverterAssertions.CheckArray(new Memory<byte>?[] {value, value}, (uint)TypeOid.Jsonb, "017b2278223a22d0aff09f9880227d",
@@ -26,7 +26,7 @@ public sealed class JsonbConvertersTests
     [Fact]
     public void NullEmptyAndJsonNullRemainDistinct()
     {
-        Memory<byte> empty = Memory<byte>.Empty;
+        var empty = Memory<byte>.Empty;
         Assert.Equal(1, JsonbConverter.GetByteCount(empty));
         Assert.Equal(1, JsonbConverter.GetByteCount((Memory<byte>?)empty));
         byte[] output = [0xcc, 0xcc];
@@ -34,13 +34,13 @@ public sealed class JsonbConvertersTests
         Assert.Equal(new byte[] {1, 0xcc}, output);
         Assert.True(JsonbConverter.Read(new byte[] {1}).IsEmpty);
         Assert.True(JsonbConverter.ReadNullable((ReadOnlyMemory<byte>?)new byte[] {1})!.Value.IsEmpty);
-        Assert.True(JsonbConverter.ReadNullable((ReadOnlySequence<byte>?)TestWire.ByteSegments([1]))!.Value.IsEmpty);
+        Assert.True(JsonbConverter.ReadNullable(TestWire.ByteSegments([1]))!.Value.IsEmpty);
         Memory<byte> jsonNull = "null"u8.ToArray();
         ConverterAssertions.CheckScalar(jsonNull, "016e756c6c", JsonbConverter.GetByteCount, JsonbConverter.Write,
             JsonbConverter.Write, JsonbConverter.Read, JsonbConverter.Read);
         Memory<byte>?[] nullable = [jsonNull, null, empty];
-        byte[] expected = ConverterAssertions.ArrayBytes((uint)TypeOid.Jsonb, TestWire.Bytes("016e756c6c"), null, [1]);
-        byte[] payload = new byte[NullableJsonbArrayConverter.GetByteCount(nullable)];
+        var expected = ConverterAssertions.ArrayBytes((uint)TypeOid.Jsonb, TestWire.Bytes("016e756c6c"), null, [1]);
+        var payload = new byte[NullableJsonbArrayConverter.GetByteCount(nullable)];
         NullableJsonbArrayConverter.Write(nullable, payload);
         Assert.Equal(expected, payload);
         var decoded = NullableJsonbArrayConverter.Read(payload);
@@ -60,8 +60,8 @@ public sealed class JsonbConvertersTests
     [Fact]
     public void ReadsReturnOwnedMutableJsonBytesWithoutVersion()
     {
-        byte[] payload = TestWire.Bytes("017b2278223a22d0aff09f9880227d");
-        byte[] expected = payload[1..];
+        var payload = TestWire.Bytes("017b2278223a22d0aff09f9880227d");
+        var expected = payload[1..];
         var contiguous = JsonbConverter.Read(payload);
         var fragmented = JsonbConverter.Read(TestWire.ByteSegments(payload));
         var borrowed = JsonbConverter.ReadUtf8(payload);
@@ -72,19 +72,18 @@ public sealed class JsonbConvertersTests
         contiguous.Span[0] = (byte)'[';
         Assert.Equal((byte)'{', fragmented.Span[0]);
         Assert.Equal((byte)'{', payload[1]);
-        byte[] array = ConverterAssertions.ArrayBytes((uint)TypeOid.Jsonb, [1, .. expected], [1, .. expected]);
+        var array = ConverterAssertions.ArrayBytes((uint)TypeOid.Jsonb, [1, .. expected], [1, .. expected]);
         var values = JsonbArrayConverter.Read(TestWire.ByteSegments(array));
         array.AsSpan().Clear();
         values.Span[0].Span[0] = (byte)'[';
         Assert.Equal(expected, values.Span[1].ToArray());
     }
 
-    [Theory]
-    [InlineData("80"), InlineData("c080"), InlineData("eda080"), InlineData("f4908080"), InlineData("e08080"), InlineData("f09f98"), InlineData("410042")]
+    [Theory, InlineData("80"), InlineData("c080"), InlineData("eda080"), InlineData("f4908080"), InlineData("e08080"), InlineData("f09f98"), InlineData("410042")]
     public void RawJsonBytesPassThroughWithoutContentValidation(string hex)
     {
         Memory<byte> value = TestWire.Bytes(hex);
-        byte[] destination = Enumerable.Repeat((byte)0xcc, 64).ToArray();
+        var destination = Enumerable.Repeat((byte)0xcc, 64).ToArray();
         byte[] payload = [1, .. value.Span];
         Assert.Equal(payload.Length, JsonbConverter.GetByteCount(value));
         Assert.Equal(payload.Length, JsonbConverter.Write(value, destination));
@@ -95,14 +94,14 @@ public sealed class JsonbConvertersTests
         Assert.Equal(payload, writer.WrittenSpan.ToArray());
         Assert.Equal(value.ToArray(), JsonbConverter.Read(payload).ToArray());
         Assert.Equal(value.ToArray(), JsonbConverter.ReadUtf8(payload).ToArray());
-        for (int split = 0; split <= payload.Length; split++)
+        for (var split = 0; split <= payload.Length; split++)
         {
             var input = TestWire.Chunks(payload.AsMemory(0, split), ReadOnlyMemory<byte>.Empty, payload.AsMemory(split));
             Assert.Equal(value.ToArray(), JsonbConverter.Read(input).ToArray());
             Assert.Equal(value.ToArray(), JsonbConverter.ReadUtf8(input).ToArray());
         }
         Memory<byte>[] values = ["null"u8.ToArray(), value];
-        byte[] array = new byte[JsonbArrayConverter.GetByteCount(values)];
+        var array = new byte[JsonbArrayConverter.GetByteCount(values)];
         JsonbArrayConverter.Write(values, array);
         Assert.Equal(value.ToArray(), JsonbArrayConverter.Read(TestWire.ByteSegments(array)).Span[1].ToArray());
         Memory<byte>?[] nullable = [null, value];
@@ -114,17 +113,17 @@ public sealed class JsonbConvertersTests
     [Fact]
     public void CapacityAndOverlapFailuresLeaveDestinationUnchanged()
     {
-        byte[] storage = Enumerable.Repeat((byte)0xcc, 64).ToArray();
+        var storage = Enumerable.Repeat((byte)0xcc, 64).ToArray();
         "null"u8.CopyTo(storage.AsSpan(12));
-        Memory<byte> value = storage.AsMemory(12, 4);
-        byte[] original = storage.ToArray();
+        var value = storage.AsMemory(12, 4);
+        var original = storage.ToArray();
         Assert.Throws<ArgumentException>(() => JsonbConverter.Write(value, storage.AsSpan(0, 4)));
         Assert.Throws<ArgumentException>(() => JsonbConverter.Write(value, storage.AsSpan(10, 5)));
-        Assert.Throws<ArgumentException>(() => JsonbArrayConverter.Write(new Memory<byte>[] {value}, storage));
+        Assert.Throws<ArgumentException>(() => JsonbArrayConverter.Write(new[] {value}, storage));
         Assert.Throws<ArgumentException>(() => NullableJsonbArrayConverter.Write(new Memory<byte>?[] {null, value}, storage));
         var writer = new AliasedWriter(storage.AsMemory(10));
         Assert.Throws<ArgumentException>(() => JsonbConverter.Write(value, writer));
-        Assert.Throws<ArgumentException>(() => JsonbArrayConverter.Write(new Memory<byte>[] {value}, writer));
+        Assert.Throws<ArgumentException>(() => JsonbArrayConverter.Write(new[] {value}, writer));
         Assert.Throws<ArgumentException>(() => NullableJsonbArrayConverter.Write(new Memory<byte>?[] {null, value}, writer));
         Assert.Equal(0, writer.Advanced);
         Assert.Equal(original, storage);
@@ -133,8 +132,17 @@ public sealed class JsonbConvertersTests
     private sealed class AliasedWriter(Memory<byte> storage) : IBufferWriter<byte>
     {
         internal int Advanced { get; private set; }
-        public void Advance(int count) => Advanced += count;
-        public Memory<byte> GetMemory(int sizeHint = 0) => storage;
-        public Span<byte> GetSpan(int sizeHint = 0) => storage.Span;
+        public void Advance(int count)
+        {
+            Advanced += count;
+        }
+        public Memory<byte> GetMemory(int sizeHint = 0)
+        {
+            return storage;
+        }
+        public Span<byte> GetSpan(int sizeHint = 0)
+        {
+            return storage.Span;
+        }
     }
 }

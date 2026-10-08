@@ -19,44 +19,24 @@ internal static class BinaryCopyLiveBenchmarks
     private const string ExportSql = "COPY " + Table + " TO STDOUT (FORMAT binary)";
     private const int Warmups = 6;
 
-    private sealed record Sample(double Milliseconds, long AllocatedBytes);
-
-    private sealed record Result
-    (
-        string Direction,
-        string Type,
-        int Rows,
-        int ArrayLength,
-        string Method,
-        double MeanMs,
-        double MedianMs,
-        double StdDevMs,
-        double MinMs,
-        double MaxMs,
-        double AllocatedBytes,
-        double RowsPerSecond,
-        double PayloadMiBPerSecond,
-        Sample[] Samples
-    );
-
     internal static void Run(string[] args)
     {
-        string host = Environment.GetEnvironmentVariable("MPGSQL_TEST_HOST") ?? "localhost";
-        int port = int.Parse(Environment.GetEnvironmentVariable("MPGSQL_TEST_PORT") ?? "5432",
+        var host = Environment.GetEnvironmentVariable("MPGSQL_TEST_HOST") ?? "localhost";
+        var port = int.Parse(Environment.GetEnvironmentVariable("MPGSQL_TEST_PORT") ?? "5432",
             CultureInfo.InvariantCulture);
-        string user = Environment.GetEnvironmentVariable("MPGSQL_TEST_USER") ?? "test";
-        string password = Environment.GetEnvironmentVariable("MPGSQL_TEST_PASSWORD")
-                          ?? throw new InvalidOperationException("Set MPGSQL_TEST_PASSWORD to run live COPY benchmarks.");
-        string database = Environment.GetEnvironmentVariable("MPGSQL_TEST_DATABASE") ?? user;
-        int iterations = int.Parse(Environment.GetEnvironmentVariable("MPGSQL_BENCH_ITERATIONS") ?? "16",
+        var user = Environment.GetEnvironmentVariable("MPGSQL_TEST_USER") ?? "test";
+        var password = Environment.GetEnvironmentVariable("MPGSQL_TEST_PASSWORD")
+                       ?? throw new InvalidOperationException("Set MPGSQL_TEST_PASSWORD to run live COPY benchmarks.");
+        var database = Environment.GetEnvironmentVariable("MPGSQL_TEST_DATABASE") ?? user;
+        var iterations = int.Parse(Environment.GetEnvironmentVariable("MPGSQL_BENCH_ITERATIONS") ?? "16",
             CultureInfo.InvariantCulture);
         if (iterations is < 4 or > 100)
         {
             throw new ArgumentOutOfRangeException(nameof(iterations));
         }
-        int pathIndex = Array.IndexOf(args,
+        var pathIndex = Array.IndexOf(args,
             "--artifacts");
-        string directory = Path.GetFullPath(pathIndex >= 0 && pathIndex + 1 < args.Length
+        var directory = Path.GetFullPath(pathIndex >= 0 && pathIndex + 1 < args.Length
             ? args[pathIndex + 1]
             : "artifacts/binary-copy-live");
 
@@ -80,7 +60,7 @@ internal static class BinaryCopyLiveBenchmarks
 
         foreach (var (rows, arrayLength) in new[] {(1024, 0), (65536, 0), (256, 256), (4096, 256)})
         {
-            bool arrays = arrayLength != 0;
+            var arrays = arrayLength != 0;
             long[] values =
             [
                 .. Enumerable.Range(0,
@@ -91,25 +71,25 @@ internal static class BinaryCopyLiveBenchmarks
                 .. Enumerable.Range(0,
                     arrayLength).Select(i => (long)i - arrayLength / 2)
             ];
-            string type = arrays ? "bigint[]" : "bigint";
-            string create = $"DROP TABLE IF EXISTS pg_temp.{Table}; CREATE TEMP TABLE {Table} (v {type})";
+            var type = arrays ? "bigint[]" : "bigint";
+            var create = $"DROP TABLE IF EXISTS pg_temp.{Table}; CREATE TEMP TABLE {Table} (v {type})";
             NativeQuery(create);
             connection.Query(create);
             var imports = new List<(string Name, Func<long> Action, Action Prepare, Action Verify)>
             {
-                ("Npgsql", ImportNative, () => NativeQuery("TRUNCATE " + Table), () => VerifyTable(useNpgsql: true)),
-                ("MpgsqlRows", () => ImportMpgsql(batch: false), () => connection.Query("TRUNCATE " + Table), () => VerifyTable(useNpgsql: false))
+                ("Npgsql", ImportNative, () => NativeQuery("TRUNCATE " + Table), () => VerifyTable(true)),
+                ("MpgsqlRows", () => ImportMpgsql(false), () => connection.Query("TRUNCATE " + Table), () => VerifyTable(false))
             };
             if (!arrays)
             {
-                imports.Add(("MpgsqlBatch", () => ImportMpgsql(batch: true),
-                    () => connection.Query("TRUNCATE " + Table), () => VerifyTable(useNpgsql: false)));
+                imports.Add(("MpgsqlBatch", () => ImportMpgsql(true),
+                    () => connection.Query("TRUNCATE " + Table), () => VerifyTable(false)));
             }
             if (!arrays)
             {
-                imports.Add(("MpgsqlSeparateDone", () => ImportMpgsql(batch: false,
-                        coalescedDone: false),
-                    () => connection.Query("TRUNCATE " + Table), () => VerifyTable(useNpgsql: false)));
+                imports.Add(("MpgsqlSeparateDone", () => ImportMpgsql(false,
+                        false),
+                    () => connection.Query("TRUNCATE " + Table), () => VerifyTable(false)));
             }
             Measure("Import",
                 imports);
@@ -118,10 +98,10 @@ internal static class BinaryCopyLiveBenchmarks
             // decoding/owned array results and the final ReadyForQuery boundary.
             NativeQuery("TRUNCATE " + Table);
             ImportNative();
-            VerifyTable(useNpgsql: true);
+            VerifyTable(true);
             connection.Query("TRUNCATE " + Table);
-            ImportMpgsql(batch: false);
-            VerifyTable(useNpgsql: false);
+            ImportMpgsql(false);
+            VerifyTable(false);
             Measure("Export",
             [
                 ("Npgsql", ExportNative, () => { }, () => { }),
@@ -131,7 +111,7 @@ internal static class BinaryCopyLiveBenchmarks
             long ImportNative()
             {
                 using var copy = native.BeginBinaryImport(ImportSql);
-                for (int i = 0; i < rows; i++)
+                for (var i = 0; i < rows; i++)
                 {
                     copy.StartRow();
                     if (arrays)
@@ -152,21 +132,22 @@ internal static class BinaryCopyLiveBenchmarks
             {
                 connection.Send(FrontendMessage.Query(ImportSql));
                 var operation = new BinaryCopyOperation(connection.Expect(BackendMessageKind.CopyInResponse));
-                using (var frames = new CopyDataWriter(connection.CopyStream,
-                           8192))
+                using (var frames = new CopyDataWriter(connection.CopyStream))
                 {
                     var copy = new BinaryCopyWriter(frames,
                         1);
                     if (batch)
                     {
-                        for (int offset = 0; offset < rows; offset += 512)
+                        for (var offset = 0; offset < rows; offset += 512)
+                        {
                             copy.WriteInt64Rows(values.AsSpan(offset,
                                 Math.Min(512,
                                     rows - offset)));
+                        }
                     }
                     else
                     {
-                        for (int i = 0; i < rows; i++)
+                        for (var i = 0; i < rows; i++)
                         {
                             copy.StartRow();
                             if (arrays)
@@ -194,7 +175,10 @@ internal static class BinaryCopyLiveBenchmarks
                     connection.Send(FrontendMessage.CopyDone());
                 }
                 operation.CopyDoneSent();
-                while (!operation.IsCompleted) operation.Accept(connection.Receive());
+                while (!operation.IsCompleted)
+                {
+                    operation.Accept(connection.Receive());
+                }
                 CheckCompletion(operation);
                 return checked((long)operation.RowsCopied!.Value);
             }
@@ -202,7 +186,7 @@ internal static class BinaryCopyLiveBenchmarks
             long ExportNative()
             {
                 using var copy = native.BeginBinaryExport(ExportSql);
-                int count = 0;
+                var count = 0;
                 long sum = 0;
                 while (copy.StartRow() != -1)
                 {
@@ -283,10 +267,10 @@ internal static class BinaryCopyLiveBenchmarks
 
             void VerifyTable(bool useNpgsql)
             {
-                string sql = arrays
+                var sql = arrays
                     ? $"SELECT count(*), coalesce(sum(cardinality(v)),0)::bigint, coalesce(sum(v[1]),0)::bigint, coalesce(sum(v[{arrayLength}]),0)::bigint FROM {Table}"
                     : $"SELECT count(*), coalesce(sum(v),0)::bigint FROM {Table}";
-                long[] expected = arrays ? [rows, (long)rows * arrayLength, (long)rows * array[0], (long)rows * array[^1]] : [rows, values.Sum()];
+                long[] expected = arrays ? [rows, (long)rows * arrayLength, rows * array[0], rows * array[^1]] : [rows, values.Sum()];
                 if (useNpgsql)
                 {
                     using var command = new NpgsqlCommand(sql,
@@ -296,17 +280,19 @@ internal static class BinaryCopyLiveBenchmarks
                     {
                         throw new InvalidDataException();
                     }
-                    for (int i = 0; i < expected.Length; i++)
+                    for (var i = 0; i < expected.Length; i++)
+                    {
                         if (reader.GetInt64(i) != expected[i])
                         {
                             throw new InvalidDataException("Npgsql table checksum differs.");
                         }
+                    }
                 }
                 else
                 {
                     var message = connection.Query(sql).Single(m => m.Kind == BackendMessageKind.DataRow);
                     var columns = message.GetDataRow().GetEnumerator();
-                    foreach (long value in expected)
+                    foreach (var value in expected)
                     {
                         if (!columns.MoveNext() || long.Parse(Encoding.UTF8.GetString(columns.Current!.Value.ToArray()),
                                 CultureInfo.InvariantCulture) != value)
@@ -319,19 +305,19 @@ internal static class BinaryCopyLiveBenchmarks
 
             void Measure(string direction, List<(string Name, Func<long> Action, Action Prepare, Action Verify)> methods)
             {
-                long expected = direction == "Import" ? rows : arrays ? (long)rows * ArrayChecksum(array) : values.Sum();
+                var expected = direction == "Import" ? rows : arrays ? rows * ArrayChecksum(array) : values.Sum();
                 var samples = methods.Select(_ => new List<Sample>()).ToArray();
-                for (int iteration = -Warmups; iteration < iterations; iteration++)
-                for (int j = 0; j < methods.Count; j++)
+                for (var iteration = -Warmups; iteration < iterations; iteration++)
+                for (var j = 0; j < methods.Count; j++)
                 {
                     // Rotate methods to distribute server/cache/GC drift.
-                    int index = (j + iteration + Warmups) % methods.Count;
+                    var index = (j + iteration + Warmups) % methods.Count;
                     var method = methods[index];
                     method.Prepare();
-                    long allocated = GC.GetAllocatedBytesForCurrentThread();
-                    long start = Stopwatch.GetTimestamp();
-                    long result = method.Action();
-                    double elapsed = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+                    var allocated = GC.GetAllocatedBytesForCurrentThread();
+                    var start = Stopwatch.GetTimestamp();
+                    var result = method.Action();
+                    var elapsed = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
                     allocated = GC.GetAllocatedBytesForCurrentThread() - allocated;
                     if (result != expected)
                     {
@@ -340,17 +326,17 @@ internal static class BinaryCopyLiveBenchmarks
                     method.Verify();
                     if (iteration >= 0)
                     {
-                        samples[index].Add(new(elapsed,
+                        samples[index].Add(new Sample(elapsed,
                             allocated));
                     }
                 }
-                for (int i = 0; i < methods.Count; i++)
+                for (var i = 0; i < methods.Count; i++)
                 {
                     Sample[] measured = [.. samples[i]];
                     double[] ordered = [.. measured.Select(s => s.Milliseconds).Order()];
                     double mean = ordered.Average(), median = (ordered[(ordered.Length - 1) / 2] + ordered[ordered.Length / 2]) / 2;
-                    double deviation = Math.Sqrt(ordered.Sum(t => (t - mean) * (t - mean)) / (ordered.Length - 1));
-                    long payload = 21L + rows * (arrays ? 26L + 12L * arrayLength : 14L);
+                    var deviation = Math.Sqrt(ordered.Sum(t => (t - mean) * (t - mean)) / (ordered.Length - 1));
+                    var payload = 21L + rows * (arrays ? 26L + 12L * arrayLength : 14L);
                     var result = new Result(direction,
                         type,
                         rows,
@@ -381,7 +367,7 @@ internal static class BinaryCopyLiveBenchmarks
                     Host = host,
                     Port = port,
                     Database = database,
-                    ServerVersion = connection.ServerVersion,
+                    connection.ServerVersion,
                     NpgsqlVersion = typeof(NpgsqlConnection).Assembly.GetName()
                         .Version!.ToString(),
                     Runtime = RuntimeInformation.FrameworkDescription,
@@ -398,8 +384,10 @@ internal static class BinaryCopyLiveBenchmarks
                 }));
         var csv = new StringBuilder("Direction,Type,Rows,ArrayLength,Method,MeanMs,MedianMs,StdDevMs,MinMs,MaxMs,AllocatedBytes,RowsPerSecond,PayloadMiBPerSecond\n");
         foreach (var r in results)
+        {
             csv.AppendLine(FormattableString.Invariant(
                 $"{r.Direction},{r.Type},{r.Rows},{r.ArrayLength},{r.Method},{r.MeanMs:F6},{r.MedianMs:F6},{r.StdDevMs:F6},{r.MinMs:F6},{r.MaxMs:F6},{r.AllocatedBytes:F0},{r.RowsPerSecond:F2},{r.PayloadMiBPerSecond:F2}"));
+        }
         File.WriteAllText(Path.Combine(directory,
                 "results.csv"),
             csv.ToString());
@@ -414,5 +402,28 @@ internal static class BinaryCopyLiveBenchmarks
         }
     }
 
-    private static long ArrayChecksum(ReadOnlySpan<long> array) => array.Length + array[0] + array[^1];
+    private static long ArrayChecksum(ReadOnlySpan<long> array)
+    {
+        return array.Length + array[0] + array[^1];
+    }
+
+    private sealed record Sample(double Milliseconds, long AllocatedBytes);
+
+    private sealed record Result
+    (
+        string Direction,
+        string Type,
+        int Rows,
+        int ArrayLength,
+        string Method,
+        double MeanMs,
+        double MedianMs,
+        double StdDevMs,
+        double MinMs,
+        double MaxMs,
+        double AllocatedBytes,
+        double RowsPerSecond,
+        double PayloadMiBPerSecond,
+        Sample[] Samples
+    );
 }

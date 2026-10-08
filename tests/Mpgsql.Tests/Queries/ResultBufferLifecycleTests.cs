@@ -4,11 +4,7 @@ namespace Mpgsql.Tests.Queries;
 
 public sealed class ResultBufferLifecycleTests
 {
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
+    [Theory, InlineData(false, false), InlineData(true, false), InlineData(false, true), InlineData(true, true)]
     public async Task DisposalReleasesBufferedRowsAndAllowsFollowingQuery(bool disposeReader, bool completeBeforeRead)
     {
         var token = TestContext.Current.CancellationToken;
@@ -28,17 +24,18 @@ public sealed class ResultBufferLifecycleTests
         Assert.Equal(42, wire.Session.BufferedRowBytes);
         Assert.True(await reader.ReadAsync());
         Assert.Equal(11, reader.GetInt64(0));
-        Task disposal = (disposeReader ? reader.DisposeAsync() : batch.DisposeAsync()).AsTask();
-        if (!completeBeforeRead) await wire.WriteAsync(Join(Command("SELECT 3"), Ready()));
+        var disposal = (disposeReader ? reader.DisposeAsync() : batch.DisposeAsync()).AsTask();
+        if (!completeBeforeRead)
+        {
+            await wire.WriteAsync(Join(Command("SELECT 3"), Ready()));
+        }
         await disposal.WaitAsync(TestTimeout, token);
         Assert.Equal(0, wire.Session.BufferedRowBytes);
         Assert.True(wire.Session.IsIdleAndHealthy);
         await CheckFollowingQuery(wire, token);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task CancellationReleasesBufferedRowsWithoutConsumerMovement(bool completeBeforeRead)
     {
         var token = TestContext.Current.CancellationToken;
@@ -61,9 +58,14 @@ public sealed class ResultBufferLifecycleTests
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
         timeout.CancelAfter(TestTimeout);
         while (wire.Session.BufferedRowBytes != 0)
+        {
             await Task.Delay(1, timeout.Token);
+        }
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await reader.ReadAsync());
-        if (!completeBeforeRead) await wire.WriteAsync(Join(Command("SELECT 2"), Ready()));
+        if (!completeBeforeRead)
+        {
+            await wire.WriteAsync(Join(Command("SELECT 2"), Ready()));
+        }
         await batch.Completion.WaitAsync(TestTimeout, token);
         Assert.True(wire.Session.IsIdleAndHealthy);
         await CheckFollowingQuery(wire, token);

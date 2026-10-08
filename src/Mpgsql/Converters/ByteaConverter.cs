@@ -7,11 +7,26 @@ namespace Mpgsql.Converters;
 public static class ByteaConverter
 {
     public const uint TypeOid = (uint)Mpgsql.TypeOid.Bytea;
-    public static int GetByteCount(ReadOnlyMemory<byte> value) => value.Length;
-    public static int GetByteCount(ReadOnlyMemory<byte>? value) => value?.Length ?? 0;
-    public static int Write(ReadOnlyMemory<byte> value, Span<byte> destination) => BinaryScalar<ReadOnlyMemory<byte>, ByteaCodec>.Write(value, destination);
-    public static int Write(ReadOnlyMemory<byte>? value, Span<byte> destination) => value.HasValue ? Write(value.Value, destination) : 0;
-    public static void Write(ReadOnlyMemory<byte> value, IBufferWriter<byte> destination) => BinaryScalar<ReadOnlyMemory<byte>, ByteaCodec>.Write(value, destination);
+    public static int GetByteCount(ReadOnlyMemory<byte> value)
+    {
+        return value.Length;
+    }
+    public static int GetByteCount(ReadOnlyMemory<byte>? value)
+    {
+        return value?.Length ?? 0;
+    }
+    public static int Write(ReadOnlyMemory<byte> value, Span<byte> destination)
+    {
+        return BinaryScalar<ReadOnlyMemory<byte>, ByteaCodec>.Write(value, destination);
+    }
+    public static int Write(ReadOnlyMemory<byte>? value, Span<byte> destination)
+    {
+        return value.HasValue ? Write(value.Value, destination) : 0;
+    }
+    public static void Write(ReadOnlyMemory<byte> value, IBufferWriter<byte> destination)
+    {
+        BinaryScalar<ReadOnlyMemory<byte>, ByteaCodec>.Write(value, destination);
+    }
     public static void Write(ReadOnlyMemory<byte>? value, IBufferWriter<byte> destination)
     {
         ArgumentNullException.ThrowIfNull(destination);
@@ -20,14 +35,32 @@ public static class ByteaConverter
             Write(value.Value, destination);
         }
     }
-    public static ReadOnlyMemory<byte> Read(ReadOnlySpan<byte> payload) => ByteaCodec.Read(payload);
-    public static ReadOnlyMemory<byte> Read(ReadOnlySequence<byte> payload) => ByteaCodec.Read(payload);
-    public static ReadOnlyMemory<byte>? ReadNullable(ReadOnlyMemory<byte>? payload) => payload is { } value ? Read(value.Span) : (ReadOnlyMemory<byte>?)null;
-    public static ReadOnlyMemory<byte>? ReadNullable(ReadOnlySequence<byte>? payload) => payload is { } value ? Read(value) : (ReadOnlyMemory<byte>?)null;
+    public static ReadOnlyMemory<byte> Read(ReadOnlySpan<byte> payload)
+    {
+        return ByteaCodec.Read(payload);
+    }
+    public static ReadOnlyMemory<byte> Read(ReadOnlySequence<byte> payload)
+    {
+        return ByteaCodec.Read(payload);
+    }
+    public static ReadOnlyMemory<byte>? ReadNullable(ReadOnlyMemory<byte>? payload)
+    {
+        return payload is { } value ? Read(value.Span) : (ReadOnlyMemory<byte>?)null;
+    }
+    public static ReadOnlyMemory<byte>? ReadNullable(ReadOnlySequence<byte>? payload)
+    {
+        return payload is { } value ? Read(value) : (ReadOnlyMemory<byte>?)null;
+    }
     /// <summary>Returns borrowed bytes; consume them before releasing the network buffer.</summary>
-    public static ReadOnlyMemory<byte> ReadBorrowed(ReadOnlyMemory<byte> payload) => payload;
+    public static ReadOnlyMemory<byte> ReadBorrowed(ReadOnlyMemory<byte> payload)
+    {
+        return payload;
+    }
     /// <summary>Returns a borrowed sequence without allocating or copying.</summary>
-    public static ReadOnlySequence<byte> ReadBorrowed(ReadOnlySequence<byte> payload) => payload;
+    public static ReadOnlySequence<byte> ReadBorrowed(ReadOnlySequence<byte> payload)
+    {
+        return payload;
+    }
     public static int Read(ReadOnlySpan<byte> payload, Span<byte> destination)
     {
         BinaryPayload.RequireCapacity(payload.Length, destination.Length);
@@ -36,7 +69,7 @@ public static class ByteaConverter
     }
     public static int Read(ReadOnlySequence<byte> payload, Span<byte> destination)
     {
-        int count = checked((int)payload.Length);
+        var count = checked((int)payload.Length);
         BinaryPayload.RequireCapacity(count, destination.Length);
         if (payload.IsSingleSegment)
         {

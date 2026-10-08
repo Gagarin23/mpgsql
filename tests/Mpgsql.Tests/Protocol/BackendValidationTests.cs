@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Buffers.Binary;
 using Mpgsql.Protocol;
 
 namespace Mpgsql.Tests.Protocol;
@@ -33,13 +34,11 @@ public sealed class BackendValidationTests
         "56 00000004", "56 00000008 fffffffe", "56 00000008 00000001", "56 00000009 00000000 ff"
     ];
 
-    [Theory]
-    [InlineData("43 00000007 c32800"), InlineData("43 00000006 c300")]
-    [InlineData("52 0000000b 0000000a c300 00"), InlineData("53 00000008 c300 7800")]
+    [Theory, InlineData("43 00000007 c32800"), InlineData("43 00000006 c300"), InlineData("52 0000000b 0000000a c300 00"), InlineData("53 00000008 c300 7800")]
     public void Utf8IsDecodedOnlyWhenAccessingTheString(string hex)
     {
-        byte[] bytes = TestWire.Bytes(hex);
-        foreach (bool fragmented in new[] {false, true})
+        var bytes = TestWire.Bytes(hex);
+        foreach (var fragmented in new[] {false, true})
         {
             var input = fragmented ? TestWire.ByteSegments(bytes) : new ReadOnlySequence<byte>(bytes);
             Assert.True(BackendMessageReader.TryRead(ref input, out var message));
@@ -56,12 +55,11 @@ public sealed class BackendValidationTests
         }
     }
 
-    [Theory]
-    [MemberData(nameof(InvalidPackets))]
+    [Theory, MemberData(nameof(InvalidPackets))]
     public void RejectsMalformedCompleteBodiesWithoutConsumingInput(string hex)
     {
-        byte[] bytes = TestWire.Bytes(hex);
-        foreach (bool fragmented in new[] {false, true})
+        var bytes = TestWire.Bytes(hex);
+        foreach (var fragmented in new[] {false, true})
         {
             var input = fragmented ? TestWire.ByteSegments(bytes) : new ReadOnlySequence<byte>(bytes);
             var before = input;
@@ -76,11 +74,7 @@ public sealed class BackendValidationTests
         }
     }
 
-    [Theory]
-    [InlineData("43 00000000")]
-    [InlineData("43 00000003")]
-    [InlineData("43 ffffffff")]
-    [InlineData("43 7fffffff")]
+    [Theory, InlineData("43 00000000"), InlineData("43 00000003"), InlineData("43 ffffffff"), InlineData("43 7fffffff")]
     public void RejectsInvalidOrExcessiveLengthBeforeWaitingForBody(string hex)
     {
         var input = TestWire.ByteSegments(TestWire.Bytes(hex));
@@ -97,27 +91,24 @@ public sealed class BackendValidationTests
         var input = new ReadOnlySequence<byte>(TestWire.Bytes("64 00000006 0102"));
         Assert.Throws<InvalidDataException>(() => BackendMessageReader.TryRead(ref input,
             out _,
-            maxMessageLength: 5));
+            5));
         Assert.True(BackendMessageReader.TryRead(ref input,
             out _,
-            maxMessageLength: 6));
+            6));
         Assert.True(input.IsEmpty);
         Assert.Throws<ArgumentOutOfRangeException>(() => BackendMessageReader.TryRead(ref input,
             out _,
-            maxMessageLength: 3));
+            3));
     }
 
-    [Theory]
-    [InlineData("f09f988000", "😀")]
-    [InlineData("e282ac00", "€")]
-    [InlineData("d0af00", "Я")]
+    [Theory, InlineData("f09f988000", "😀"), InlineData("e282ac00", "€"), InlineData("d0af00", "Я")]
     public void DecodesUtf8ScalarsAcrossEveryByteBoundary(string textHex,
         string expected)
     {
-        byte[] text = TestWire.Bytes(textHex);
-        byte[] frame = new byte[text.Length + 5];
+        var text = TestWire.Bytes(textHex);
+        var frame = new byte[text.Length + 5];
         frame[0] = (byte)'C';
-        System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(frame.AsSpan(1),
+        BinaryPrimitives.WriteInt32BigEndian(frame.AsSpan(1),
             text.Length + 4);
         text.CopyTo(frame,
             5);
@@ -128,20 +119,16 @@ public sealed class BackendValidationTests
             message.GetCommandTag());
     }
 
-    [Theory]
-    [InlineData(EncryptionRequestKind.Ssl, "53", true)]
-    [InlineData(EncryptionRequestKind.Ssl, "4e", false)]
-    [InlineData(EncryptionRequestKind.Gss, "47", true)]
-    [InlineData(EncryptionRequestKind.Gss, "4e", false)]
+    [Theory, InlineData(EncryptionRequestKind.Ssl, "53", true), InlineData(EncryptionRequestKind.Ssl, "4e", false), InlineData(EncryptionRequestKind.Gss, "47", true), InlineData(EncryptionRequestKind.Gss, "4e", false)]
     public void ReadsOnlyOneEncryptionNegotiationByte(EncryptionRequestKind request,
         string response,
         bool expected)
     {
-        byte[] following = TestWire.Bytes("52 00000008 00000000");
+        var following = TestWire.Bytes("52 00000008 00000000");
         var input = TestWire.ByteSegments([.. TestWire.Bytes(response), .. following]);
         Assert.True(BackendMessageReader.TryReadEncryptionResponse(ref input,
             request,
-            out bool accepted));
+            out var accepted));
         Assert.Equal(expected,
             accepted);
         Assert.Equal(following,
@@ -153,10 +140,7 @@ public sealed class BackendValidationTests
                 .Method);
     }
 
-    [Theory]
-    [InlineData(EncryptionRequestKind.Ssl, "47")]
-    [InlineData(EncryptionRequestKind.Gss, "53")]
-    [InlineData(EncryptionRequestKind.Ssl, "00")]
+    [Theory, InlineData(EncryptionRequestKind.Ssl, "47"), InlineData(EncryptionRequestKind.Gss, "53"), InlineData(EncryptionRequestKind.Ssl, "00")]
     public void RejectsEncryptionReplyFromWrongPhaseWithoutConsumption(EncryptionRequestKind request,
         string response)
     {

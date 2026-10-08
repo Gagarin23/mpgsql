@@ -16,9 +16,15 @@ internal readonly struct DecimalCodec : IBinaryCodec<decimal>
     public static int Write(decimal value, Span<byte> destination)
     {
         Span<ushort> digits = stackalloc ushort[8];
-        int count = NumericCodec.DecimalParts(value, digits, out short weight, out ushort scale, out var sign);
+        var count = NumericCodec.DecimalParts(value, digits, out var weight, out var scale, out var sign);
         return NumericCodec.WriteParts(weight, scale, sign, digits[..count], destination);
     }
-    public static decimal Read(ReadOnlySpan<byte> payload) => NumericCodec.ReadDecimal(payload);
-    public static decimal Read(ReadOnlySequence<byte> payload) => NumericCodec.ReadDecimal(payload);
+    public static decimal Read(ReadOnlySpan<byte> payload)
+    {
+        return NumericCodec.ReadDecimal(payload);
+    }
+    public static decimal Read(ReadOnlySequence<byte> payload)
+    {
+        return NumericCodec.ReadDecimal(payload);
+    }
 }

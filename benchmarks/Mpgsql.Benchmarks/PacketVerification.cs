@@ -1,8 +1,7 @@
 #if PROTOCOL_BASELINE
 extern alias baseline;
-#endif
-
 using Mpgsql.Protocol;
+#endif
 
 namespace Mpgsql.Benchmarks;
 
@@ -10,7 +9,7 @@ internal static class PacketVerification
 {
     internal static void Check<T>(in T message) where T : struct, IFrontendMessage<T>
     {
-        int size = FrontendMessageWriter.GetByteCount(in message);
+        var size = FrontendMessageWriter.GetByteCount(in message);
         var bytes = new byte[size];
         if (FrontendMessageWriter.Write(in message,
                 bytes) != size)
@@ -24,7 +23,7 @@ internal static class PacketVerification
         baseline::Mpgsql.Protocol.FrontendMessage original)
         where T : struct, IFrontendMessage<T>
     {
-        int size = FrontendMessageWriter.GetByteCount(in message);
+        var size = FrontendMessageWriter.GetByteCount(in message);
         if (size != original.GetByteCount())
         {
             throw new InvalidOperationException("Packet sizes differ from the baseline.");

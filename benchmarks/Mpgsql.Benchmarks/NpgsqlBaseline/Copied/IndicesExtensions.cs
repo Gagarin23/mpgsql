@@ -33,7 +33,7 @@ using System.Diagnostics;
 
 namespace Mpgsql.Benchmarks.NpgsqlBaseline.Copied;
 
-static class IndicesExtensions
+internal static class IndicesExtensions
 {
     // Workaround for lack of ref returns on struct fields.
     public static ref int GetItem(this ref Indices indices,

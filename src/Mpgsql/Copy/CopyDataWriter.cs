@@ -5,22 +5,22 @@ namespace Mpgsql.Copy;
 
 /// <summary>A pooled, bounded output buffer that writes complete frontend CopyData frames.</summary>
 /// <remarks>
-/// The stream remains open. WriteCopyDone coalesces the last data frame and CopyDone;
-/// otherwise flush before sending CopyDone/CopyFail through the connection.
-/// Dispose only returns the buffer; it never completes or flushes an unfinished COPY.
-/// Large reservations grow the buffer to fit one field; there is no intermediate field copy.
-/// A failed stream write faults this buffer: the caller must discard the connection,
-/// since retrying could duplicate a partially transmitted frame.
+///     The stream remains open. WriteCopyDone coalesces the last data frame and CopyDone;
+///     otherwise flush before sending CopyDone/CopyFail through the connection.
+///     Dispose only returns the buffer; it never completes or flushes an unfinished COPY.
+///     Large reservations grow the buffer to fit one field; there is no intermediate field copy.
+///     A failed stream write faults this buffer: the caller must discard the connection,
+///     since retrying could duplicate a partially transmitted frame.
 /// </remarks>
 public sealed class CopyDataWriter : IBufferWriter<byte>, IDisposable
 {
-    private readonly Stream _stream;
     private readonly int _bufferSize;
+    private readonly Stream _stream;
     private byte[]? _buffer;
+    private bool _completed;
+    private bool _faulted;
     private int _limit;
     private int _position = 5;
-    private bool _faulted;
-    private bool _completed;
 
     public CopyDataWriter(Stream stream,
         int bufferSize = 8192)
@@ -57,8 +57,8 @@ public sealed class CopyDataWriter : IBufferWriter<byte>, IDisposable
             sizeHint);
         if (sizeHint > _limit - _position)
         {
-            int required = checked(sizeHint + 5);
-            int capacity = checked(required + 5);
+            var required = checked(sizeHint + 5);
+            var capacity = checked(required + 5);
             Flush();
             if (required > _limit)
             {
@@ -73,7 +73,20 @@ public sealed class CopyDataWriter : IBufferWriter<byte>, IDisposable
             _limit - _position);
     }
 
-    public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
+    public Span<byte> GetSpan(int sizeHint = 0)
+    {
+        return GetMemory(sizeHint).Span;
+    }
+
+    public void Dispose()
+    {
+        var buffer = _buffer;
+        _buffer = null;
+        if (buffer is not null)
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
 
     public void Flush()
     {
@@ -88,12 +101,14 @@ public sealed class CopyDataWriter : IBufferWriter<byte>, IDisposable
     }
 
     /// <summary>Sends the final data frame and frontend CopyDone in one stream write.</summary>
-    /// <remarks>Complete BinaryCopyWriter first. This ends sending, not the server operation;
-    /// still consume CommandComplete/ReadyForQuery and update BinaryCopyOperation.</remarks>
+    /// <remarks>
+    ///     Complete BinaryCopyWriter first. This ends sending, not the server operation;
+    ///     still consume CommandComplete/ReadyForQuery and update BinaryCopyOperation.
+    /// </remarks>
     public void WriteCopyDone()
     {
         RequireWritable();
-        int offset = _position == 5 ? 0 : _position;
+        var offset = _position == 5 ? 0 : _position;
         if (offset != 0)
         {
             WriteDataHeader();
@@ -141,16 +156,6 @@ public sealed class CopyDataWriter : IBufferWriter<byte>, IDisposable
         if (_completed)
         {
             throw new InvalidOperationException("CopyDone has already been sent.");
-        }
-    }
-
-    public void Dispose()
-    {
-        var buffer = _buffer;
-        _buffer = null;
-        if (buffer is not null)
-        {
-            ArrayPool<byte>.Shared.Return(buffer);
         }
     }
 }

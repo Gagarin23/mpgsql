@@ -83,8 +83,8 @@ internal static class BinaryPayload
         RequireLength(payload.Length, size);
         ulong result = 0;
         foreach (var segment in payload)
-        foreach (byte part in segment.Span)
-            result = (result << 8) | part;
+        foreach (var part in segment.Span)
+            result = result << 8 | part;
         return result;
     }
 }

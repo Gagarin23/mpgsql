@@ -1,20 +1,21 @@
 // Frozen pre-consolidation Int64 converter; benchmark-only regression reference.
-using System.Runtime.Intrinsics;
-using System.Runtime.Intrinsics.Arm;
-using System.Runtime.Intrinsics.X86;
+
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.Arm;
+using System.Runtime.Intrinsics.X86;
 
 namespace Mpgsql.Benchmarks;
 
 /// <summary>Binary PostgreSQL bigint[] conversion for ReadOnlyMemory&lt;long&gt;.</summary>
 /// <remarks>
-/// Encodes the array payload only; Bind/DataRow own the outer value length.
-/// All wire integers are big-endian. Empty memory is an empty array, never SQL NULL.
-/// Only zero/one-dimensional arrays without NULL elements are supported.
-/// Reading normalizes PostgreSQL lower bounds to the memory's zero-based indexing.
+///     Encodes the array payload only; Bind/DataRow own the outer value length.
+///     All wire integers are big-endian. Empty memory is an empty array, never SQL NULL.
+///     Only zero/one-dimensional arrays without NULL elements are supported.
+///     Reading normalizes PostgreSQL lower bounds to the memory's zero-based indexing.
 /// </remarks>
 internal static partial class Int64ArraySimdBaseline
 {
@@ -25,7 +26,10 @@ internal static partial class Int64ArraySimdBaseline
     private const int HeaderSize = 20;
     private const int RecordSize = 4 + sizeof(long);
 
-    public static int GetByteCount(ReadOnlyMemory<long> value) => GetByteCount(value.Length);
+    public static int GetByteCount(ReadOnlyMemory<long> value)
+    {
+        return GetByteCount(value.Length);
+    }
 
     public static int GetByteCount(int elementCount)
     {
@@ -38,7 +42,7 @@ internal static partial class Int64ArraySimdBaseline
     public static int Write(ReadOnlyMemory<long> value,
         Span<byte> destination)
     {
-        int size = GetByteCount(value);
+        var size = GetByteCount(value);
         if (destination.Length < size)
         {
             throw new ArgumentException("The destination is too small for the bigint[] payload.",
@@ -58,7 +62,7 @@ internal static partial class Int64ArraySimdBaseline
         IBufferWriter<byte> destination)
     {
         ArgumentNullException.ThrowIfNull(destination);
-        int size = GetByteCount(value);
+        var size = GetByteCount(value);
         Write(value,
             destination.GetSpan(size));
         destination.Advance(size);
@@ -67,9 +71,9 @@ internal static partial class Int64ArraySimdBaseline
     /// <summary>Returns independently owned memory with one long[] allocation for a nonempty array.</summary>
     public static ReadOnlyMemory<long> Read(ReadOnlySpan<byte> payload)
     {
-        int count = ReadHeader(payload,
-            out int headerSize,
-            out bool nullable);
+        var count = ReadHeader(payload,
+            out var headerSize,
+            out var nullable);
         if (nullable && payload.Length - headerSize != (long)RecordSize * count)
         {
             ValidateNullableRecords(payload[headerSize..],
@@ -90,9 +94,9 @@ internal static partial class Int64ArraySimdBaseline
     public static int Read(ReadOnlySpan<byte> payload,
         Span<long> destination)
     {
-        int count = ReadHeader(payload,
-            out int headerSize,
-            out bool nullable);
+        var count = ReadHeader(payload,
+            out var headerSize,
+            out var nullable);
         if (nullable && payload.Length - headerSize != (long)RecordSize * count)
         {
             ValidateNullableRecords(payload[headerSize..],
@@ -116,8 +120,8 @@ internal static partial class Int64ArraySimdBaseline
             return Read(payload.FirstSpan);
         }
         var reader = new SequenceReader<byte>(payload);
-        int count = ReadHeader(ref reader,
-            out bool nullable);
+        var count = ReadHeader(ref reader,
+            out var nullable);
         if (nullable && reader.Remaining != (long)RecordSize * count)
         {
             ValidateNullableRecords(reader,
@@ -144,8 +148,8 @@ internal static partial class Int64ArraySimdBaseline
                 destination);
         }
         var reader = new SequenceReader<byte>(payload);
-        int count = ReadHeader(ref reader,
-            out bool nullable);
+        var count = ReadHeader(ref reader,
+            out var nullable);
         if (nullable && reader.Remaining != (long)RecordSize * count)
         {
             ValidateNullableRecords(reader,
@@ -156,8 +160,10 @@ internal static partial class Int64ArraySimdBaseline
         destination = destination[..count];
         var outputBytes = MemoryMarshal.AsBytes(destination);
         foreach (var segment in payload)
+        {
             RequireSeparateStorage(segment.Span,
                 outputBytes);
+        }
         ReadSegmentedRecords(ref reader,
             destination);
         return count;
@@ -190,7 +196,7 @@ internal static partial class Int64ArraySimdBaseline
     private static int ReadHeader(ref SequenceReader<byte> reader,
         out bool nullable)
     {
-        long payloadLength = reader.Remaining;
+        var payloadLength = reader.Remaining;
         if (!reader.TryReadBigEndian(out int dimensions) || !reader.TryReadBigEndian(out int flags) ||
             !reader.TryReadBigEndian(out int oid))
         {
@@ -199,8 +205,8 @@ internal static partial class Int64ArraySimdBaseline
         nullable = ValidateArrayType(dimensions,
             flags,
             unchecked((uint)oid));
-        int count = 0;
-        int lowerBound = 0;
+        var count = 0;
+        var lowerBound = 0;
         if (dimensions == 1 && (!reader.TryReadBigEndian(out count) || !reader.TryReadBigEndian(out lowerBound)))
         {
             throw new InvalidDataException("Truncated PostgreSQL array dimension.");
@@ -223,9 +229,9 @@ internal static partial class Int64ArraySimdBaseline
         {
             throw new InvalidDataException("Truncated PostgreSQL array header.");
         }
-        int dimensions = BinaryPrimitives.ReadInt32BigEndian(payload);
-        int flags = BinaryPrimitives.ReadInt32BigEndian(payload[4..]);
-        uint oid = BinaryPrimitives.ReadUInt32BigEndian(payload[8..]);
+        var dimensions = BinaryPrimitives.ReadInt32BigEndian(payload);
+        var flags = BinaryPrimitives.ReadInt32BigEndian(payload[4..]);
+        var oid = BinaryPrimitives.ReadUInt32BigEndian(payload[8..]);
         nullable = ValidateArrayType(dimensions,
             flags,
             oid);
@@ -234,8 +240,8 @@ internal static partial class Int64ArraySimdBaseline
         {
             throw new InvalidDataException("Truncated PostgreSQL array dimension.");
         }
-        int count = dimensions == 0 ? 0 : BinaryPrimitives.ReadInt32BigEndian(payload[12..]);
-        int lowerBound = dimensions == 0 ? 0 : BinaryPrimitives.ReadInt32BigEndian(payload[16..]);
+        var count = dimensions == 0 ? 0 : BinaryPrimitives.ReadInt32BigEndian(payload[12..]);
+        var lowerBound = dimensions == 0 ? 0 : BinaryPrimitives.ReadInt32BigEndian(payload[16..]);
         ValidateBoundsAndLength(count,
             lowerBound,
             headerSize,
@@ -273,7 +279,7 @@ internal static partial class Int64ArraySimdBaseline
             throw new InvalidDataException("Invalid PostgreSQL array bounds.");
         }
         // Validate exact framing before allocating from an untrusted element count.
-        long expected = headerSize + (long)RecordSize * count;
+        var expected = headerSize + (long)RecordSize * count;
         // A NULL record has only its four-byte -1 length. Shorter payloads take the rejection
         // path before mutation; full-sized records validate their prefixes while decoding.
         if (nullable ? payloadLength < headerSize + 4L * count || payloadLength > expected : payloadLength != expected)
@@ -285,7 +291,7 @@ internal static partial class Int64ArraySimdBaseline
     private static void ValidateNullableRecords(ReadOnlySpan<byte> records,
         int count)
     {
-        for (int i = 0; i < count; i++)
+        for (var i = 0; i < count; i++)
         {
             if (records.Length < 4)
             {
@@ -307,7 +313,7 @@ internal static partial class Int64ArraySimdBaseline
     private static void ValidateNullableRecords(SequenceReader<byte> reader,
         int count)
     {
-        for (int i = 0; i < count; i++)
+        for (var i = 0; i < count; i++)
         {
             if (!reader.TryReadBigEndian(out int length))
             {
@@ -341,15 +347,15 @@ internal static partial class Int64ArraySimdBaseline
     private static void ReadSegmentedRecords(ref SequenceReader<byte> reader,
         Span<long> destination)
     {
-        int written = 0;
+        var written = 0;
         while (written < destination.Length)
         {
             // Decode whole records within a segment through the same contiguous fast path.
-            int count = Math.Min(reader.UnreadSpan.Length / RecordSize,
+            var count = Math.Min(reader.UnreadSpan.Length / RecordSize,
                 destination.Length - written);
             if (count != 0)
             {
-                int byteCount = count * RecordSize;
+                var byteCount = count * RecordSize;
                 ReadRecords(reader.UnreadSpan[..byteCount],
                     destination.Slice(written,
                         count));
@@ -389,6 +395,7 @@ internal static partial class Int64ArraySimdBaseline
         }
     }
 }
+
 internal static partial class Int64ArraySimdBaseline
 {
     private static bool CanShuffle => BitConverter.IsLittleEndian && (Ssse3.IsSupported || AdvSimd.Arm64.IsSupported);
@@ -396,13 +403,13 @@ internal static partial class Int64ArraySimdBaseline
     private static void WriteRecords(ReadOnlySpan<long> source,
         Span<byte> destination)
     {
-        int i = 0;
-        int offset = 0;
+        var i = 0;
+        var offset = 0;
         if (CanShuffle && source.Length >= 4)
         {
             // Four host-endian longs (32 bytes) become four [BE length=8][BE long] records (48 bytes).
             // 255 selects zero; the OR constants insert ready big-endian prefixes in the same pass.
-            var firstMask = Vector128.Create((byte)255,
+            var firstMask = Vector128.Create(255,
                 255,
                 255,
                 255,
@@ -418,7 +425,7 @@ internal static partial class Int64ArraySimdBaseline
                 255,
                 255,
                 255);
-            var middleLeftMask = Vector128.Create((byte)15,
+            var middleLeftMask = Vector128.Create(15,
                 14,
                 13,
                 12,
@@ -434,7 +441,7 @@ internal static partial class Int64ArraySimdBaseline
                 255,
                 255,
                 255);
-            var middleRightMask = Vector128.Create((byte)255,
+            var middleRightMask = Vector128.Create(255,
                 255,
                 255,
                 255,
@@ -450,7 +457,7 @@ internal static partial class Int64ArraySimdBaseline
                 6,
                 5,
                 4);
-            var lastMask = Vector128.Create((byte)3,
+            var lastMask = Vector128.Create(3,
                 2,
                 1,
                 0,
@@ -478,8 +485,8 @@ internal static partial class Int64ArraySimdBaseline
                 0x08000000u,
                 0u,
                 0u).AsByte();
-            ref long input = ref MemoryMarshal.GetReference(source);
-            ref byte output = ref MemoryMarshal.GetReference(destination);
+            ref var input = ref MemoryMarshal.GetReference(source);
+            ref var output = ref MemoryMarshal.GetReference(destination);
             for (; i <= source.Length - 4; i += 4, offset += 4 * RecordSize)
             {
                 // Public entry points have checked complete capacity. No load/store crosses this block.
@@ -513,12 +520,14 @@ internal static partial class Int64ArraySimdBaseline
     private static void ReadRecords(ReadOnlySpan<byte> source,
         Span<long> destination)
     {
-        int i = CanShuffle && destination.Length >= 4
+        var i = CanShuffle && destination.Length >= 4
             ? ReadVectorRecords(source,
                 destination)
             : 0;
-        for (int offset = i * RecordSize; i < destination.Length; i++, offset += RecordSize)
+        for (var offset = i * RecordSize; i < destination.Length; i++, offset += RecordSize)
+        {
             destination[i] = ReadRecord(source[offset..]);
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -534,7 +543,7 @@ internal static partial class Int64ArraySimdBaseline
     private static int ReadVectorRecords(ReadOnlySpan<byte> source,
         Span<long> destination)
     {
-        var firstLeftMask = Vector128.Create((byte)11,
+        var firstLeftMask = Vector128.Create(11,
             10,
             9,
             8,
@@ -550,7 +559,7 @@ internal static partial class Int64ArraySimdBaseline
             255,
             255,
             255);
-        var firstRightMask = Vector128.Create((byte)255,
+        var firstRightMask = Vector128.Create(255,
             255,
             255,
             255,
@@ -566,7 +575,7 @@ internal static partial class Int64ArraySimdBaseline
             2,
             1,
             0);
-        var lastLeftMask = Vector128.Create((byte)255,
+        var lastLeftMask = Vector128.Create(255,
             255,
             255,
             255,
@@ -582,7 +591,7 @@ internal static partial class Int64ArraySimdBaseline
             255,
             255,
             255);
-        var lastRightMask = Vector128.Create((byte)3,
+        var lastRightMask = Vector128.Create(3,
             2,
             1,
             0,
@@ -598,10 +607,10 @@ internal static partial class Int64ArraySimdBaseline
             10,
             9,
             8);
-        ref byte input = ref MemoryMarshal.GetReference(source);
-        ref long output = ref MemoryMarshal.GetReference(destination);
-        int i = 0;
-        for (int offset = 0; i <= destination.Length - 4; i += 4, offset += 4 * RecordSize)
+        ref var input = ref MemoryMarshal.GetReference(source);
+        ref var output = ref MemoryMarshal.GetReference(destination);
+        var i = 0;
+        for (var offset = 0; i <= destination.Length - 4; i += 4, offset += 4 * RecordSize)
         {
             var first = Vector128.LoadUnsafe(ref input,
                 (nuint)offset);
@@ -610,10 +619,10 @@ internal static partial class Int64ArraySimdBaseline
             var last = Vector128.LoadUnsafe(ref input,
                 (nuint)(offset + 32));
             // Prefix validation stays mandatory, including the lengths embedded inside SIMD blocks.
-            uint invalid = (first.AsUInt32().GetElement(0) ^ 0x08000000u) |
-                           (first.AsUInt32().GetElement(3) ^ 0x08000000u) |
-                           (middle.AsUInt32().GetElement(2) ^ 0x08000000u) |
-                           (last.AsUInt32().GetElement(1) ^ 0x08000000u);
+            var invalid = first.AsUInt32().GetElement(0) ^ 0x08000000u |
+                          first.AsUInt32().GetElement(3) ^ 0x08000000u |
+                          middle.AsUInt32().GetElement(2) ^ 0x08000000u |
+                          last.AsUInt32().GetElement(1) ^ 0x08000000u;
             if (invalid != 0)
             {
                 throw new InvalidDataException("A non-NULL bigint[] element must have length 8.");

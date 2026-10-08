@@ -84,7 +84,10 @@ internal static class BinaryNullableArray<T, TCodec>
             BinaryPrimitives.WriteInt32BigEndian(bytes[lengthOffset..], length);
             offset += length;
         }
-        if (hasNull) BinaryPrimitives.WriteInt32BigEndian(bytes[4..], 1);
+        if (hasNull)
+        {
+            BinaryPrimitives.WriteInt32BigEndian(bytes[4..], 1);
+        }
         return offset;
     }
 

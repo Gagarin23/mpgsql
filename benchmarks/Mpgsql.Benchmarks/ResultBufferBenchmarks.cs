@@ -9,19 +9,19 @@ namespace Mpgsql.Benchmarks;
 [MemoryDiagnoser]
 public class ResultBufferBenchmarks
 {
+    private BackendFrameBuffer _frames = null!;
+    private byte[] _row = [];
     [Params(1, 128)]
     public int Rows { get; set; }
     [Params(8, 98324)]
     public int PayloadBytes { get; set; }
     [Params(0, 4096)]
     public int FragmentSize { get; set; }
-    private BackendFrameBuffer _frames = null!;
-    private byte[] _row = [];
 
     [GlobalSetup]
     public void Setup()
     {
-        _frames = new();
+        _frames = new BackendFrameBuffer();
         _row = new byte[11 + PayloadBytes];
         _row[0] = (byte)'D';
         BinaryPrimitives.WriteInt32BigEndian(_row.AsSpan(1),
@@ -37,15 +37,21 @@ public class ResultBufferBenchmarks
     }
 
     [Benchmark(Baseline = true)]
-    public int Buffered() => Read(discard: false);
+    public int Buffered()
+    {
+        return Read(false);
+    }
     [Benchmark]
-    public int Discarded() => Read(discard: true);
+    public int Discarded()
+    {
+        return Read(true);
+    }
 
     private int Read(bool discard)
     {
         int completed = 0, fragment = FragmentSize == 0 ? _row.Length : FragmentSize;
-        for (int i = 0; i < Rows; i++)
-        for (int offset = 0; offset < _row.Length; offset += fragment)
+        for (var i = 0; i < Rows; i++)
+        for (var offset = 0; offset < _row.Length; offset += fragment)
         {
             var input = new ReadOnlySequence<byte>(_row.AsMemory(offset,
                 Math.Min(fragment,
@@ -77,5 +83,8 @@ public class ResultBufferBenchmarks
     }
 
     [GlobalCleanup]
-    public void Cleanup() => _frames.Dispose();
+    public void Cleanup()
+    {
+        _frames.Dispose();
+    }
 }

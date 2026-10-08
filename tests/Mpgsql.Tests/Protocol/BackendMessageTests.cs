@@ -5,7 +5,7 @@ namespace Mpgsql.Tests.Protocol;
 
 public sealed class BackendMessageTests
 {
-    public static TheoryData<BackendMessageKind, string> Packets => new()
+    public static TheoryData<BackendMessageKind, string> Packets => new TheoryData<BackendMessageKind, string>
     {
         {BackendMessageKind.Authentication, "52 00000008 00000000"},
         {BackendMessageKind.Authentication, "52 00000008 00000002"},
@@ -59,13 +59,12 @@ public sealed class BackendMessageTests
         {BackendMessageKind.Unknown, "3f 00000007 010203"}
     };
 
-    [Theory]
-    [MemberData(nameof(Packets))]
+    [Theory, MemberData(nameof(Packets))]
     public void ReadsEachMessageAcrossEverySplit(BackendMessageKind kind,
         string hex)
     {
-        byte[] bytes = TestWire.Bytes(hex);
-        for (int split = 0; split <= bytes.Length; split++)
+        var bytes = TestWire.Bytes(hex);
+        for (var split = 0; split <= bytes.Length; split++)
         {
             var input = TestWire.Chunks(ReadOnlyMemory<byte>.Empty,
                 bytes.AsMemory(0,
@@ -88,13 +87,12 @@ public sealed class BackendMessageTests
                 .Kind); // one byte per segment, including empty bodies
     }
 
-    [Theory]
-    [MemberData(nameof(Packets))]
+    [Theory, MemberData(nameof(Packets))]
     public void IncompletePacketsDoNotConsumeInput(BackendMessageKind _,
         string hex)
     {
-        byte[] bytes = TestWire.Bytes(hex);
-        for (int length = 0; length < bytes.Length; length++)
+        var bytes = TestWire.Bytes(hex);
+        for (var length = 0; length < bytes.Length; length++)
         {
             var input = TestWire.ByteSegments(bytes[..length]);
             var before = input;
@@ -110,12 +108,11 @@ public sealed class BackendMessageTests
         }
     }
 
-    [Theory]
-    [MemberData(nameof(Packets))]
+    [Theory, MemberData(nameof(Packets))]
     public void ReadsOnlyOnePacket(BackendMessageKind kind,
         string hex)
     {
-        byte[] next = TestWire.Bytes("5a 00000005 49");
+        var next = TestWire.Bytes("5a 00000005 49");
         byte[] bytes = [.. TestWire.Bytes(hex), .. next];
         var input = TestWire.ByteSegments(bytes);
         Assert.True(BackendMessageReader.TryRead(ref input,
@@ -131,16 +128,10 @@ public sealed class BackendMessageTests
         Assert.True(input.IsEmpty);
     }
 
-    [Theory]
-    [InlineData("52 00000008 00000000", AuthenticationMethod.Ok, "")]
-    [InlineData("52 00000008 00000002", AuthenticationMethod.KerberosV5, "")]
-    [InlineData("52 00000008 00000003", AuthenticationMethod.CleartextPassword, "")]
-    [InlineData("52 0000000c 00000005 01020304", AuthenticationMethod.Md5Password, "01020304")]
-    [InlineData("52 00000008 00000007", AuthenticationMethod.Gss, "")]
-    [InlineData("52 0000000a 00000008 0102", AuthenticationMethod.GssContinue, "0102")]
-    [InlineData("52 00000008 00000009", AuthenticationMethod.Sspi, "")]
-    [InlineData("52 0000000a 0000000b 0102", AuthenticationMethod.SaslContinue, "0102")]
-    [InlineData("52 00000008 0000000c", AuthenticationMethod.SaslFinal, "")]
+    [Theory, InlineData("52 00000008 00000000", AuthenticationMethod.Ok, ""), InlineData("52 00000008 00000002", AuthenticationMethod.KerberosV5, ""), InlineData("52 00000008 00000003", AuthenticationMethod.CleartextPassword, ""),
+     InlineData("52 0000000c 00000005 01020304", AuthenticationMethod.Md5Password, "01020304"), InlineData("52 00000008 00000007", AuthenticationMethod.Gss, ""),
+     InlineData("52 0000000a 00000008 0102", AuthenticationMethod.GssContinue, "0102"), InlineData("52 00000008 00000009", AuthenticationMethod.Sspi, ""),
+     InlineData("52 0000000a 0000000b 0102", AuthenticationMethod.SaslContinue, "0102"), InlineData("52 00000008 0000000c", AuthenticationMethod.SaslFinal, "")]
     public void ExposesAuthenticationCodeAndOpaqueData(string hex,
         AuthenticationMethod method,
         string data)
@@ -213,15 +204,14 @@ public sealed class BackendMessageTests
             negotiation.UnrecognizedOptions.ToArray());
     }
 
-    [Theory]
-    [InlineData("49", TransactionStatus.Idle)]
-    [InlineData("54", TransactionStatus.InTransaction)]
-    [InlineData("45", TransactionStatus.FailedTransaction)]
+    [Theory, InlineData("49", TransactionStatus.Idle), InlineData("54", TransactionStatus.InTransaction), InlineData("45", TransactionStatus.FailedTransaction)]
     public void ExposesTransactionStatus(string status,
-        TransactionStatus expected) =>
+        TransactionStatus expected)
+    {
         Assert.Equal(expected,
             TestWire.Read("5a 00000005 " + status)
                 .GetTransactionStatus());
+    }
 
     [Fact]
     public void ExposesRowAndParameterMetadataWithSignedSizesAndUnsignedOids()
@@ -276,7 +266,7 @@ public sealed class BackendMessageTests
     [Fact]
     public void BinaryValuesBorrowOriginalBuffer()
     {
-        byte[] bytes = TestWire.Bytes("44 0000000d 0001 00000003 010203");
+        var bytes = TestWire.Bytes("44 0000000d 0001 00000003 010203");
         var input = TestWire.ByteSegments(bytes);
         Assert.True(BackendMessageReader.TryRead(ref input,
             out var message));
@@ -292,10 +282,7 @@ public sealed class BackendMessageTests
             values.Current!.Value.ToArray());
     }
 
-    [Theory]
-    [InlineData("56 00000008 ffffffff", null)]
-    [InlineData("56 00000008 00000000", "")]
-    [InlineData("56 0000000a 00000002 0102", "0102")]
+    [Theory, InlineData("56 00000008 ffffffff", null), InlineData("56 00000008 00000000", ""), InlineData("56 0000000a 00000002 0102", "0102")]
     public void ExposesNullableFunctionResults(string hex,
         string? expected)
     {
@@ -356,7 +343,7 @@ public sealed class BackendMessageTests
             diagnostic.Message);
         Assert.Equal("v",
             diagnostic.GetField((byte)'Y'));
-        Assert.Equal(new byte[] {(byte)'S', (byte)'C', (byte)'M', (byte)'Y'},
+        Assert.Equal(new[] {(byte)'S', (byte)'C', (byte)'M', (byte)'Y'},
             diagnostic.Fields.ToArray().Select(f => f.Code).ToArray());
         var notice = TestWire.Read("4e 00000012 53 4e4f5449434500 4d 68657900 00");
         Assert.True(notice.IsAsynchronous);
@@ -388,7 +375,7 @@ public sealed class BackendMessageTests
     [Fact]
     public void Int16BackendCountsAreUnsigned()
     {
-        byte[] packet = new byte[262147]; // tag + length + count + 65535 OIDs
+        var packet = new byte[262147]; // tag + length + count + 65535 OIDs
         TestWire.Bytes("74 00040002 ffff").CopyTo(packet,
             0);
         var input = new ReadOnlySequence<byte>(packet);

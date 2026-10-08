@@ -9,20 +9,24 @@ public static class BackendMessageReader
     public const int DefaultMaxMessageLength = 64 * 1024 * 1024;
 
     /// <remarks>
-    /// False means more bytes are needed. Invalid complete bodies or invalid length headers throw
-    /// InvalidDataException. The returned message borrows input; use it before releasing Pipe buffers.
-    /// This method is stateless and does not assign responses to commands or requests.
+    ///     False means more bytes are needed. Invalid complete bodies or invalid length headers throw
+    ///     InvalidDataException. The returned message borrows input; use it before releasing Pipe buffers.
+    ///     This method is stateless and does not assign responses to commands or requests.
     /// </remarks>
     public static bool TryRead(
         ref ReadOnlySequence<byte> input,
         out BackendMessage message,
         int maxMessageLength = DefaultMaxMessageLength)
-        => TryReadFrame(ref input, out message, maxMessageLength, deferRowValues: false);
+    {
+        return TryReadFrame(ref input, out message, maxMessageLength, false);
+    }
 
     // The session validates and indexes owned DataRow values together, or validates discarded
     // values without retaining them. Public readers always validate the entire body here.
     internal static bool TryReadForSession(ref ReadOnlySequence<byte> input, out BackendMessage message)
-        => TryReadFrame(ref input, out message, DefaultMaxMessageLength, deferRowValues: true);
+    {
+        return TryReadFrame(ref input, out message, DefaultMaxMessageLength, true);
+    }
 
     private static bool TryReadFrame(ref ReadOnlySequence<byte> input, out BackendMessage message,
         int maxMessageLength, bool deferRowValues)
@@ -31,7 +35,7 @@ public static class BackendMessageReader
             4);
         message = default;
         var header = new SequenceReader<byte>(input);
-        if (!header.TryRead(out byte type) || !header.TryReadBigEndian(out int length))
+        if (!header.TryRead(out var type) || !header.TryReadBigEndian(out int length))
         {
             return false;
         }
@@ -49,8 +53,8 @@ public static class BackendMessageReader
         var kind = Validate(type,
             payload,
             default,
-            indexRows: false,
-            out int rowCount,
+            false,
+            out var rowCount,
             deferRowValues);
         message = new BackendMessage(type,
             kind,
@@ -62,8 +66,8 @@ public static class BackendMessageReader
 
     /// <summary>Validates and indexes DataRow values once using caller-owned reusable storage.</summary>
     /// <remarks>
-    /// Storage must fit the row's column count. Indexed rows borrow both input and this storage;
-    /// consume them before releasing input or reusing storage. Other message types ignore storage.
+    ///     Storage must fit the row's column count. Indexed rows borrow both input and this storage;
+    ///     consume them before releasing input or reusing storage. Other message types ignore storage.
     /// </remarks>
     public static bool TryRead(
         ref ReadOnlySequence<byte> input,
@@ -77,7 +81,7 @@ public static class BackendMessageReader
         message = default;
         row = default;
         var header = new SequenceReader<byte>(input);
-        if (!header.TryRead(out byte type) || !header.TryReadBigEndian(out int length))
+        if (!header.TryRead(out var type) || !header.TryReadBigEndian(out int length))
         {
             return false;
         }
@@ -95,8 +99,8 @@ public static class BackendMessageReader
         var kind = Validate(type,
             payload,
             rowValues.Span,
-            indexRows: true,
-            out int rowCount);
+            true,
+            out var rowCount);
         message = new BackendMessage(type,
             kind,
             payload,
@@ -110,8 +114,8 @@ public static class BackendMessageReader
     }
 
     /// <summary>
-    /// Reads the single unframed reply to SSLRequest (S/N) or GSSENCRequest (G/N).
-    /// Call only in the corresponding startup negotiation phase, before reading normal frames.
+    ///     Reads the single unframed reply to SSLRequest (S/N) or GSSENCRequest (G/N).
+    ///     Call only in the corresponding startup negotiation phase, before reading normal frames.
     /// </summary>
     public static bool TryReadEncryptionResponse(
         ref ReadOnlySequence<byte> input,
@@ -124,11 +128,11 @@ public static class BackendMessageReader
         }
         accepted = false;
         var reader = new SequenceReader<byte>(input);
-        if (!reader.TryRead(out byte response))
+        if (!reader.TryRead(out var response))
         {
             return false;
         }
-        byte affirmative = request == EncryptionRequestKind.Ssl ? (byte)'S' : (byte)'G';
+        var affirmative = request == EncryptionRequestKind.Ssl ? (byte)'S' : (byte)'G';
         if (response != affirmative && response != (byte)'N')
         {
             throw new InvalidDataException("Unexpected PostgreSQL encryption negotiation response.");
@@ -211,18 +215,22 @@ public static class BackendMessageReader
             case BackendMessageKind.ErrorResponse:
             case BackendMessageKind.NoticeResponse:
                 while (reader.Byte() != 0)
+                {
                     reader.SkipCString(); // Preserve unknown field identifiers in typed accessors.
+                }
                 break;
             case BackendMessageKind.NegotiateProtocolVersion:
                 if (reader.Int32() < 0)
                 {
                     throw new InvalidDataException("Invalid PostgreSQL minor protocol version.");
                 }
-                int optionCount = reader.Int32();
+                var optionCount = reader.Int32();
                 reader.RequireElements(optionCount,
                     1);
-                for (int i = 0; i < optionCount; i++)
+                for (var i = 0; i < optionCount; i++)
+                {
                     reader.SkipCString();
+                }
                 break;
             case BackendMessageKind.ParseComplete:
             case BackendMessageKind.BindComplete:
@@ -255,13 +263,17 @@ public static class BackendMessageReader
                 throw new ArgumentException("DataRow storage is smaller than the column count.",
                     nameof(rowValues));
             }
-            for (int i = 0; i < count; i++)
+            for (var i = 0; i < count; i++)
+            {
                 rowValues[i] = reader.Value();
+            }
         }
         else
         {
-            for (int i = 0; i < count; i++)
+            for (var i = 0; i < count; i++)
+            {
                 reader.SkipValue();
+            }
         }
         return count;
     }
@@ -271,7 +283,7 @@ public static class BackendMessageReader
         int count = reader.Count();
         reader.RequireElements(count,
             19); // NUL and the 18 fixed bytes of each field.
-        for (int i = 0; i < count; i++)
+        for (var i = 0; i < count; i++)
         {
             reader.SkipCString();
             reader.UInt32(); // table OID
@@ -293,11 +305,13 @@ public static class BackendMessageReader
         int count = reader.Count();
         reader.RequireElements(count,
             2);
-        for (int i = 0; i < count; i++)
+        for (var i = 0; i < count; i++)
+        {
             if (reader.Format() == FormatCode.Binary && format == FormatCode.Text)
             {
                 throw new InvalidDataException("Text COPY requires text column formats.");
             }
+        }
     }
 
     private static void ValidateAuthentication(ref WireReader reader)
@@ -315,9 +329,11 @@ public static class BackendMessageReader
                 reader.Bytes(4);
                 break;
             case AuthenticationMethod.Sasl:
-                int count = 0;
+                var count = 0;
                 while (!reader.CStringBytes().IsEmpty)
+                {
                     count++;
+                }
                 if (count == 0)
                 {
                     throw new InvalidDataException("No SASL authentication mechanisms were offered.");

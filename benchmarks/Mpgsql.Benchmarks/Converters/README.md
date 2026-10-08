@@ -33,8 +33,8 @@ not mixed into the allocation comparison. SQL NULL scalar fields have no payload
 conversion; NULL elements are measured by the nullable-array matrix instead.
 
 Each profile verifies both writes and both decoders before timing. Array checks
-normalize only the valid has-NULL flag and the equivalent empty-array headers
-(Mpgsql ndim=0 versus Npgsql ndim=1/length=0); element OIDs, element lengths,
+normalize only the valid has-NULL flag and the equivalent empty-array headers (Mpgsql ndim=0 versus Npgsql
+ndim=1/length=0); element OIDs, element lengths,
 payload bytes, NULL positions, and trailing bytes must match. The verification
 command also uses counts 0, 1, 3, 4, 7, 8, 9, 256, 4096, NULL intervals 0/1/8,
 and segment sizes 1/7/4096. It fails if a public converter is missing from coverage.

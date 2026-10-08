@@ -1,22 +1,19 @@
 using System.Buffers;
+using System.Buffers.Binary;
 using Mpgsql.Protocol;
 
 namespace Mpgsql.Copy;
 
 /// <summary>Incrementally reads unframed binary COPY data, including segmented fields.</summary>
 /// <remarks>
-/// CopyData boundaries need not match rows or scalars. Combine their payloads as a sequence.
-/// Incomplete reads leave input and caller-owned field storage unchanged. Returned rows borrow
-/// both buffers and field storage until the next read or the transport releases its memory.
+///     CopyData boundaries need not match rows or scalars. Combine their payloads as a sequence.
+///     Incomplete reads leave input and caller-owned field storage unchanged. Returned rows borrow
+///     both buffers and field storage until the next read or the transport releases its memory.
 /// </remarks>
 public sealed class BinaryCopyReader
 {
     private readonly int _maxFieldLength;
     private readonly int _maxHeaderExtensionLength;
-    public int ColumnCount { get; }
-    public bool HeaderRead { get; private set; }
-    public bool IsCompleted { get; private set; }
-    public ulong RowsRead { get; private set; }
 
     public BinaryCopyReader(int columnCount,
         int maxFieldLength = BackendMessageReader.DefaultMaxMessageLength,
@@ -31,6 +28,10 @@ public sealed class BinaryCopyReader
         _maxFieldLength = maxFieldLength;
         _maxHeaderExtensionLength = maxHeaderExtensionLength;
     }
+    public int ColumnCount { get; }
+    public bool HeaderRead { get; private set; }
+    public bool IsCompleted { get; private set; }
+    public ulong RowsRead { get; private set; }
 
     public bool TryReadHeader(ref ReadOnlySequence<byte> input)
     {
@@ -43,11 +44,13 @@ public sealed class BinaryCopyReader
             return false;
         }
         var reader = new SequenceReader<byte>(input);
-        foreach (byte expected in BinaryCopyFormat.Signature)
-            if (!reader.TryRead(out byte actual) || expected != actual)
+        foreach (var expected in BinaryCopyFormat.Signature)
+        {
+            if (!reader.TryRead(out var actual) || expected != actual)
             {
                 throw new InvalidDataException("Invalid binary COPY signature.");
             }
+        }
         reader.TryReadBigEndian(out int flags);
         reader.TryReadBigEndian(out int extensionLength);
         if ((flags & unchecked((int)0xffff0000)) != 0)
@@ -117,7 +120,7 @@ public sealed class BinaryCopyReader
         }
 
         var valuesStart = reader.Position;
-        for (int i = 0; i < count; i++)
+        for (var i = 0; i < count; i++)
         {
             if (!reader.TryReadBigEndian(out int length))
             {
@@ -140,7 +143,7 @@ public sealed class BinaryCopyReader
 
         // Validate the complete row before modifying reusable field storage.
         var values = new SequenceReader<byte>(input.Slice(valuesStart));
-        for (int i = 0; i < count; i++)
+        for (var i = 0; i < count; i++)
         {
             values.TryReadBigEndian(out int length);
             fields.Span[i] = length == -1
@@ -168,7 +171,7 @@ public sealed class BinaryCopyReader
         {
             return BinaryCopyReadStatus.NeedMoreData;
         }
-        short count = System.Buffers.Binary.BinaryPrimitives.ReadInt16BigEndian(bytes);
+        var count = BinaryPrimitives.ReadInt16BigEndian(bytes);
         if (count == -1)
         {
             if (bytes.Length != 2)
@@ -192,12 +195,12 @@ public sealed class BinaryCopyReader
         {
             return BinaryCopyReadStatus.NeedMoreData;
         }
-        int length = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(bytes[2..]);
+        var length = BinaryPrimitives.ReadInt32BigEndian(bytes[2..]);
         if (length < -1 || length > _maxFieldLength)
         {
             throw new InvalidDataException("Invalid binary COPY field length.");
         }
-        long size = 6L + Math.Max(length,
+        var size = 6L + Math.Max(length,
             0);
         if (bytes.Length < size)
         {

@@ -39,8 +39,10 @@ internal static class CopiedConverterFactory
     // PostgreSQL int8 (bigint) has OID 20. The array header contains the element OID.
     // This creates the copied converter; it does not register it with an NpgsqlDataSource.
     public static PgConverter<long[]> CreateLongArrayConverter()
-        => new ArrayBasedArrayConverter<long[], long>(new(new Int8Converter<long>(),
+    {
+        return new ArrayBasedArrayConverter<long[], long>(new PgConverterResolution(new Int8Converter<long>(),
             new Oid(20)));
+    }
 }
 
 #pragma warning restore NPG9001

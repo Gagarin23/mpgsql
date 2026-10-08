@@ -3,22 +3,28 @@ extern alias baseline;
 using OriginalFrontend = baseline::Mpgsql.Protocol.FrontendMessage;
 using OriginalBackend = baseline::Mpgsql.Protocol.BackendMessage;
 #endif
-
 using System.Runtime.CompilerServices;
 using BenchmarkDotNet.Running;
 using Mpgsql.Benchmarks;
-using Mpgsql.Benchmarks.Queries;
 using Mpgsql.Benchmarks.Comparison;
+using Mpgsql.Benchmarks.Converters;
+using Mpgsql.Benchmarks.Live;
+using Mpgsql.Benchmarks.NpgsqlBaseline;
+using Mpgsql.Benchmarks.Queries;
 using Mpgsql.Protocol;
 
 if (args.Contains("--verify-converters"))
 {
     try
     {
-        int index = Array.IndexOf(args, "--converter-catalog");
-        Mpgsql.Benchmarks.Converters.ConverterVerification.Run(index < 0 ? null : args[index + 1]);
+        var index = Array.IndexOf(args, "--converter-catalog");
+        ConverterVerification.Run(index < 0 ? null : args[index + 1]);
     }
-    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine(error);
+        Environment.ExitCode = 1;
+    }
     return;
 }
 
@@ -32,73 +38,112 @@ if (args.Contains("--verify-profiler-api"))
 {
     try
     {
-        int apiIndex = Array.IndexOf(args, "--profiler-api");
-        if (apiIndex < 0 || apiIndex + 1 == args.Length) throw new ArgumentException("--profiler-api is required.");
+        var apiIndex = Array.IndexOf(args, "--profiler-api");
+        if (apiIndex < 0 || apiIndex + 1 == args.Length)
+        {
+            throw new ArgumentException("--profiler-api is required.");
+        }
         BatchProfilerControl.VerifyApi(args[apiIndex + 1]);
     }
-    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine(error);
+        Environment.ExitCode = 1;
+    }
     return;
 }
 
 if (args.Contains("--query-pipeline-profile"))
 {
     try { await TcpPipelineProfileRunner.RunAsync(args).WaitAsync(TimeSpan.FromMinutes(3)); }
-    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine(error);
+        Environment.ExitCode = 1;
+    }
     return;
 }
 
 if (args.Contains("--verify-query-pipeline-profile"))
 {
     try { await TcpPipelineProfileRunner.VerifyAsync().WaitAsync(TimeSpan.FromMinutes(2)); }
-    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine(error);
+        Environment.ExitCode = 1;
+    }
     return;
 }
 
 if (args.Contains("--query-batch-profile"))
 {
     try { await TcpBatchProfileRunner.RunAsync(args).WaitAsync(TimeSpan.FromMinutes(3)); }
-    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine(error);
+        Environment.ExitCode = 1;
+    }
     return;
 }
 
 if (args.Contains("--verify-query-batch-profile"))
 {
     try { await TcpBatchProfileRunner.VerifyAsync().WaitAsync(TimeSpan.FromMinutes(2)); }
-    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine(error);
+        Environment.ExitCode = 1;
+    }
     return;
 }
 
 if (args.Contains("--query-compare-load"))
 {
     try { await TcpComparisonLoadRunner.RunAsync(args); }
-    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine(error);
+        Environment.ExitCode = 1;
+    }
     return;
 }
 
 if (args.Contains("--verify-query-compare"))
 {
     try { await TcpComparisonVerification.RunAsync().WaitAsync(TimeSpan.FromMinutes(3)); }
-    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine(error);
+        Environment.ExitCode = 1;
+    }
     return;
 }
 
 if (args.Contains("--query-load"))
 {
     try { await QueryLoadRunner.RunAsync(args); }
-    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine(error);
+        Environment.ExitCode = 1;
+    }
     return;
 }
 
 if (args.Contains("--verify-query"))
 {
     try { await QueryBenchmarkVerification.RunAsync(); }
-    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine(error);
+        Environment.ExitCode = 1;
+    }
     return;
 }
 
 if (args.Contains("--copy-live"))
 {
-    try { Mpgsql.Benchmarks.Live.BinaryCopyLiveBenchmarks.Run(args); }
+    try { BinaryCopyLiveBenchmarks.Run(args); }
     catch (Exception error)
     {
         Console.Error.WriteLine(error);
@@ -109,7 +154,12 @@ if (args.Contains("--copy-live"))
 
 if (args.Contains("--verify"))
 {
-    try { BuiltinConverterVerification.Run(); await QueryBenchmarkVerification.RunAsync(); await TcpComparisonVerification.RunAsync().WaitAsync(TimeSpan.FromMinutes(3)); }
+    try
+    {
+        BuiltinConverterVerification.Run();
+        await QueryBenchmarkVerification.RunAsync();
+        await TcpComparisonVerification.RunAsync().WaitAsync(TimeSpan.FromMinutes(3));
+    }
     catch (Exception error)
     {
         Console.Error.WriteLine(error);
@@ -120,21 +170,21 @@ if (args.Contains("--verify"))
     Console.WriteLine("Scalar bigint/nullable bigint results and zero-allocation span/writer/segmented paths verified.");
     new SyncBenchmarks().Setup();
     new ExecuteBenchmarks().Setup();
-    foreach (int length in new[] {32, 4096})
+    foreach (var length in new[] {32, 4096})
         new ParseBenchmarks {QueryLength = length}.Setup();
-    foreach (int count in new[] {1, 16})
+    foreach (var count in new[] {1, 16})
         new BindBenchmarks {Parameters = count}.Setup();
-    foreach (int count in new[] {1, 8, 64})
-    foreach (bool fragmented in new[] {false, true})
+    foreach (var count in new[] {1, 8, 64})
+    foreach (var fragmented in new[] {false, true})
         new DataRowBenchmarks {Columns = count, Fragmented = fragmented}.Setup();
-    foreach (bool ready in new[] {false, true})
+    foreach (var ready in new[] {false, true})
         new BackendControlBenchmarks {ReadyForQuery = ready}.Setup();
-    foreach (int count in new[] {0, 1, 3, 4, 5, 8, 256, 4096, 65536})
+    foreach (var count in new[] {0, 1, 3, 4, 5, 8, 256, 4096, 65536})
     {
         var write = new Int64ArrayWriteBenchmarks {Count = count};
         write.Setup();
         write.CheckReusableAllocations();
-        foreach (int segmentSize in new[] {0, 7, 4096})
+        foreach (var segmentSize in new[] {0, 7, 4096})
         {
             var read = new Int64ArrayReadBenchmarks {Count = count, SegmentSize = segmentSize};
             read.Setup();
@@ -142,7 +192,7 @@ if (args.Contains("--verify"))
         }
     }
     Console.WriteLine("All array encoder bytes, decoder results, and zero-allocation reusable paths verified.");
-    Mpgsql.Benchmarks.NpgsqlBaseline.NpgsqlArrayVerification.Run();
+    NpgsqlArrayVerification.Run();
     NullableInt64ArrayVerification.Run();
     BinaryCopyBenchmarks.Verify();
 
@@ -163,5 +213,7 @@ if (args.Contains("--verify"))
 
 var summaries = BenchmarkSwitcher.FromAssembly(typeof(SyncBenchmarks).Assembly).Run(args).ToArray();
 if (summaries.Length == 0 || summaries.Any(summary => summary.HasCriticalValidationErrors
-    || summary.Reports.Any(report => !report.Success || report.ResultStatistics is null)))
+                                                      || summary.Reports.Any(report => !report.Success || report.ResultStatistics is null)))
+{
     Environment.ExitCode = 1;
+}

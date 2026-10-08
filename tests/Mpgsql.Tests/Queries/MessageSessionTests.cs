@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using System.Text;
-using Mpgsql.Protocol;
 using static Mpgsql.Tests.Queries.ScriptedSession;
 
 namespace Mpgsql.Tests.Queries;
@@ -12,12 +11,12 @@ public sealed class MessageSessionTests
     {
         await using var wire = new ScriptedSession();
         var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        Task<MpgsqlResultReader> opening = batch.ReadResultsAsync().AsTask();
+        var opening = batch.ReadResultsAsync().AsTask();
         Assert.False(wire.HasOutput());
         await batch.SendQueryAsync("select $1",
             new[]
             {
-                MpgsqlParameter.Int64(42)
+                MpgsqlParameterValue.Int64(42)
             });
         Assert.Equal(new[]
             {
@@ -28,7 +27,7 @@ public sealed class MessageSessionTests
             },
             Tags(await wire.ReadOutputAsync()));
         await wire.WriteAsync(Query(42),
-            fragment: 1);
+            1);
         var reader = await opening.WaitAsync(TestTimeout,
             TestContext.Current.CancellationToken);
         Assert.True(await reader.ReadAsync());
@@ -55,26 +54,28 @@ public sealed class MessageSessionTests
     {
         await using var wire = new ScriptedSession();
         var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        Task<MpgsqlResultReader> reading = batch.ReadResultsAsync().AsTask();
+        var reading = batch.ReadResultsAsync().AsTask();
         Task[] sends =
         [
             .. Enumerable.Range(0,
                 100).Select(i => batch.SendQueryAsync("select $1",
-                new[] {MpgsqlParameter.Int64(i)}).AsTask())
+                new[] {MpgsqlParameterValue.Int64(i)}).AsTask())
         ];
         await batch.SendSyncAsync();
         await Task.WhenAll(sends).WaitAsync(TestTimeout,
             TestContext.Current.CancellationToken);
-        byte[] bytes = await wire.ReadOutputAsync();
+        var bytes = await wire.ReadOutputAsync();
         Assert.Equal(string.Concat(Enumerable.Repeat("PBDE",
                          100))
                      + "S",
             new string(Tags(bytes)));
         // Each bigint payload remains in invocation order, even though no send was immediately awaited.
-        int offset = 0;
-        for (int i = 0; i < 100; i++, offset += 68)
+        var offset = 0;
+        for (var i = 0; i < 100; i++, offset += 68)
+        {
             Assert.Equal(i,
                 BinaryPrimitives.ReadInt64BigEndian(bytes.AsSpan(offset + 39)));
+        }
         await wire.WriteAsync(Join([
             .. Enumerable.Range(0,
                 100).Select(i => Query(i)),
@@ -82,7 +83,7 @@ public sealed class MessageSessionTests
         ]));
         await using var reader = await reading.WaitAsync(TestTimeout,
             TestContext.Current.CancellationToken);
-        for (int i = 0; i < 100; i++)
+        for (var i = 0; i < 100; i++)
         {
             Assert.Equal(i,
                 reader.QueryIndex);
@@ -108,7 +109,7 @@ public sealed class MessageSessionTests
         var reader = await batch.ReadResultsAsync();
         Assert.True(await reader.ReadAsync());
         Assert.False(await reader.ReadAsync());
-        Task<bool> next = reader.NextResultAsync().AsTask();
+        var next = reader.NextResultAsync().AsTask();
         Assert.False(next.IsCompleted);
         await batch.SendQueryAsync("update something");
         await wire.WriteAsync(Join(Packet('1'),
@@ -121,7 +122,7 @@ public sealed class MessageSessionTests
         Assert.False(await reader.ReadAsync());
         Assert.Equal("UPDATE 7",
             reader.CommandTag);
-        Task<bool> end = reader.NextResultAsync().AsTask();
+        var end = reader.NextResultAsync().AsTask();
         Assert.False(end.IsCompleted);
         await batch.SendSyncAsync();
         await wire.WriteAsync(Ready());
@@ -160,12 +161,7 @@ public sealed class MessageSessionTests
         await b.DisposeAsync();
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    [InlineData(3)]
-    [InlineData(4)]
+    [Theory, InlineData(0), InlineData(1), InlineData(2), InlineData(3), InlineData(4)]
     public async Task ErrorsAtEveryStageSurfaceOnlyAtReady(int stage)
     {
         await using var wire = new ScriptedSession();
@@ -215,7 +211,7 @@ public sealed class MessageSessionTests
             TestContext.Current.CancellationToken));
         Assert.Equal(stage == 4
                 ? null
-                : (int?)0,
+                : 0,
             error.QueryIndex);
         Assert.Equal("22012",
             error.SqlState);

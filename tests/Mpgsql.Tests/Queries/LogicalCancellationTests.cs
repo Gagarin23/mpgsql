@@ -1,5 +1,7 @@
 using System.Buffers;
 using Mpgsql.Internal;
+using Mpgsql.Multiplexing.Internal;
+using QueryExecution = Mpgsql.Multiplexing.Internal.QueryExecution;
 using static Mpgsql.Tests.Queries.ScriptedSession;
 
 namespace Mpgsql.Tests.Queries;
@@ -7,42 +9,43 @@ namespace Mpgsql.Tests.Queries;
 public sealed class LogicalCancellationTests
 {
     private static readonly TimeSpan PromptTimeout = TimeSpan.FromSeconds(2);
+
     // A packet larger than the writer's drain limit flushes before the following Sync.
     private static readonly string SeparateSyncSql = "select 1::bigint" + new string(' ', 65536);
 
-    private static MpgsqlDataSource Source(ScriptedSession wire, int inFlight = 2)
-        => new(_ => ValueTask.FromResult(wire.Session),
-            (_, _) => throw new InvalidOperationException("Shared requests must not send a server cancel."),
-            new()
+    private static MpgsqlMultiplexingDataSource Source(ScriptedSession wire, int inFlight = 2)
+    {
+        return new MpgsqlMultiplexingDataSource(_ => ValueTask.FromResult(wire.Session),
+            new MpgsqlMultiplexingOptions
             {
-                MaxConnections = 1, MaxInFlightPerConnection = inFlight,
-                RecoveryTimeout = TimeSpan.FromMilliseconds(50)
+                MaxConnections = 1, MaxInFlightPerConnection = inFlight
             });
+    }
 
     private static async Task<string> ThroughSync(ScriptedSession wire, int count = 1)
     {
         var tags = new List<char>();
-        while (tags.Count(t => t == 'S') < count) tags.AddRange(Tags(await wire.ReadOutputAsync()));
+        while (tags.Count(t => t == 'S') < count)
+        {
+            tags.AddRange(Tags(await wire.ReadOutputAsync()));
+        }
         return new string([.. tags]);
     }
 
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
+    [Theory, InlineData(false, false), InlineData(false, true), InlineData(true, false)]
     public async Task CancellationDuringBlockedFlushReleasesInputsAndPreservesNeighbour(
         bool blockedSync, bool descriptionArrived)
     {
         using var input = new BlockingInputMemory();
-        await using var wire = new ScriptedSession(blockWrites: true);
+        await using var wire = new ScriptedSession(true);
         await using var source = Source(wire);
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        MpgsqlParameter[] parameters = [MpgsqlParameter.Int64Array(input.Memory)];
+        MpgsqlParameterValue[] parameters = [MpgsqlParameterValue.Int64Array(input.Memory)];
         var sql = "select $1::bigint[]" + (blockedSync ? new string(' ', 65536) : "");
         var opening = source.ExecuteReaderAsync(sql, parameters, request.Token).AsTask();
         var held = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
         var heldTags = new string(Tags(held.Buffer.ToArray()));
-        Assert.Contains(heldTags, new[] { "PBDE", "PBDES" });
+        Assert.Contains(heldTags, new[] {"PBDE", "PBDES"});
         if (blockedSync)
         {
             Assert.Equal("PBDE", heldTags);
@@ -53,7 +56,10 @@ public sealed class LogicalCancellationTests
         }
         var neighbour = source.ExecuteScalarAsync<long>("select 8::bigint",
             cancellationToken: TestContext.Current.CancellationToken).AsTask();
-        if (descriptionArrived) await wire.WriteAsync(Begin(20));
+        if (descriptionArrived)
+        {
+            await wire.WriteAsync(Begin(20));
+        }
 
         request.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => opening.WaitAsync(PromptTimeout,
@@ -65,7 +71,7 @@ public sealed class LogicalCancellationTests
         Assert.False(wire.Session.Completion.IsCompleted);
 
         wire.Outgoing.Reader.AdvanceTo(held.Buffer.End);
-        bool syncPublished = heldTags.EndsWith('S');
+        var syncPublished = heldTags.EndsWith('S');
         Assert.Equal(syncPublished ? "PBDES" : "SPBDES", await ThroughSync(wire, syncPublished ? 1 : 2));
         await wire.WriteAsync(descriptionArrived
             ? Join(Row(Int64(1)), Command(), Ready(), Query(8), Ready())
@@ -79,15 +85,15 @@ public sealed class LogicalCancellationTests
     public async Task CancellationBeforeEncodingDropsBorrowedInputsBehindNeighbourFlush()
     {
         using var input = new BlockingInputMemory();
-        await using var wire = new ScriptedSession(blockWrites: true);
+        await using var wire = new ScriptedSession(true);
         await using var source = Source(wire);
         var neighbour = source.ExecuteScalarAsync<long>("select 7::bigint",
             cancellationToken: TestContext.Current.CancellationToken).AsTask();
         var held = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
         var heldTags = new string(Tags(held.Buffer.ToArray()));
-        Assert.Contains(heldTags, new[] { "PBDE", "PBDES" });
+        Assert.Contains(heldTags, new[] {"PBDE", "PBDES"});
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        MpgsqlParameter[] parameters = [MpgsqlParameter.Int64Array(input.Memory)];
+        MpgsqlParameterValue[] parameters = [MpgsqlParameterValue.Int64Array(input.Memory)];
         var opening = source.ExecuteReaderAsync("select $1::bigint[]", parameters, request.Token).AsTask();
         request.Cancel();
 
@@ -107,12 +113,12 @@ public sealed class LogicalCancellationTests
     [Fact]
     public async Task CancellationDuringEncodingWaitsForBorrowedInputsButNotSyncFlush()
     {
-        using var input = new BlockingInputMemory(blockEncoding: true);
-        await using var wire = new ScriptedSession(blockWrites: true);
+        using var input = new BlockingInputMemory(true);
+        await using var wire = new ScriptedSession(true);
         await using var source = Source(wire);
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var opening = source.ExecuteReaderAsync("select $1::bigint[]",
-            new[] { MpgsqlParameter.Int64Array(input.Memory) }, request.Token).AsTask();
+            new[] {MpgsqlParameterValue.Int64Array(input.Memory)}, request.Token).AsTask();
         await input.Entered.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         var neighbour = source.ExecuteScalarAsync<long>("select 8::bigint",
             cancellationToken: TestContext.Current.CancellationToken).AsTask();
@@ -133,8 +139,11 @@ public sealed class LogicalCancellationTests
         Assert.StartsWith("S", tags);
         Assert.False(neighbour.IsCompleted);
         wire.Outgoing.Reader.AdvanceTo(sync.Buffer.End);
-        int remainingSync = 2 - tags.Count(t => t == 'S');
-        if (remainingSync != 0) tags += await ThroughSync(wire, remainingSync);
+        var remainingSync = 2 - tags.Count(t => t == 'S');
+        if (remainingSync != 0)
+        {
+            tags += await ThroughSync(wire, remainingSync);
+        }
         Assert.Equal("SPBDES", tags);
         await wire.WriteAsync(Join(Ready(), Query(8), Ready()));
         Assert.Equal(8, (await neighbour.WaitAsync(TestTimeout, TestContext.Current.CancellationToken)).Value);
@@ -145,13 +154,13 @@ public sealed class LogicalCancellationTests
     [Fact]
     public async Task CancelledRequestRetainsSchedulingSlotUntilReadyForQuery()
     {
-        await using var wire = new ScriptedSession(blockWrites: true);
-        await using var source = Source(wire, inFlight: 1);
+        await using var wire = new ScriptedSession(true);
+        await using var source = Source(wire, 1);
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var opening = source.ExecuteReaderAsync("select 1::bigint", cancellationToken: request.Token).AsTask();
         var held = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
         var heldTags = new string(Tags(held.Buffer.ToArray()));
-        Assert.Contains(heldTags, new[] { "PBDE", "PBDES" });
+        Assert.Contains(heldTags, new[] {"PBDE", "PBDES"});
         request.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => opening.WaitAsync(PromptTimeout,
             TestContext.Current.CancellationToken));
@@ -162,7 +171,10 @@ public sealed class LogicalCancellationTests
         Assert.False(neighbour.IsCompleted);
         Assert.True(wire.Session.IsHealthy);
         wire.Outgoing.Reader.AdvanceTo(held.Buffer.End);
-        if (!heldTags.EndsWith('S')) Assert.Equal("S", await ThroughSync(wire));
+        if (!heldTags.EndsWith('S'))
+        {
+            Assert.Equal("S", await ThroughSync(wire));
+        }
         await wire.WriteAsync(Query(1));
         Assert.False(neighbour.IsCompleted);
         Assert.False(wire.HasOutput());
@@ -175,8 +187,8 @@ public sealed class LogicalCancellationTests
     [Fact]
     public async Task ReadyForQueryDoesNotReleaseSlotBeforeBlockedSyncFlushCompletes()
     {
-        await using var wire = new ScriptedSession(blockWrites: true);
-        await using var source = Source(wire, inFlight: 1);
+        await using var wire = new ScriptedSession(true);
+        await using var source = Source(wire, 1);
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var opening = source.ExecuteReaderAsync(SeparateSyncSql, cancellationToken: request.Token).AsTask();
         Assert.Equal("PBDE", new string(Tags(await wire.ReadOutputAsync())));
@@ -201,8 +213,8 @@ public sealed class LogicalCancellationTests
     [Fact]
     public async Task ReaderCancellationAndDisposalDoNotWaitForBlockedSyncFlush()
     {
-        await using var wire = new ScriptedSession(blockWrites: true);
-        await using var source = Source(wire, inFlight: 1);
+        await using var wire = new ScriptedSession(true);
+        await using var source = Source(wire, 1);
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         var opening = source.ExecuteReaderAsync(SeparateSyncSql, cancellationToken: request.Token).AsTask();
         Assert.Equal("PBDE", new string(Tags(await wire.ReadOutputAsync())));
@@ -232,16 +244,16 @@ public sealed class LogicalCancellationTests
         using var input = new BlockingInputMemory();
         await using var wire = new ScriptedSession();
         await using var source = Source(wire);
-        var pooled = new PooledSession(wire.Session) { Active = 1 };
+        var pooled = new PooledSession(wire.Session) {Active = 1};
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         request.Cancel();
-        var execution = new QueryExecution(source, pooled, null,
-            [new("select $1::bigint[]", new[] { MpgsqlParameter.Int64Array(input.Memory) })], request.Token);
-        var opening = execution.OpenReaderAsync(waitForInputRelease: true).AsTask();
+        var execution = new QueryExecution(source, pooled,
+            [new QueryDefinition("select $1::bigint[]", new[] {MpgsqlParameterValue.Int64Array(input.Memory)})], request.Token);
+        var opening = execution.OpenReaderAsync(true).AsTask();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => opening.WaitAsync(PromptTimeout,
             TestContext.Current.CancellationToken));
         input.Revoke();
-        await execution.FinishAsync(discard: true).AsTask().WaitAsync(TestTimeout,
+        await execution.FinishAsync(true).AsTask().WaitAsync(TestTimeout,
             TestContext.Current.CancellationToken);
         Assert.Equal(0, input.Reads);
         Assert.Equal(0, pooled.Active);

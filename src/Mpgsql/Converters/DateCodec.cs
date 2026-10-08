@@ -36,6 +36,12 @@ internal readonly struct DateCodec : IBinaryCodec<PgDate>
         }
         return value;
     }
-    public static PgDate Read(ReadOnlySequence<byte> payload) => BinaryPayload.ReadSmall<PgDate, DateCodec>(payload, 4);
-    private static bool IsValid(PgDate value) => !value.IsFinite || value.DaysSinceEpoch is >= PgDate.MinFiniteDays and <= PgDate.MaxFiniteDays;
+    public static PgDate Read(ReadOnlySequence<byte> payload)
+    {
+        return BinaryPayload.ReadSmall<PgDate, DateCodec>(payload, 4);
+    }
+    private static bool IsValid(PgDate value)
+    {
+        return !value.IsFinite || value.DaysSinceEpoch is >= PgDate.MinFiniteDays and <= PgDate.MaxFiniteDays;
+    }
 }

@@ -81,7 +81,7 @@ internal static class LiveProtocolChecks
 
     private static void Pipeline(TestConnection connection)
     {
-        foreach (int value in new[] {43, 44})
+        foreach (var value in new[] {43, 44})
         {
             AppendBind(connection,
                 value);
@@ -89,7 +89,7 @@ internal static class LiveProtocolChecks
             connection.Append(FrontendMessage.Sync());
         }
         connection.Flush();
-        foreach (int value in new[] {43, 44})
+        foreach (var value in new[] {43, 44})
         {
             connection.Expect(BackendMessageKind.BindComplete);
             ExpectValue(connection,
@@ -272,7 +272,7 @@ internal static class LiveProtocolChecks
         int value,
         string portal = "")
     {
-        byte[] bytes = new byte[4];
+        var bytes = new byte[4];
         BinaryPrimitives.WriteInt32BigEndian(bytes,
             value);
         connection.Append(FrontendMessage.Bind(portal,
@@ -316,9 +316,12 @@ internal static class LiveProtocolChecks
             "Suspended portal row");
     }
 
-    private static void ExpectReady(TestConnection connection) => Check(
-        connection.Expect(BackendMessageKind.ReadyForQuery).GetTransactionStatus() == TransactionStatus.Idle,
-        "ReadyForQuery idle boundary");
+    private static void ExpectReady(TestConnection connection)
+    {
+        Check(
+            connection.Expect(BackendMessageKind.ReadyForQuery).GetTransactionStatus() == TransactionStatus.Idle,
+            "ReadyForQuery idle boundary");
+    }
 
     private static void Check(bool condition,
         string description)

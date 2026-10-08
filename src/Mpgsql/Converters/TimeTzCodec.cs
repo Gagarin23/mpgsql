@@ -37,6 +37,12 @@ internal readonly struct TimeTzCodec : IBinaryCodec<PgTimeTz>
         }
         return value;
     }
-    public static PgTimeTz Read(ReadOnlySequence<byte> payload) => BinaryPayload.ReadSmall<PgTimeTz, TimeTzCodec>(payload, 12);
-    private static bool IsValid(PgTimeTz value) => (ulong)value.Time.Microseconds <= PgTime.MicrosecondsPerDay && value.OffsetSeconds is > -57600 and < 57600;
+    public static PgTimeTz Read(ReadOnlySequence<byte> payload)
+    {
+        return BinaryPayload.ReadSmall<PgTimeTz, TimeTzCodec>(payload, 12);
+    }
+    private static bool IsValid(PgTimeTz value)
+    {
+        return (ulong)value.Time.Microseconds <= PgTime.MicrosecondsPerDay && value.OffsetSeconds is > -57600 and < 57600;
+    }
 }

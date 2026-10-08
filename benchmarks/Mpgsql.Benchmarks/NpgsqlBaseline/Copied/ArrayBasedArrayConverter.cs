@@ -35,8 +35,8 @@ using Npgsql.Internal;
 
 namespace Mpgsql.Benchmarks.NpgsqlBaseline.Copied;
 
-sealed class ArrayBasedArrayConverter<T, TElement>(PgConverterResolution elemResolution, Type? effectiveType = null, int pgLowerBound = 1)
-    : ArrayConverter<T>(expectedDimensions: effectiveType is null
+internal sealed class ArrayBasedArrayConverter<T, TElement>(PgConverterResolution elemResolution, Type? effectiveType = null, int pgLowerBound = 1)
+    : ArrayConverter<T>(effectiveType is null
             ? 1
             : effectiveType.IsArray
                 ? effectiveType.GetArrayRank()
@@ -45,50 +45,11 @@ sealed class ArrayBasedArrayConverter<T, TElement>(PgConverterResolution elemRes
         pgLowerBound), IElementOperations
     where T : class
 {
-    readonly PgConverter<TElement> _elemConverter = elemResolution.GetConverter<TElement>();
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static TElement? GetValue(object collection,
-        Indices indices)
-    {
-        Debug.Assert(indices.Count > 0);
-        switch (indices.Count)
-        {
-            case 1:
-                // Justification: exact type Unsafe.As used to avoid the cast overhead for per element calls.
-                Debug.Assert(collection is TElement?[]);
-                return Unsafe.As<TElement?[]>(collection)[indices.One];
-            default:
-                // Justification: exact type Unsafe.As used to avoid the cast overhead for per element calls.
-                Debug.Assert(collection is Array);
-                return (TElement?)Unsafe.As<Array>(collection).GetValue(indices.Many!);
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static void SetValue(object collection,
-        Indices indices,
-        TElement? value)
-    {
-        Debug.Assert(indices.Count > 0);
-        switch (indices.Count)
-        {
-            case 1:
-                // Justification: exact type Unsafe.As used to avoid the cast overhead for per element calls.
-                Debug.Assert(collection is TElement?[]);
-                Unsafe.As<TElement?[]>(collection)[indices.One] = value;
-                break;
-            default:
-                // Justification: exact type Unsafe.As used to avoid the cast overhead for per element calls.
-                Debug.Assert(collection is Array);
-                Unsafe.As<Array>(collection).SetValue(value,
-                    indices.Many!);
-                break;
-        }
-    }
+    private readonly PgConverter<TElement> _elemConverter = elemResolution.GetConverter<TElement>();
 
     object IElementOperations.CreateCollection(ReadOnlySpan<int> lengths)
-        => lengths.Length switch
+    {
+        return lengths.Length switch
         {
             0                      => Array.Empty<TElement?>(),
             1 when lengths[0] == 0 => Array.Empty<TElement?>(),
@@ -102,21 +63,26 @@ sealed class ArrayBasedArrayConverter<T, TElement>(PgConverterResolution elemRes
             8                      => new TElement?[lengths[0], lengths[1], lengths[2], lengths[3], lengths[4], lengths[5], lengths[6], lengths[7]],
             _                      => throw new InvalidOperationException("Postgres arrays can have at most 8 dimensions.")
         };
+    }
 
     int IElementOperations.GetCollectionCount(object collection,
         out int[]? lengths)
-        => GetLengths((Array)collection,
+    {
+        return GetLengths((Array)collection,
             out lengths);
+    }
 
     Size? IElementOperations.GetSizeOrDbNull(SizeContext context,
         object collection,
         Indices indices,
         ref object? writeState)
-        => _elemConverter.GetSizeOrDbNull(context.Format,
+    {
+        return _elemConverter.GetSizeOrDbNull(context.Format,
             context.BufferRequirement,
             GetValue(collection,
                 indices),
             ref writeState);
+    }
 
     ValueTask IElementOperations.Read(bool async,
         PgReader reader,
@@ -139,21 +105,7 @@ sealed class ArrayBasedArrayConverter<T, TElement>(PgConverterResolution elemRes
             isDbNull
                 ? default
                 : _elemConverter.Read(reader));
-        return new();
-    }
-
-    // Adapted: ReadAsyncAsTask and the function-pointer continuation are internal.
-    async ValueTask ReadAsync(PgStreamingConverter<TElement> converter,
-        PgReader reader,
-        object collection,
-        Indices indices,
-        CancellationToken cancellationToken)
-    {
-        var value = await converter.ReadAsync(reader,
-            cancellationToken).ConfigureAwait(false);
-        SetValue(collection,
-            indices,
-            value);
+        return new ValueTask();
     }
 
     ValueTask IElementOperations.Write(bool async,
@@ -173,7 +125,61 @@ sealed class ArrayBasedArrayConverter<T, TElement>(PgConverterResolution elemRes
         _elemConverter.Write(writer,
             GetValue(collection,
                 indices)!);
-        return new();
+        return new ValueTask();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static TElement? GetValue(object collection,
+        Indices indices)
+    {
+        Debug.Assert(indices.Count > 0);
+        switch (indices.Count)
+        {
+            case 1:
+                // Justification: exact type Unsafe.As used to avoid the cast overhead for per element calls.
+                Debug.Assert(collection is TElement?[]);
+                return Unsafe.As<TElement?[]>(collection)[indices.One];
+            default:
+                // Justification: exact type Unsafe.As used to avoid the cast overhead for per element calls.
+                Debug.Assert(collection is Array);
+                return (TElement?)Unsafe.As<Array>(collection).GetValue(indices.Many!);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void SetValue(object collection,
+        Indices indices,
+        TElement? value)
+    {
+        Debug.Assert(indices.Count > 0);
+        switch (indices.Count)
+        {
+            case 1:
+                // Justification: exact type Unsafe.As used to avoid the cast overhead for per element calls.
+                Debug.Assert(collection is TElement?[]);
+                Unsafe.As<TElement?[]>(collection)[indices.One] = value;
+                break;
+            default:
+                // Justification: exact type Unsafe.As used to avoid the cast overhead for per element calls.
+                Debug.Assert(collection is Array);
+                Unsafe.As<Array>(collection).SetValue(value,
+                    indices.Many!);
+                break;
+        }
+    }
+
+    // Adapted: ReadAsyncAsTask and the function-pointer continuation are internal.
+    private async ValueTask ReadAsync(PgStreamingConverter<TElement> converter,
+        PgReader reader,
+        object collection,
+        Indices indices,
+        CancellationToken cancellationToken)
+    {
+        var value = await converter.ReadAsync(reader,
+            cancellationToken).ConfigureAwait(false);
+        SetValue(collection,
+            indices,
+            value);
     }
 }
 

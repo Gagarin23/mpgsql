@@ -16,13 +16,16 @@ public interface IFrontendMessage<TSelf> where TSelf : struct, IFrontendMessage<
 /// <summary>Writes typed frontend messages without dispatching on their kind.</summary>
 public static class FrontendMessageWriter
 {
-    public static int GetByteCount<T>(in T message) where T : struct, IFrontendMessage<T> => T.GetByteCount(in message);
+    public static int GetByteCount<T>(in T message) where T : struct, IFrontendMessage<T>
+    {
+        return T.GetByteCount(in message);
+    }
 
     /// <summary>Checks complete packet capacity before writing any bytes.</summary>
     public static int Write<T>(in T message,
         Span<byte> destination) where T : struct, IFrontendMessage<T>
     {
-        int length = T.GetByteCount(in message);
+        var length = T.GetByteCount(in message);
         if (destination.Length < length)
         {
             throw new ArgumentException("The destination is too small for the PostgreSQL message.",
@@ -38,7 +41,7 @@ public static class FrontendMessageWriter
         IBufferWriter<byte> destination) where T : struct, IFrontendMessage<T>
     {
         ArgumentNullException.ThrowIfNull(destination);
-        int length = T.GetByteCount(in message);
+        var length = T.GetByteCount(in message);
         WriteCore(in message,
             destination.GetSpan(length)[..length],
             length);
@@ -49,8 +52,8 @@ public static class FrontendMessageWriter
         Span<byte> destination,
         int length) where T : struct, IFrontendMessage<T>
     {
-        byte? type = T.GetMessageType(in message);
-        int offset = 0;
+        var type = T.GetMessageType(in message);
+        var offset = 0;
         if (type.HasValue)
         {
             destination[0] = type.Value;
@@ -68,7 +71,10 @@ public static class FrontendMessageWriter
 internal static class FrontendSize
 {
     internal static int Packet(int payloadLength,
-        bool tagged = true) => checked(payloadLength + (tagged ? 5 : 4));
+        bool tagged = true)
+    {
+        return checked(payloadLength + (tagged ? 5 : 4));
+    }
     internal static int Initialized(int length)
     {
         if (length == 0)
@@ -110,7 +116,7 @@ internal static class FrontendSize
     internal static int Values(ReadOnlySpan<ReadOnlyMemory<byte>?> values)
     {
         Count(values.Length);
-        int length = 2;
+        var length = 2;
         foreach (var value in values)
             length = checked(length + 4 + value.GetValueOrDefault().Length);
         return length;

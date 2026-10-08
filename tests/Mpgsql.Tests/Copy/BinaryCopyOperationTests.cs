@@ -6,13 +6,14 @@ namespace Mpgsql.Tests.Copy;
 
 public class BinaryCopyOperationTests
 {
-    private static BackendMessage Response(bool import) => TestWire.Read((import ? "47" : "48") + " 00000009 01 0001 0001");
     private static BackendMessage Ready => TestWire.Read("5a 00000005 49");
     private static BackendMessage Command => TestWire.Read("43 0000000b 434f5059203100");
+    private static BackendMessage Response(bool import)
+    {
+        return TestWire.Read((import ? "47" : "48") + " 00000009 01 0001 0001");
+    }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public void ImportCompletesAtReadyAndRequiresANewExtendedSync(bool extended)
     {
         var copy = new BinaryCopyOperation(Response(true),
@@ -55,9 +56,7 @@ public class BinaryCopyOperationTests
         Assert.Throws<InvalidOperationException>(() => copy.Accept(Command));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public void CopyFailRecoversOnlyAtReady(bool extended)
     {
         var copy = new BinaryCopyOperation(Response(true),

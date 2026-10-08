@@ -8,10 +8,19 @@ internal readonly struct InetCodec : IBinaryCodec<PgInet>
     public static uint Oid => (uint)TypeOid.Inet;
     public static int FixedSize => 0;
     public static bool MayOverlap => false;
-    public static int Measure(PgInet value) => NetworkPayload.Measure(value, false);
+    public static int Measure(PgInet value)
+    {
+        return NetworkPayload.Measure(value, false);
+    }
     public static void CheckOverlap(PgInet value, Span<byte> destination) { }
-    public static int Write(PgInet value, Span<byte> destination) => NetworkPayload.Write(value, destination, false);
-    public static PgInet Read(ReadOnlySpan<byte> payload) => NetworkPayload.Read(payload, false);
+    public static int Write(PgInet value, Span<byte> destination)
+    {
+        return NetworkPayload.Write(value, destination, false);
+    }
+    public static PgInet Read(ReadOnlySpan<byte> payload)
+    {
+        return NetworkPayload.Read(payload, false);
+    }
     public static PgInet Read(ReadOnlySequence<byte> payload)
     {
         if (payload.Length is not (8 or 20))

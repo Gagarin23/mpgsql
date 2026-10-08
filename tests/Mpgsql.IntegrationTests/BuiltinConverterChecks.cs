@@ -1,20 +1,10 @@
 using System.Buffers;
-using System.Net;
-using Mpgsql.Converters;
 using Mpgsql.Protocol;
-using Mpgsql.Types;
 
 namespace Mpgsql.IntegrationTests;
 
 internal static partial class BuiltinConverterChecks
 {
-    private delegate int ScalarWrite<T>(T value, Span<byte> destination);
-
-    private delegate T ScalarRead<T>(ReadOnlySpan<byte> payload);
-
-    private delegate int ArrayWrite<T>(ReadOnlyMemory<T> value, Span<byte> destination);
-
-    private delegate ReadOnlyMemory<T> ArrayRead<T>(ReadOnlySpan<byte> payload);
 
     private static void Value<T>(TestConnection connection, TypeOid oid,
         string sqlType, string literal,
@@ -24,23 +14,23 @@ internal static partial class BuiltinConverterChecks
         Func<ReadOnlyMemory<T?>, int> measureArray, ArrayWrite<T?> writeArray,
         ArrayRead<T?> readArray) where T : struct
     {
-        byte[] scalar = new byte[measure(value)];
+        var scalar = new byte[measure(value)];
         write(value, scalar);
         var result = RoundTrip(connection, oid, literal, scalar)!.Value;
-        byte[] rewritten = new byte[scalar.Length];
+        var rewritten = new byte[scalar.Length];
         write(read(result.ToArray()), rewritten);
         Check(rewritten.AsSpan().SequenceEqual(result.ToArray()), oid, "scalar decoder");
         RoundTrip(connection, oid, "null::" + sqlType, null);
 
         T?[] elements = [value, null, value];
-        byte[] array = new byte[measureArray(elements)];
+        var array = new byte[measureArray(elements)];
         writeArray(elements, array);
-        TypeOid arrayOid = Enum.Parse<TypeOid>(oid + "Array");
+        var arrayOid = Enum.Parse<TypeOid>(oid + "Array");
         var arrayResult = RoundTrip(connection, arrayOid, "array[" + literal + ",null," + literal + "]", array)!.Value;
-        byte[] arrayRewritten = new byte[array.Length];
+        var arrayRewritten = new byte[array.Length];
         writeArray(readArray(arrayResult.ToArray()), arrayRewritten);
         Check(arrayRewritten.AsSpan().SequenceEqual(arrayResult.ToArray()), arrayOid, "array decoder");
-        byte[] empty = new byte[measureArray(ReadOnlyMemory<T?>.Empty)];
+        var empty = new byte[measureArray(ReadOnlyMemory<T?>.Empty)];
         writeArray(ReadOnlyMemory<T?>.Empty, empty);
         RoundTrip(connection, arrayOid, "array[]::" + sqlType + "[]", empty);
         RoundTrip(connection, arrayOid, "null::" + sqlType + "[]", null);
@@ -55,18 +45,18 @@ internal static partial class BuiltinConverterChecks
         Func<ReadOnlyMemory<string?>, int> measureArray, ArrayWrite<string?> writeArray,
         ArrayRead<string?> readArray)
     {
-        byte[] scalar = new byte[measure(value)];
+        var scalar = new byte[measure(value)];
         write(value, scalar);
         var result = RoundTrip(connection, oid, literal, scalar)!.Value;
         Check(read(result.ToArray()) == value, oid, "string decoder");
         RoundTrip(connection, oid, "null::" + sqlType, null);
         string?[] elements = [value, null, value];
-        byte[] array = new byte[measureArray(elements)];
+        var array = new byte[measureArray(elements)];
         writeArray(elements, array);
-        TypeOid arrayOid = Enum.Parse<TypeOid>(oid + "Array");
+        var arrayOid = Enum.Parse<TypeOid>(oid + "Array");
         var arrayResult = RoundTrip(connection, arrayOid, "array[" + literal + ",null," + literal + "]", array)!.Value;
         Check(readArray(arrayResult.ToArray()).Span.SequenceEqual(elements), arrayOid, "string array decoder");
-        byte[] empty = new byte[measureArray(ReadOnlyMemory<string?>.Empty)];
+        var empty = new byte[measureArray(ReadOnlyMemory<string?>.Empty)];
         writeArray(ReadOnlyMemory<string?>.Empty, empty);
         RoundTrip(connection, arrayOid, "array[]::" + sqlType + "[]", empty);
         RoundTrip(connection, arrayOid, "null::" + sqlType + "[]", null);
@@ -116,4 +106,12 @@ internal static partial class BuiltinConverterChecks
             throw new InvalidDataException($"Builtin converter check failed for {oid}: {message}.");
         }
     }
+
+    private delegate int ScalarWrite<T>(T value, Span<byte> destination);
+
+    private delegate T ScalarRead<T>(ReadOnlySpan<byte> payload);
+
+    private delegate int ArrayWrite<T>(ReadOnlyMemory<T> value, Span<byte> destination);
+
+    private delegate ReadOnlyMemory<T> ArrayRead<T>(ReadOnlySpan<byte> payload);
 }

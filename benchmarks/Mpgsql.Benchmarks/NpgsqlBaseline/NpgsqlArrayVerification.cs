@@ -6,12 +6,12 @@ internal static class NpgsqlArrayVerification
 {
     internal static void Run()
     {
-        foreach (int count in new[] {0, 1, 3, 4, 5, 8, 256, 682, 683, 4096, 65536})
+        foreach (var count in new[] {0, 1, 3, 4, 5, 8, 256, 682, 683, 4096, 65536})
         {
             var write = new NpgsqlLongArrayWriteBenchmarks {Count = count};
             try { write.Setup(); }
             finally { write.Cleanup(); }
-            foreach (int bufferSize in new[] {0, 4096, 8192})
+            foreach (var bufferSize in new[] {0, 4096, 8192})
             {
                 var read = new NpgsqlLongArrayReadBenchmarks {Count = count, ReaderBufferSize = bufferSize};
                 try { read.Setup(); }
@@ -23,10 +23,12 @@ internal static class NpgsqlArrayVerification
 
     internal static long[] Values(int count)
     {
-        long[] values = new long[count];
+        var values = new long[count];
         ReadOnlySpan<long> edges = [long.MinValue, long.MaxValue, -1, 0, 1, 0x0102030405060708, -0x0102030405060708];
-        for (int i = 0; i < count; i++)
+        for (var i = 0; i < count; i++)
+        {
             values[i] = i < edges.Length ? edges[i] : unchecked((long)(0x0123456789abcdefUL * (ulong)(i + 1)));
+        }
         return values;
     }
 
@@ -35,17 +37,19 @@ internal static class NpgsqlArrayVerification
     {
         if (segmentSize == 0)
         {
-            return new(bytes);
+            return new ReadOnlySequence<byte>(bytes);
         }
         var first = new Segment(bytes.AsMemory(0,
             Math.Min(segmentSize,
                 bytes.Length)));
         var last = first;
-        for (int offset = segmentSize; offset < bytes.Length; offset += segmentSize)
+        for (var offset = segmentSize; offset < bytes.Length; offset += segmentSize)
+        {
             last = last.Append(bytes.AsMemory(offset,
                 Math.Min(segmentSize,
                     bytes.Length - offset)));
-        return new(first,
+        }
+        return new ReadOnlySequence<byte>(first,
             0,
             last,
             last.Memory.Length);
@@ -53,7 +57,10 @@ internal static class NpgsqlArrayVerification
 
     private sealed class Segment : ReadOnlySequenceSegment<byte>
     {
-        internal Segment(ReadOnlyMemory<byte> memory) => Memory = memory;
+        internal Segment(ReadOnlyMemory<byte> memory)
+        {
+            Memory = memory;
+        }
 
         public Segment Append(ReadOnlyMemory<byte> memory)
         {

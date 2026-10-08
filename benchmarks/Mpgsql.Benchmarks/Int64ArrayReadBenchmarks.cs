@@ -5,29 +5,26 @@ using Mpgsql.Converters;
 
 namespace Mpgsql.Benchmarks;
 
-[MemoryDiagnoser]
-[WarmupCount(3)]
-[IterationCount(8)]
-[IterationTime(150)]
-[GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
-[CategoriesColumn]
+[MemoryDiagnoser, WarmupCount(3), IterationCount(8), IterationTime(150), GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory), CategoriesColumn]
 public class Int64ArrayReadBenchmarks
 {
+    private long[] _destination = [];
+
+    private ReadOnlySequence<byte> _payload;
     [Params(1, 8, 4096, 65536)]
     public int Count { get; set; }
     [Params(0, 7, 4096)]
     public int SegmentSize { get; set; }
 
-    private ReadOnlySequence<byte> _payload;
-    private long[] _destination = [];
-
     [GlobalSetup]
     public void Setup()
     {
-        long[] values = new long[Count];
-        for (int i = 0; i < values.Length; i++)
+        var values = new long[Count];
+        for (var i = 0; i < values.Length; i++)
+        {
             values[i] = unchecked((long)(0x0123456789abcdefUL * (ulong)(i + 1)));
-        byte[] bytes = new byte[Int64ArrayConverter.GetByteCount(values)];
+        }
+        var bytes = new byte[Int64ArrayConverter.GetByteCount(values)];
         Int64ArrayReference.WriteScalar(values,
             bytes);
         _payload = SegmentSize == 0
@@ -44,28 +41,43 @@ public class Int64ArrayReadBenchmarks
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("Reuse")]
-    public int Scalar() => Int64ArrayReference.ReadScalar(_payload,
-        _destination);
+    public int Scalar()
+    {
+        return Int64ArrayReference.ReadScalar(_payload,
+            _destination);
+    }
     [Benchmark, BenchmarkCategory("Reuse")]
-    public int FusedSimd() => Int64ArrayConverter.Read(_payload,
-        _destination);
+    public int FusedSimd()
+    {
+        return Int64ArrayConverter.Read(_payload,
+            _destination);
+    }
     [Benchmark, BenchmarkCategory("Owned")]
-    public ReadOnlyMemory<long> Owned() => Int64ArrayConverter.Read(_payload);
+    public ReadOnlyMemory<long> Owned()
+    {
+        return Int64ArrayConverter.Read(_payload);
+    }
 
     public void CheckReusableAllocations()
     {
         long allocated = 0;
         // Measure steady state; one-time runtime/tiering initialization can occur after warmup.
-        for (int attempt = 0; attempt < 3; attempt++)
+        for (var attempt = 0; attempt < 3; attempt++)
         {
-            for (int i = 0; i < 32; i++) FusedSimd();
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int i = 0;
+            for (var i = 0; i < 32; i++)
+            {
+                FusedSimd();
+            }
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            for (var i = 0;
                  i < Math.Max(16,
                      4096
                      / Math.Max(1,
                          Count));
-                 i++) FusedSimd();
+                 i++)
+            {
+                FusedSimd();
+            }
             allocated = GC.GetAllocatedBytesForCurrentThread() - before;
             if (allocated == 0)
             {
@@ -82,11 +94,13 @@ public class Int64ArrayReadBenchmarks
             Math.Min(size,
                 bytes.Length)));
         var last = first;
-        for (int start = size; start < bytes.Length; start += size)
+        for (var start = size; start < bytes.Length; start += size)
+        {
             last = last.Append(bytes.AsMemory(start,
                 Math.Min(size,
                     bytes.Length - start)));
-        return new(first,
+        }
+        return new ReadOnlySequence<byte>(first,
             0,
             last,
             last.Memory.Length);
@@ -94,7 +108,10 @@ public class Int64ArrayReadBenchmarks
 
     private sealed class SegmentNode : ReadOnlySequenceSegment<byte>
     {
-        internal SegmentNode(ReadOnlyMemory<byte> memory) => Memory = memory;
+        internal SegmentNode(ReadOnlyMemory<byte> memory)
+        {
+            Memory = memory;
+        }
         internal SegmentNode Append(ReadOnlyMemory<byte> memory)
         {
             var node = new SegmentNode(memory) {RunningIndex = RunningIndex + Memory.Length};

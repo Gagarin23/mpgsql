@@ -3,8 +3,8 @@
 The dependency is confined to the benchmark executable. The Mpgsql library does
 not reference Npgsql.
 
-`Copied/` contains the array/scalar converter sources copied from Npgsql 10.0.3
-(NuGet repository commit `d3768398c17877b3a916c3c4d87e8e11698991fc`). Each copied
+`Copied/` contains the array/scalar converter sources copied from Npgsql 10.0.3 (NuGet repository commit
+`d3768398c17877b3a916c3c4d87e8e11698991fc`). Each copied
 file retains the full upstream copyright and license notice. Types are split into
 their own files. The existing adaptations from `C:/Projects/NpgsqlConverters`
 were reused and checked against the version-pinned upstream sources:
@@ -27,8 +27,8 @@ omitted. The synchronous scalar/array loops, nested scopes, fixed-size state and
 element dispatch remain intact.
 
 `NpgsqlArrayHarness.Original` independently creates the actual internal
-`ArrayBasedArrayConverter<long[],long>` and `Int8Converter<long>` from the
-**Npgsql 10.0.3 assembly**, so the copied implementation is checked against both
+`ArrayBasedArrayConverter<long[],long>` and `Int8Converter<long>` from the **Npgsql 10.0.3 assembly**, so the copied
+implementation is checked against both
 the upstream wire bytes and upstream performance. The `NpgsqlOriginal` benchmark
 is the baseline for ratios, not the adapted copy.
 

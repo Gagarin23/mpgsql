@@ -2,7 +2,6 @@
 extern alias baseline;
 using OriginalReader = baseline::Mpgsql.Protocol.BackendMessageReader;
 #endif
-
 using System.Buffers;
 using System.Buffers.Binary;
 using BenchmarkDotNet.Attributes;
@@ -10,30 +9,28 @@ using Mpgsql.Protocol;
 
 namespace Mpgsql.Benchmarks;
 
-[MemoryDiagnoser]
-[SimpleJob(launchCount: 1, warmupCount: 3, iterationCount: 8)]
-[IterationTime(150)]
+[MemoryDiagnoser, SimpleJob(1, 3, 8), IterationTime(150)]
 public class DataRowBenchmarks
 {
+
+    private ReadOnlySequence<byte> _packet;
+    private ReadOnlySequence<byte>?[] _storage = [];
     [Params(1, 8, 64)]
     public int Columns { get; set; }
 
     [Params(false, true)]
     public bool Fragmented { get; set; }
 
-    private ReadOnlySequence<byte> _packet;
-    private ReadOnlySequence<byte>?[] _storage = [];
-
     [GlobalSetup]
     public void Setup()
     {
         var output = new ArrayBufferWriter<byte>();
         output.Write(new byte[] {(byte)'D', 0, 0, 0, 0, 0, (byte)Columns});
-        for (int i = 0; i < Columns; i++)
+        for (var i = 0; i < Columns; i++)
         {
             // Mix ordinary, NULL, and empty values; all data is allocated outside timing.
-            int length = i % 5 == 4 ? -1 : i % 5 == 3 ? 0 : 8;
-            Span<byte> prefix = output.GetSpan(4);
+            var length = i % 5 == 4 ? -1 : i % 5 == 3 ? 0 : 8;
+            var prefix = output.GetSpan(4);
             BinaryPrimitives.WriteInt32BigEndian(prefix,
                 length);
             output.Advance(4);
@@ -52,7 +49,7 @@ public class DataRowBenchmarks
             : new ReadOnlySequence<byte>(bytes);
         _storage = new ReadOnlySequence<byte>?[Columns];
 
-        long expected = CurrentUnindexed();
+        var expected = CurrentUnindexed();
         if (CurrentIndexed() != expected)
         {
             throw new InvalidOperationException("Indexed row consumption differs.");
@@ -76,7 +73,7 @@ public class DataRowBenchmarks
             throw new InvalidOperationException();
         }
         long sum = message.GetDataRow().Count;
-        foreach (ReadOnlySequence<byte>? value in message.GetDataRow())
+        foreach (var value in message.GetDataRow())
             sum += value?.Length ?? -1;
         return sum + input.Length;
     }
@@ -92,7 +89,7 @@ public class DataRowBenchmarks
             throw new InvalidOperationException();
         }
         long sum = message.GetDataRow().Count;
-        foreach (ReadOnlySequence<byte>? value in message.GetDataRow())
+        foreach (var value in message.GetDataRow())
             sum += value?.Length ?? -1;
         return sum + input.Length;
     }
@@ -109,7 +106,7 @@ public class DataRowBenchmarks
             throw new InvalidOperationException();
         }
         long sum = row.Count;
-        foreach (ReadOnlySequence<byte>? value in row)
+        foreach (var value in row)
             sum += value?.Length ?? -1;
         return sum + input.Length;
     }
@@ -121,11 +118,13 @@ public class DataRowBenchmarks
             Math.Min(size,
                 bytes.Length)));
         var last = first;
-        for (int start = size; start < bytes.Length; start += size)
+        for (var start = size; start < bytes.Length; start += size)
+        {
             last = last.Append(bytes.AsMemory(start,
                 Math.Min(size,
                     bytes.Length - start)));
-        return new(first,
+        }
+        return new ReadOnlySequence<byte>(first,
             0,
             last,
             last.Memory.Length);
@@ -133,7 +132,10 @@ public class DataRowBenchmarks
 
     private sealed class SegmentNode : ReadOnlySequenceSegment<byte>
     {
-        public SegmentNode(ReadOnlyMemory<byte> memory) => Memory = memory;
+        public SegmentNode(ReadOnlyMemory<byte> memory)
+        {
+            Memory = memory;
+        }
 
         public SegmentNode Append(ReadOnlyMemory<byte> memory)
         {

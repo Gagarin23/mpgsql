@@ -9,11 +9,14 @@ public sealed class TerminalDiagnosticsTests
     private const string OriginalMessage = "Завершение backend: original reason";
 
     private static byte[] Diagnostic(string severity = "FATAL", bool invariant = true)
-        => Packet('E', Encoding.UTF8.GetBytes("S" + (invariant ? "локализовано" : severity) + "\0"
-            + (invariant ? "V" + severity + "\0" : "")
-            + "C57P01\0M" + OriginalMessage + "\0Doriginal detail\0Horiginal hint\0zextension field\0\0"));
+    {
+        return Packet('E', Encoding.UTF8.GetBytes("S" + (invariant ? "локализовано" : severity) + "\0"
+                                                  + (invariant ? "V" + severity + "\0" : "")
+                                                  + "C57P01\0M" + OriginalMessage + "\0Doriginal detail\0Horiginal hint\0zextension field\0\0"));
+    }
 
-    private static void CheckDiagnostics(MpgsqlServerException error, string severity = "FATAL", bool invariant = true)
+    private static void CheckDiagnostics(MpgsqlServerException error, string severity = "FATAL",
+        bool invariant = true)
     {
         Assert.Equal("57P01", error.SqlState);
         Assert.Equal(OriginalMessage, error.Message);
@@ -26,23 +29,30 @@ public sealed class TerminalDiagnosticsTests
         Assert.Null(error.TransactionStatus);
     }
 
-    private static async Task PublishDiagnostic(ScriptedSession wire, byte[] bytes, bool eof = true)
+    private static async Task PublishDiagnostic(ScriptedSession wire, byte[] bytes,
+        bool eof = true)
     {
-        try { await wire.WriteAsync(bytes, fragment: 3); }
-        catch (MpgsqlServerException) { /* FATAL may complete the reader before the test writer's flush. */ }
-        if (eof) await wire.Incoming.Writer.CompleteAsync();
+        try { await wire.WriteAsync(bytes, 3); }
+        catch (MpgsqlServerException)
+        {
+            /* FATAL may complete the reader before the test writer's flush. */
+        }
+        if (eof)
+        {
+            await wire.Incoming.Writer.CompleteAsync();
+        }
     }
 
     private static async Task DisposeBatch(MpgsqlQueryBatch batch)
     {
         try { await batch.DisposeAsync(); }
-        catch (MpgsqlServerException) { /* retained error may first be observed by disposal */ }
+        catch (MpgsqlServerException)
+        {
+            /* retained error may first be observed by disposal */
+        }
     }
 
-    [Theory]
-    [InlineData("FATAL", true)]
-    [InlineData("PANIC", true)]
-    [InlineData("FATAL", false)]
+    [Theory, InlineData("FATAL", true), InlineData("PANIC", true), InlineData("FATAL", false)]
     public async Task FatalThenEofPreservesOwnedDiagnosticsAndUnknownStatus(string severity, bool invariant)
     {
         await using var wire = new ScriptedSession();
@@ -66,13 +76,11 @@ public sealed class TerminalDiagnosticsTests
         await DisposeBatch(batch);
     }
 
-    [Theory]
-    [InlineData("FATAL")]
-    [InlineData("PANIC")]
+    [Theory, InlineData("FATAL"), InlineData("PANIC")]
     public async Task IdleFatalPreservesDiagnosticsWithoutWaitingForEof(string severity)
     {
         await using var wire = new ScriptedSession();
-        await PublishDiagnostic(wire, Diagnostic(severity), eof: false);
+        await PublishDiagnostic(wire, Diagnostic(severity), false);
         var error = await Assert.ThrowsAsync<MpgsqlServerException>(() => wire.Session.Completion.WaitAsync(
             TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
         CheckDiagnostics(error, severity);
@@ -95,17 +103,17 @@ public sealed class TerminalDiagnosticsTests
         await neighbour.SendSyncAsync();
         cancellation.Cancel();
         var preparing = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        var statement = wire.Session.CreatePreparedStatement("select $1", new uint[] { 20 });
+        var statement = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
         await preparing.SendPrepareAsync(statement); // collecting, without Sync
         var unpublished = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         await PublishDiagnostic(wire, Diagnostic());
 
-        foreach (var batch in new[] { active, neighbour, preparing, unpublished })
+        foreach (var batch in new[] {active, neighbour, preparing, unpublished})
         {
             var error = await Assert.ThrowsAsync<MpgsqlServerException>(() =>
                 batch.Completion.WaitAsync(TestTimeout, TestContext.Current.CancellationToken));
             CheckDiagnostics(error);
-            Assert.Equal(batch == active ? (int?)0 : null, error.QueryIndex);
+            Assert.Equal(batch == active ? 0 : null, error.QueryIndex);
             Assert.Null(batch.TransactionStatus);
             await DisposeBatch(batch);
         }
@@ -115,9 +123,7 @@ public sealed class TerminalDiagnosticsTests
         CheckDiagnostics(await Assert.ThrowsAsync<MpgsqlServerException>(() => wire.Session.Completion));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task UnrecoveredErrorRetainsDiagnosticsWhenInputFails(bool ioFailure)
     {
         await using var wire = new ScriptedSession();
@@ -137,8 +143,14 @@ public sealed class TerminalDiagnosticsTests
             batch.Completion.WaitAsync(TestTimeout, TestContext.Current.CancellationToken));
         CheckDiagnostics(error, "ERROR");
         Assert.Equal(0, error.QueryIndex);
-        if (ioFailure) Assert.Same(cause, error.InnerException);
-        else Assert.IsType<EndOfStreamException>(error.InnerException);
+        if (ioFailure)
+        {
+            Assert.Same(cause, error.InnerException);
+        }
+        else
+        {
+            Assert.IsType<EndOfStreamException>(error.InnerException);
+        }
         var sessionError = await Assert.ThrowsAsync<MpgsqlServerException>(() => wire.Session.Completion);
         CheckDiagnostics(sessionError, "ERROR");
         Assert.Same(error.InnerException, sessionError.InnerException);
@@ -150,7 +162,10 @@ public sealed class TerminalDiagnosticsTests
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         timeout.CancelAfter(TestTimeout);
-        while (!wire.Session.TryGetParameter("r04_received", out _)) await Task.Delay(1, timeout.Token);
+        while (!wire.Session.TryGetParameter("r04_received", out _))
+        {
+            await Task.Delay(1, timeout.Token);
+        }
     }
 
     [Fact]
@@ -169,7 +184,7 @@ public sealed class TerminalDiagnosticsTests
         var send = next.SendQueryAsync("select next").AsTask();
         CheckDiagnostics(await Assert.ThrowsAsync<MpgsqlServerException>(() =>
             send.WaitAsync(TestTimeout, TestContext.Current.CancellationToken)), "ERROR");
-        foreach (var batch in new[] { first, next })
+        foreach (var batch in new[] {first, next})
         {
             var error = await Assert.ThrowsAsync<MpgsqlServerException>(() => batch.Completion);
             CheckDiagnostics(error, "ERROR");
@@ -187,7 +202,7 @@ public sealed class TerminalDiagnosticsTests
         var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         await batch.SendQueryAsync("select bad");
         await batch.SendSyncAsync();
-        await wire.WriteAsync(Join(Error("22012"),
+        await wire.WriteAsync(Join(Error(),
             Packet('S', Encoding.UTF8.GetBytes("r04_received\0yes\0"))));
         await WaitForAcknowledgement(wire);
         Assert.False(batch.Completion.IsCompleted);
@@ -242,18 +257,20 @@ public sealed class TerminalDiagnosticsTests
     public async Task FatalWakesBlockedAndQueuedSendsWithoutReadingReleasedInputs()
     {
         using var input = new BlockingInputMemory();
-        await using var wire = new ScriptedSession(blockWrites: true);
+        await using var wire = new ScriptedSession(true);
         var first = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         var published = first.SendQueryAsync("select first").AsTask();
         var firstSync = first.SendSyncAsync().AsTask();
         var held = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
         var queued = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        var send = queued.SendQueryAsync("select $1", new[] { MpgsqlParameter.Int64Array(input.Memory) }).AsTask();
+        var send = queued.SendQueryAsync("select $1", new[] {MpgsqlParameterValue.Int64Array(input.Memory)}).AsTask();
         var sync = queued.SendSyncAsync().AsTask();
         await PublishDiagnostic(wire, Diagnostic());
-        foreach (var task in new[] { published, firstSync, send, sync, first.Completion, queued.Completion })
+        foreach (var task in new[] {published, firstSync, send, sync, first.Completion, queued.Completion})
+        {
             CheckDiagnostics(await Assert.ThrowsAsync<MpgsqlServerException>(() =>
                 task.WaitAsync(TestTimeout, TestContext.Current.CancellationToken)));
+        }
         input.Revoke();
         Assert.Equal(0, input.Reads);
         Assert.Null(first.TransactionStatus);

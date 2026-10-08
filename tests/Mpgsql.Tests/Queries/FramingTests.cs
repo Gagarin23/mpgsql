@@ -20,10 +20,10 @@ public sealed class FramingTests
             .. Enumerable.Range(0,
                 8192).Select(i => (long)i)
         ];
-        byte[] payload = new byte[Int64ArrayConverter.GetByteCount(array)];
+        var payload = new byte[Int64ArrayConverter.GetByteCount(array)];
         Int64ArrayConverter.Write(array,
             payload);
-        byte[] second = new byte[payload.Length];
+        var second = new byte[payload.Length];
         long[] negative = [.. array.Select(i => -i)];
         Int64ArrayConverter.Write(negative,
             second);
@@ -32,7 +32,7 @@ public sealed class FramingTests
                 Row(second),
                 Command("SELECT 2"),
                 Ready()),
-            fragment: 17);
+            17);
         await batch.Completion.WaitAsync(TestTimeout,
             TestContext.Current.CancellationToken);
         await using var reader = await batch.ReadResultsAsync();
@@ -60,11 +60,11 @@ public sealed class FramingTests
         var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         await batch.SendQueryAsync("select typed values");
         await batch.SendSyncAsync();
-        byte[] empty = new byte[Int64ArrayConverter.GetByteCount(ReadOnlyMemory<long>.Empty)];
+        var empty = new byte[Int64ArrayConverter.GetByteCount(ReadOnlyMemory<long>.Empty)];
         Int64ArrayConverter.Write(ReadOnlyMemory<long>.Empty,
             empty);
         long?[] values = [1, null, long.MinValue];
-        byte[] nullable = new byte[NullableInt64ArrayConverter.GetByteCount(values)];
+        var nullable = new byte[NullableInt64ArrayConverter.GetByteCount(values)];
         NullableInt64ArrayConverter.Write(values,
             nullable);
         await wire.WriteAsync(Join(Begin(20,
@@ -77,7 +77,7 @@ public sealed class FramingTests
                     nullable),
                 Command(),
                 Ready()),
-            fragment: 1);
+            1);
         await using var reader = await batch.ReadResultsAsync();
         Assert.True(await reader.ReadAsync());
         Assert.Null(reader.GetInt64(0));
@@ -91,9 +91,7 @@ public sealed class FramingTests
         await batch.DisposeAsync();
     }
 
-    [Theory]
-    [InlineData(3)]
-    [InlineData(64 * 1024 * 1024 + 1)]
+    [Theory, InlineData(3), InlineData(64 * 1024 * 1024 + 1)]
     public async Task InvalidFrameLengthFaultsTransport(int length)
     {
         await using var wire = new ScriptedSession();
@@ -103,7 +101,7 @@ public sealed class FramingTests
         BinaryPrimitives.WriteInt32BigEndian(header.AsSpan(1),
             length);
         await wire.WriteAsync(header,
-            fragment: 1);
+            1);
         await Assert.ThrowsAsync<InvalidDataException>(() => wire.Session.Completion.WaitAsync(TestTimeout,
             TestContext.Current.CancellationToken));
         await Assert.ThrowsAsync<InvalidDataException>(() => batch.ReadResultsAsync().AsTask());
@@ -139,15 +137,13 @@ public sealed class FramingTests
         }
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public void MalformedDiscardedRowStillChecksLengthPrefixes(bool fragmented)
     {
         var frame = new BackendFrameBuffer();
         using (frame)
         {
-            byte[] row = Packet('D',
+            var row = Packet('D',
                 0,
                 1,
                 255,
@@ -158,7 +154,7 @@ public sealed class FramingTests
             {
                 if (fragmented)
                 {
-                    foreach (byte value in row)
+                    foreach (var value in row)
                     {
                         var input = new ReadOnlySequence<byte>([value]);
                         frame.TryRead(ref input,
@@ -187,7 +183,7 @@ public sealed class FramingTests
     public void CancellationDuringPartialFrameStopsFurtherCopying()
     {
         using var frames = new BackendFrameBuffer();
-        byte[] row = Row(new byte[128 * 1024]);
+        var row = Row(new byte[128 * 1024]);
         var first = new ReadOnlySequence<byte>(row.AsMemory(0,
             17));
         Assert.False(frames.TryRead(ref first,
@@ -196,13 +192,13 @@ public sealed class FramingTests
             out _,
             out _));
         Assert.True(first.IsEmpty);
-        long copied = frames.CopiedRowBytes;
+        var copied = frames.CopiedRowBytes;
         var rest = new ReadOnlySequence<byte>(row.AsMemory(17));
         Assert.True(frames.TryRead(ref rest,
             true,
             out _,
             out var owner,
-            out int columns));
+            out var columns));
         Assert.Null(owner);
         Assert.Equal(1,
             columns);

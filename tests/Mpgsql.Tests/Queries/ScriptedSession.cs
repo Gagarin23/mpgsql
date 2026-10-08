@@ -9,39 +9,46 @@ internal sealed class ScriptedSession : IAsyncDisposable
 {
     internal static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(10);
 
-    internal readonly Pipe Incoming = new(new PipeOptions(pauseWriterThreshold: 32,
-        resumeWriterThreshold: 16,
-        useSynchronizationContext: false));
+    internal readonly Pipe Incoming = new Pipe(new PipeOptions(pauseWriterThreshold: 32, resumeWriterThreshold: 16, useSynchronizationContext: false));
 
     internal readonly Pipe Outgoing;
-    internal MpgsqlMessageSession Session { get; }
 
     internal ScriptedSession(bool blockWrites = false,
         CancellationToken lifetime = default)
     {
-        Outgoing = new(new PipeOptions(pauseWriterThreshold: blockWrites
+        Outgoing = new Pipe(new PipeOptions(pauseWriterThreshold: blockWrites
                 ? 1
                 : 0,
             resumeWriterThreshold: blockWrites
                 ? 1
                 : 0,
             useSynchronizationContext: false));
-        Session = new(Incoming.Reader,
+        Session = new MpgsqlMessageSession(Incoming.Reader,
             Outgoing.Writer,
             lifetime);
+    }
+    internal MpgsqlMessageSession Session { get; }
+
+    public async ValueTask DisposeAsync()
+    {
+        await Session.DisposeAsync().AsTask().WaitAsync(TestTimeout);
+        await Incoming.Writer.CompleteAsync();
+        await Outgoing.Reader.CompleteAsync();
     }
 
     internal async Task WriteAsync(byte[] bytes,
         int fragment = int.MaxValue)
     {
-        for (int i = 0;
+        for (var i = 0;
              i < bytes.Length;
              i += Math.Min(fragment,
                  bytes.Length - i))
+        {
             await Incoming.Writer.WriteAsync(bytes.AsMemory(i,
                     Math.Min(fragment,
                         bytes.Length - i)))
                 .AsTask().WaitAsync(TestTimeout);
+        }
     }
 
     internal async Task<byte[]> ReadOutputAsync()
@@ -58,7 +65,7 @@ internal sealed class ScriptedSession : IAsyncDisposable
         {
             return false;
         }
-        bool result = !read.Buffer.IsEmpty;
+        var result = !read.Buffer.IsEmpty;
         Outgoing.Reader.AdvanceTo(read.Buffer.Start,
             read.Buffer.Start);
         return result;
@@ -67,7 +74,7 @@ internal sealed class ScriptedSession : IAsyncDisposable
     internal static byte[] Packet(char type,
         params byte[] payload)
     {
-        byte[] result = new byte[payload.Length + 5];
+        var result = new byte[payload.Length + 5];
         result[0] = (byte)type;
         BinaryPrimitives.WriteInt32BigEndian(result.AsSpan(1),
             payload.Length + 4);
@@ -76,17 +83,28 @@ internal sealed class ScriptedSession : IAsyncDisposable
         return result;
     }
 
-    internal static byte[] Join(params byte[][] frames) => [.. frames.SelectMany(x => x)];
-    internal static byte[] Ready(char status = 'I') => Packet('Z',
-        (byte)status);
-    internal static byte[] Command(string tag = "SELECT 1") => Packet('C',
-        Encoding.UTF8.GetBytes(tag + '\0'));
+    internal static byte[] Join(params byte[][] frames)
+    {
+        return [.. frames.SelectMany(x => x)];
+    }
+    internal static byte[] Ready(char status = 'I')
+    {
+        return Packet('Z',
+            (byte)status);
+    }
+    internal static byte[] Command(string tag = "SELECT 1")
+    {
+        return Packet('C',
+            Encoding.UTF8.GetBytes(tag + '\0'));
+    }
     internal static byte[] Error(string state = "22012")
-        => Packet('E',
+    {
+        return Packet('E',
             Encoding.UTF8.GetBytes("SERROR\0C" + state + "\0Mbad query\0\0"));
+    }
     internal static byte[] Int64(long value)
     {
-        byte[] bytes = new byte[8];
+        var bytes = new byte[8];
         BinaryPrimitives.WriteInt64BigEndian(bytes,
             value);
         return bytes;
@@ -94,11 +112,11 @@ internal sealed class ScriptedSession : IAsyncDisposable
 
     internal static byte[] Description(params uint[] oids)
     {
-        byte[] payload = new byte[2 + 21 * oids.Length];
+        var payload = new byte[2 + 21 * oids.Length];
         BinaryPrimitives.WriteUInt16BigEndian(payload,
             (ushort)oids.Length);
-        int offset = 2;
-        foreach (uint oid in oids)
+        var offset = 2;
+        foreach (var oid in oids)
         {
             payload[offset++] = (byte)'c';
             payload[offset++] = (byte)'x';
@@ -125,10 +143,10 @@ internal sealed class ScriptedSession : IAsyncDisposable
 
     internal static byte[] Row(params byte[]?[] values)
     {
-        byte[] payload = new byte[2 + values.Sum(x => 4 + (x?.Length ?? 0))];
+        var payload = new byte[2 + values.Sum(x => 4 + (x?.Length ?? 0))];
         BinaryPrimitives.WriteUInt16BigEndian(payload,
             (ushort)values.Length);
-        int offset = 2;
+        var offset = 2;
         foreach (var value in values)
         {
             BinaryPrimitives.WriteInt32BigEndian(payload.AsSpan(offset),
@@ -145,28 +163,27 @@ internal sealed class ScriptedSession : IAsyncDisposable
             payload);
     }
 
-    internal static byte[] Begin(params uint[] oids) => Join(Packet('1'),
-        Packet('2'),
-        Description(oids));
-    internal static byte[] Query(long value) => Join(Begin(20),
-        Row(Int64(value)),
-        Command());
+    internal static byte[] Begin(params uint[] oids)
+    {
+        return Join(Packet('1'),
+            Packet('2'),
+            Description(oids));
+    }
+    internal static byte[] Query(long value)
+    {
+        return Join(Begin(20),
+            Row(Int64(value)),
+            Command());
+    }
 
     internal static char[] Tags(byte[] bytes)
     {
         var tags = new List<char>();
-        for (int i = 0; i < bytes.Length;)
+        for (var i = 0; i < bytes.Length;)
         {
             tags.Add((char)bytes[i]);
             i += 1 + BinaryPrimitives.ReadInt32BigEndian(bytes.AsSpan(i + 1));
         }
         return [.. tags];
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        await Session.DisposeAsync().AsTask().WaitAsync(TestTimeout);
-        await Incoming.Writer.CompleteAsync();
-        await Outgoing.Reader.CompleteAsync();
     }
 }

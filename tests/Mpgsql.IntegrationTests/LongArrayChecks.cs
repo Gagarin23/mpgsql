@@ -7,9 +7,11 @@ internal static class LongArrayChecks
 {
     internal static void Run(TestConnection connection)
     {
-        long[] large = new long[4097];
-        for (int i = 0; i < large.Length; i++)
+        var large = new long[4097];
+        for (var i = 0; i < large.Length; i++)
+        {
             large[i] = unchecked((long)(0x0123456789abcdefUL * (ulong)(i + 1)));
+        }
         long[][] cases = [[], [0x0102030405060708], [long.MinValue, -1, 0, 1, long.MaxValue, 42, -42], large];
         connection.Append(FrontendMessage.Parse("select $1::bigint[]",
             "wire_long_memory",
@@ -17,9 +19,9 @@ internal static class LongArrayChecks
             {
                 Int64ArrayConverter.ArrayTypeOid
             }));
-        foreach (long[] values in cases)
+        foreach (var values in cases)
         {
-            byte[] payload = new byte[Int64ArrayConverter.GetByteCount(values)];
+            var payload = new byte[Int64ArrayConverter.GetByteCount(values)];
             Int64ArrayConverter.Write(values,
                 payload);
             connection.Append(FrontendMessage.Bind(statement: "wire_long_memory",
@@ -41,8 +43,8 @@ internal static class LongArrayChecks
         }
         connection.Flush();
         connection.Expect(BackendMessageKind.ParseComplete);
-        long[] reusable = new long[large.Length];
-        foreach (long[] values in cases)
+        var reusable = new long[large.Length];
+        foreach (var values in cases)
         {
             connection.Expect(BackendMessageKind.BindComplete);
             var fields = connection.Expect(BackendMessageKind.RowDescription).GetRowDescription();
@@ -56,7 +58,7 @@ internal static class LongArrayChecks
             Check(Int64ArrayConverter.Read(payload)
                     .Span.SequenceEqual(values),
                 "bigint[] owned round trip");
-            int count = Int64ArrayConverter.Read(payload,
+            var count = Int64ArrayConverter.Read(payload,
                 reusable);
             Check(count == values.Length
                   && reusable.AsSpan(0,
@@ -112,13 +114,13 @@ internal static class LongArrayChecks
             "retained NULL bitmap without actual NULL elements");
         Complete(connection);
 
-        foreach (string sql in new[] {"select array[1::bigint, null::bigint]", "select array[[1::bigint, 2], [3, 4]]"})
+        foreach (var sql in new[] {"select array[1::bigint, null::bigint]", "select array[[1::bigint, 2], [3, 4]]"})
         {
             Begin(connection,
                 sql);
             connection.Expect(BackendMessageKind.DataRow,
                 out var unsupported);
-            bool rejected = false;
+            var rejected = false;
             try { _ = Int64ArrayConverter.Read(unsupported.Values.Span[0]!.Value); }
             catch (NotSupportedException) { rejected = true; }
             Check(rejected,
@@ -146,9 +148,12 @@ internal static class LongArrayChecks
         Ready(connection);
     }
 
-    private static void Ready(TestConnection connection) => Check(
-        connection.Expect(BackendMessageKind.ReadyForQuery).GetTransactionStatus() == TransactionStatus.Idle,
-        "bigint[] ReadyForQuery idle boundary");
+    private static void Ready(TestConnection connection)
+    {
+        Check(
+            connection.Expect(BackendMessageKind.ReadyForQuery).GetTransactionStatus() == TransactionStatus.Idle,
+            "bigint[] ReadyForQuery idle boundary");
+    }
 
     private static void Check(bool condition,
         string description)

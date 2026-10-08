@@ -1,7 +1,8 @@
 $ErrorActionPreference = 'Stop'
 $taskRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $snapshotRoot = Join-Path $taskRoot 'artifacts/protocol-baseline'
-if (Test-Path -LiteralPath $snapshotRoot) {
+if (Test-Path -LiteralPath $snapshotRoot)
+{
     throw 'The baseline snapshot already exists; it has not been overwritten.'
 }
 $snapshotSources = Join-Path $snapshotRoot 'Protocol'
@@ -21,7 +22,10 @@ $projectText = @'
 '@
 [IO.File]::WriteAllText((Join-Path $snapshotRoot 'Mpgsql.ProtocolBaseline.csproj'), $projectText)
 Get-ChildItem -LiteralPath $snapshotSources -Filter '*.cs' -File | Get-FileHash -Algorithm SHA256 |
-    Select-Object @{Name='File';Expression={Split-Path $_.Path -Leaf}}, Hash |
-    ConvertTo-Json | Set-Content -LiteralPath (Join-Path $snapshotRoot 'source-hashes.json')
+        Select-Object @{ Name = 'File'; Expression = { Split-Path $_.Path -Leaf } }, Hash |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $snapshotRoot 'source-hashes.json')
 dotnet build (Join-Path $snapshotRoot 'Mpgsql.ProtocolBaseline.csproj') -c Release
-if ($LASTEXITCODE -ne 0) { throw 'Baseline build failed.' }
+if ($LASTEXITCODE -ne 0)
+{
+    throw 'Baseline build failed.'
+}

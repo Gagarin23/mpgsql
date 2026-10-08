@@ -1,22 +1,20 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Runtime.InteropServices;
 using Mpgsql.Converters;
 
 namespace Mpgsql.Copy;
 
 /// <summary>Writes the binary COPY stream: header, tuples, fields and trailer.</summary>
 /// <remarks>
-/// The destination owns buffering/framing. Use CopyDataWriter for frontend CopyData frames.
-/// Complete writes the Int16 -1 trailer; the connection must then send CopyDone and
-/// consume CommandComplete/ReadyForQuery. This writer does not own a connection.
+///     The destination owns buffering/framing. Use CopyDataWriter for frontend CopyData frames.
+///     Complete writes the Int16 -1 trailer; the connection must then send CopyDone and
+///     consume CommandComplete/ReadyForQuery. This writer does not own a connection.
 /// </remarks>
 public sealed class BinaryCopyWriter
 {
     private readonly IBufferWriter<byte> _destination;
     private int _column = -1;
-    public int ColumnCount { get; }
-    public ulong RowsWritten { get; private set; }
-    public bool IsCompleted { get; private set; }
 
     public BinaryCopyWriter(IBufferWriter<byte> destination,
         int columnCount)
@@ -29,6 +27,9 @@ public sealed class BinaryCopyWriter
         ColumnCount = columnCount;
         BinaryCopyFormat.WriteHeader(destination);
     }
+    public int ColumnCount { get; }
+    public ulong RowsWritten { get; private set; }
+    public bool IsCompleted { get; private set; }
 
     public void StartRow()
     {
@@ -80,7 +81,7 @@ public sealed class BinaryCopyWriter
     public void WriteRaw(ReadOnlySpan<byte> value)
     {
         RequireColumn();
-        int size = checked(4 + value.Length);
+        var size = checked(4 + value.Length);
         var bytes = _destination.GetSpan(size)[..size];
         value.CopyTo(bytes[4..]); // Copy before the prefix also permits overlapping input.
         BinaryPrimitives.WriteInt32BigEndian(bytes,
@@ -93,8 +94,8 @@ public sealed class BinaryCopyWriter
     public void WriteLongArray(ReadOnlyMemory<long> value)
     {
         RequireColumn();
-        int payloadSize = Int64ArrayConverter.GetByteCount(value);
-        int size = checked(4 + payloadSize);
+        var payloadSize = Int64ArrayConverter.GetByteCount(value);
+        var size = checked(4 + payloadSize);
         var bytes = _destination.GetSpan(size)[..size];
         Int64ArrayConverter.Write(value,
             bytes[4..]);
@@ -126,9 +127,9 @@ public sealed class BinaryCopyWriter
         {
             return;
         }
-        int size = checked(14 * values.Length);
+        var size = checked(14 * values.Length);
         var bytes = _destination.GetSpan(size)[..size];
-        if (System.Runtime.InteropServices.MemoryMarshal.AsBytes(values).Overlaps(bytes))
+        if (MemoryMarshal.AsBytes(values).Overlaps(bytes))
         {
             throw new ArgumentException("Input values must not overlap the COPY output.",
                 nameof(values));

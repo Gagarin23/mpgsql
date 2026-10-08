@@ -196,7 +196,9 @@ public sealed class ProtocolSequenceTests
         var kinds = new List<BackendMessageKind>();
         while (BackendMessageReader.TryRead(ref input,
                    out var message))
+        {
             kinds.Add(message.Kind);
+        }
         Assert.True(input.IsEmpty);
         return kinds;
     }

@@ -34,7 +34,7 @@ using Npgsql.Internal;
 namespace Mpgsql.Benchmarks.NpgsqlBaseline.Copied;
 
 // Compatibility adapters for internal Npgsql overloads, using the public API.
-static class ConverterCompatibilityExtensions
+internal static class ConverterCompatibilityExtensions
 {
     public static ValueTask Buffer(this PgReader reader,
         bool async,
@@ -56,12 +56,14 @@ static class ConverterCompatibilityExtensions
         int size,
         Size bufferRequirement,
         CancellationToken cancellationToken)
-        => async
+    {
+        return async
             ? reader.BeginNestedReadAsync(size,
                 bufferRequirement,
                 cancellationToken)
-            : new(reader.BeginNestedRead(size,
+            : new ValueTask<NestedReadScope>(reader.BeginNestedRead(size,
                 bufferRequirement));
+    }
 
     public static ValueTask Flush(this PgWriter writer,
         bool async,
@@ -82,14 +84,16 @@ static class ConverterCompatibilityExtensions
         int byteCount,
         object? state,
         CancellationToken cancellationToken)
-        => async
+    {
+        return async
             ? writer.BeginNestedWriteAsync(bufferRequirement,
                 byteCount,
                 state,
                 cancellationToken)
-            : new(writer.BeginNestedWrite(bufferRequirement,
+            : new ValueTask<NestedWriteScope>(writer.BeginNestedWrite(bufferRequirement,
                 byteCount,
                 state));
+    }
 
     public static Size? GetSizeOrDbNull<T>(this PgConverter<T> converter,
         DataFormat format,
@@ -107,7 +111,7 @@ static class ConverterCompatibilityExtensions
         {
             return byteCount;
         }
-        var size = converter.GetSize(new(format,
+        var size = converter.GetSize(new SizeContext(format,
                 writeRequirement),
             value,
             ref writeState);

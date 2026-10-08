@@ -2,22 +2,19 @@
 extern alias baseline;
 using OriginalReader = baseline::Mpgsql.Protocol.BackendMessageReader;
 #endif
-
 using System.Buffers;
 using BenchmarkDotNet.Attributes;
 using Mpgsql.Protocol;
 
 namespace Mpgsql.Benchmarks;
 
-[MemoryDiagnoser]
-[SimpleJob(launchCount: 1, warmupCount: 3, iterationCount: 8)]
-[IterationTime(150)]
+[MemoryDiagnoser, SimpleJob(1, 3, 8), IterationTime(150)]
 public class BackendControlBenchmarks
 {
-    [Params(false, true)]
-    public bool ReadyForQuery { get; set; }
 
     private ReadOnlySequence<byte> _packet;
+    [Params(false, true)]
+    public bool ReadyForQuery { get; set; }
 
     [GlobalSetup]
     public void Setup()

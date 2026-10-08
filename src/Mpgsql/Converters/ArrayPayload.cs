@@ -36,7 +36,7 @@ internal static class ArrayPayload
         {
             throw new InvalidDataException("Truncated PostgreSQL array header.");
         }
-        int dimensions = BinaryPrimitives.ReadInt32BigEndian(bytes);
+        var dimensions = BinaryPrimitives.ReadInt32BigEndian(bytes);
         ValidateType(dimensions, BinaryPrimitives.ReadInt32BigEndian(bytes[4..]),
             BinaryPrimitives.ReadUInt32BigEndian(bytes[8..]), oid);
         headerSize = dimensions == 0 ? EmptyHeaderSize : HeaderSize;
@@ -44,8 +44,8 @@ internal static class ArrayPayload
         {
             throw new InvalidDataException("Truncated PostgreSQL array dimension.");
         }
-        int count = dimensions == 0 ? 0 : BinaryPrimitives.ReadInt32BigEndian(bytes[12..]);
-        int lowerBound = dimensions == 0 ? 0 : BinaryPrimitives.ReadInt32BigEndian(bytes[16..]);
+        var count = dimensions == 0 ? 0 : BinaryPrimitives.ReadInt32BigEndian(bytes[12..]);
+        var lowerBound = dimensions == 0 ? 0 : BinaryPrimitives.ReadInt32BigEndian(bytes[16..]);
         ValidateLength(count, lowerBound, bytes.Length - headerSize, fixedSize);
         return count;
     }
@@ -85,7 +85,7 @@ internal static class ArrayPayload
         long remaining, int fixedSize)
     {
         if (count < 0 || (long)lowerBound + count > int.MaxValue || remaining < 4L * count ||
-            (count == 0 && remaining != 0) || (fixedSize != 0 && remaining > (4L + fixedSize) * count))
+            count == 0 && remaining != 0 || fixedSize != 0 && remaining > (4L + fixedSize) * count)
         {
             throw new InvalidDataException("The PostgreSQL array bounds or payload length are invalid.");
         }
@@ -108,7 +108,7 @@ internal static class ArrayPayload
         {
             throw new InvalidDataException("Truncated PostgreSQL array element length.");
         }
-        int length = BinaryPrimitives.ReadInt32BigEndian(records);
+        var length = BinaryPrimitives.ReadInt32BigEndian(records);
         if (length < -1 || length > records.Length - 4)
         {
             throw new InvalidDataException("Invalid or truncated PostgreSQL array element.");

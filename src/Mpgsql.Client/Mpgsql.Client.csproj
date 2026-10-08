@@ -1,15 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <RootNamespace>Mpgsql</RootNamespace>
-    <IsPackable>false</IsPackable>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="../Mpgsql/Mpgsql.csproj" />
-    <InternalsVisibleTo Include="Mpgsql.Tests" />
-    <InternalsVisibleTo Include="Mpgsql.Benchmarks" />
-    <InternalsVisibleTo Include="Mpgsql.IntegrationTests" />
-  </ItemGroup>
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>Mpgsql</RootNamespace>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../Mpgsql.Sessions/Mpgsql.Sessions.csproj"/>
+        <ProjectReference Include="../Mpgsql/Mpgsql.csproj"/>
+        <InternalsVisibleTo Include="Mpgsql.Tests"/>
+        <InternalsVisibleTo Include="Mpgsql.Benchmarks"/>
+        <InternalsVisibleTo Include="Mpgsql.IntegrationTests"/>
+    </ItemGroup>
 </Project>

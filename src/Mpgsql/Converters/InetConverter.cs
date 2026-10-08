@@ -8,11 +8,26 @@ namespace Mpgsql.Converters;
 public static class InetConverter
 {
     public const uint TypeOid = (uint)Mpgsql.TypeOid.Inet;
-    public static int GetByteCount(PgInet value) => InetCodec.Measure(value);
-    public static int GetByteCount(PgInet? value) => value.HasValue ? GetByteCount(value.Value) : 0;
-    public static int Write(PgInet value, Span<byte> destination) => BinaryScalar<PgInet, InetCodec>.Write(value, destination);
-    public static int Write(PgInet? value, Span<byte> destination) => value.HasValue ? Write(value.Value, destination) : 0;
-    public static void Write(PgInet value, IBufferWriter<byte> destination) => BinaryScalar<PgInet, InetCodec>.Write(value, destination);
+    public static int GetByteCount(PgInet value)
+    {
+        return InetCodec.Measure(value);
+    }
+    public static int GetByteCount(PgInet? value)
+    {
+        return value.HasValue ? GetByteCount(value.Value) : 0;
+    }
+    public static int Write(PgInet value, Span<byte> destination)
+    {
+        return BinaryScalar<PgInet, InetCodec>.Write(value, destination);
+    }
+    public static int Write(PgInet? value, Span<byte> destination)
+    {
+        return value.HasValue ? Write(value.Value, destination) : 0;
+    }
+    public static void Write(PgInet value, IBufferWriter<byte> destination)
+    {
+        BinaryScalar<PgInet, InetCodec>.Write(value, destination);
+    }
     public static void Write(PgInet? value, IBufferWriter<byte> destination)
     {
         ArgumentNullException.ThrowIfNull(destination);
@@ -22,9 +37,24 @@ public static class InetConverter
         }
     }
     public static int Write(IPAddress address, Span<byte> destination,
-        int? prefixLength = null) => Write(PgInet.FromIPAddress(address, prefixLength), destination);
-    public static PgInet Read(ReadOnlySpan<byte> payload) => InetCodec.Read(payload);
-    public static PgInet Read(ReadOnlySequence<byte> payload) => InetCodec.Read(payload);
-    public static PgInet? ReadNullable(ReadOnlyMemory<byte>? payload) => payload is { } value ? Read(value.Span) : null;
-    public static PgInet? ReadNullable(ReadOnlySequence<byte>? payload) => payload is { } value ? Read(value) : null;
+        int? prefixLength = null)
+    {
+        return Write(PgInet.FromIPAddress(address, prefixLength), destination);
+    }
+    public static PgInet Read(ReadOnlySpan<byte> payload)
+    {
+        return InetCodec.Read(payload);
+    }
+    public static PgInet Read(ReadOnlySequence<byte> payload)
+    {
+        return InetCodec.Read(payload);
+    }
+    public static PgInet? ReadNullable(ReadOnlyMemory<byte>? payload)
+    {
+        return payload is { } value ? Read(value.Span) : null;
+    }
+    public static PgInet? ReadNullable(ReadOnlySequence<byte>? payload)
+    {
+        return payload is { } value ? Read(value) : null;
+    }
 }

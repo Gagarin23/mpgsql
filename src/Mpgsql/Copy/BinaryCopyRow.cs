@@ -8,10 +8,16 @@ namespace Mpgsql.Copy;
 public readonly struct BinaryCopyRow
 {
     private readonly ReadOnlyMemory<ReadOnlySequence<byte>?> _fields;
-    internal BinaryCopyRow(ReadOnlyMemory<ReadOnlySequence<byte>?> fields) => _fields = fields;
+    internal BinaryCopyRow(ReadOnlyMemory<ReadOnlySequence<byte>?> fields)
+    {
+        _fields = fields;
+    }
     public int Count => _fields.Length;
     public ReadOnlySequence<byte>? this[int index] => _fields.Span[index];
-    public bool IsNull(int index) => !this[index].HasValue;
+    public bool IsNull(int index)
+    {
+        return !this[index].HasValue;
+    }
 
     public long ReadInt64(int index)
     {
@@ -29,18 +35,36 @@ public readonly struct BinaryCopyRow
         return result;
     }
 
-    public long? ReadNullableInt64(int index) => Int64Converter.ReadNullable(this[index]);
+    public long? ReadNullableInt64(int index)
+    {
+        return Int64Converter.ReadNullable(this[index]);
+    }
 
-    public ReadOnlyMemory<long> ReadLongArray(int index) => Int64ArrayConverter.Read(RequireValue(index));
+    public ReadOnlyMemory<long> ReadLongArray(int index)
+    {
+        return Int64ArrayConverter.Read(RequireValue(index));
+    }
     public int ReadLongArray(int index,
-        Span<long> destination) => Int64ArrayConverter.Read(RequireValue(index),
-        destination);
+        Span<long> destination)
+    {
+        return Int64ArrayConverter.Read(RequireValue(index),
+            destination);
+    }
 
-    public ReadOnlyMemory<long?> ReadNullableLongArray(int index) => NullableInt64ArrayConverter.Read(RequireValue(index));
+    public ReadOnlyMemory<long?> ReadNullableLongArray(int index)
+    {
+        return NullableInt64ArrayConverter.Read(RequireValue(index));
+    }
     public int ReadNullableLongArray(int index,
-        Span<long?> destination) => NullableInt64ArrayConverter.Read(RequireValue(index),
-        destination);
+        Span<long?> destination)
+    {
+        return NullableInt64ArrayConverter.Read(RequireValue(index),
+            destination);
+    }
 
-    private ReadOnlySequence<byte> RequireValue(int index) => this[index]
-                                                              ?? throw new InvalidOperationException("The COPY field is SQL NULL.");
+    private ReadOnlySequence<byte> RequireValue(int index)
+    {
+        return this[index]
+               ?? throw new InvalidOperationException("The COPY field is SQL NULL.");
+    }
 }

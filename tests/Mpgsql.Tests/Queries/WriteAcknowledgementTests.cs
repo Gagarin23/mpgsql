@@ -10,7 +10,9 @@ public sealed class WriteAcknowledgementTests
     private const string Sql = "select array_length($1::bigint[], 1)::bigint";
 
     private static async Task ObserveAsync(Task acknowledgement)
-        => await acknowledgement.ConfigureAwait(false);
+    {
+        await acknowledgement.ConfigureAwait(false);
+    }
 
     private static byte[] ExpectedExecution()
     {
@@ -25,34 +27,37 @@ public sealed class WriteAcknowledgementTests
         BinaryPrimitives.WriteInt32BigEndian(array.AsSpan(32), 8);
         BinaryPrimitives.WriteInt64BigEndian(array.AsSpan(36), 22);
         var bytes = new ArrayBufferWriter<byte>();
-        FrontendMessage.Parse(Sql, parameterTypes: new uint[] { 1016 }).Write(bytes);
-        FrontendMessage.Bind(parameters: new ReadOnlyMemory<byte>?[] { array },
-            parameterFormats: new[] { FormatCode.Binary }, resultFormats: new[] { FormatCode.Binary }).Write(bytes);
+        FrontendMessage.Parse(Sql, parameterTypes: new uint[] {1016}).Write(bytes);
+        FrontendMessage.Bind(parameters: new ReadOnlyMemory<byte>?[] {array},
+            parameterFormats: new[] {FormatCode.Binary}, resultFormats: new[] {FormatCode.Binary}).Write(bytes);
         FrontendMessage.Describe(StatementOrPortal.Portal).Write(bytes);
         FrontendMessage.Execute().Write(bytes);
         FrontendMessage.Sync().Write(bytes);
         return bytes.WrittenSpan.ToArray();
     }
 
-    [Theory]
-    [InlineData(0)] // success
-    [InlineData(1)] // logical cancellation during encoding
-    [InlineData(2)] // transport EOF during encoding
+    [Theory, InlineData(0), InlineData(1), InlineData(2)]
+    // success
+    // logical cancellation during encoding
+     // transport EOF during encoding
     public async Task MultipleObserversKeepTheInputBarrierAndCompletionStatus(int outcome)
     {
         var testToken = TestContext.Current.CancellationToken;
-        using var input = new BlockingInputMemory(blockEncoding: true);
+        using var input = new BlockingInputMemory(true);
         using var request = CancellationTokenSource.CreateLinkedTokenSource(testToken);
         await using var wire = new ScriptedSession();
         await using var batch = wire.Session.CreateBatch(request.Token);
-        Task send = batch.SendQueryAsync(Sql, new[] { MpgsqlParameter.Int64Array(input.Memory) }).AsTask();
-        Task first = ObserveAsync(send);
-        Task second = ObserveAsync(send);
-        Task sync = batch.SendSyncAsync().AsTask();
+        var send = batch.SendQueryAsync(Sql, new[] {MpgsqlParameterValue.Int64Array(input.Memory)}).AsTask();
+        var first = ObserveAsync(send);
+        var second = ObserveAsync(send);
+        var sync = batch.SendSyncAsync().AsTask();
         await input.Entered.WaitAsync(TestTimeout, testToken);
         try
         {
-            if (outcome == 1) request.Cancel();
+            if (outcome == 1)
+            {
+                request.Cancel();
+            }
             else if (outcome == 2)
             {
                 await wire.Incoming.Writer.CompleteAsync();
@@ -66,7 +71,7 @@ public sealed class WriteAcknowledgementTests
 
         if (outcome == 2)
         {
-            foreach (Task observation in new[] { send, first, second, sync })
+            foreach (var observation in new[] {send, first, second, sync})
                 await Assert.ThrowsAnyAsync<IOException>(() => observation.WaitAsync(TestTimeout, testToken));
             Assert.True(send.IsFaulted);
             await Assert.ThrowsAnyAsync<IOException>(() => batch.ObserveCompletionAsync().AsTask());
@@ -75,21 +80,24 @@ public sealed class WriteAcknowledgementTests
         else
         {
             var bytes = new List<byte>();
-            while (!Tags([.. bytes]).Contains('S')) bytes.AddRange(await wire.ReadOutputAsync());
-            Assert.Equal(outcome == 0 ? ExpectedExecution() : new byte[] { (byte)'S', 0, 0, 0, 4 }, bytes.ToArray());
+            while (!Tags([.. bytes]).Contains('S'))
+            {
+                bytes.AddRange(await wire.ReadOutputAsync());
+            }
+            Assert.Equal(outcome == 0 ? ExpectedExecution() : new byte[] {(byte)'S', 0, 0, 0, 4}, bytes.ToArray());
             await sync.WaitAsync(TestTimeout, testToken);
             if (outcome == 1)
             {
-                foreach (Task observation in new[] { send, first, second })
+                foreach (var observation in new[] {send, first, second})
                     await Assert.ThrowsAnyAsync<OperationCanceledException>(() => observation.WaitAsync(TestTimeout, testToken));
                 Assert.True(send.IsCanceled);
-                await wire.WriteAsync(Ready(), fragment: 1);
+                await wire.WriteAsync(Ready(), 1);
             }
             else
             {
                 await Task.WhenAll(send, first, second).WaitAsync(TestTimeout, testToken);
                 Assert.True(send.IsCompletedSuccessfully);
-                await wire.WriteAsync(Join(Query(2), Ready()), fragment: 1);
+                await wire.WriteAsync(Join(Query(2), Ready()), 1);
                 await using var reader = await batch.ReadResultsAsync();
                 Assert.Equal(0, reader.QueryIndex);
                 Assert.True(await reader.ReadAsync());
@@ -100,11 +108,11 @@ public sealed class WriteAcknowledgementTests
             await batch.DisposeAsync();
 
             await using var following = wire.Session.CreateBatch(testToken);
-            Task nextSend = following.SendQueryAsync("select 42::bigint").AsTask();
-            Task nextSync = following.SendSyncAsync().AsTask();
+            var nextSend = following.SendQueryAsync("select 42::bigint").AsTask();
+            var nextSync = following.SendSyncAsync().AsTask();
             while (!Tags(await wire.ReadOutputAsync()).Contains('S')) { }
             await Task.WhenAll(nextSend, nextSync).WaitAsync(TestTimeout, testToken);
-            await wire.WriteAsync(Join(Query(42), Ready()), fragment: 3);
+            await wire.WriteAsync(Join(Query(42), Ready()), 3);
             await using var nextReader = await following.ReadResultsAsync();
             Assert.True(await nextReader.ReadAsync());
             Assert.Equal(42, nextReader.GetInt64(0));

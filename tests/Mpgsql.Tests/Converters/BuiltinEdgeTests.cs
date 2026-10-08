@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Net;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using Mpgsql.Converters;
 using Mpgsql.Tests.Protocol;
 using Mpgsql.Types;
@@ -14,9 +15,9 @@ public sealed class BuiltinEdgeTests
     public void EveryDeclaredOidHasAnExplicitPublicConverter()
     {
         var assembly = typeof(Int64Converter).Assembly;
-        foreach (TypeOid oid in Enum.GetValues<TypeOid>())
+        foreach (var oid in Enum.GetValues<TypeOid>())
         {
-            string name = oid.ToString();
+            var name = oid.ToString();
             var type = assembly.GetType("Mpgsql.Converters." + name + "Converter");
             Assert.NotNull(type);
             var field = type.GetField(name.EndsWith("Array", StringComparison.Ordinal) ? "ArrayTypeOid" : "TypeOid", BindingFlags.Public | BindingFlags.Static);
@@ -34,28 +35,26 @@ public sealed class BuiltinEdgeTests
         Assert.Throws<OverflowException>(() => Int32ArrayConverter.GetByteCount(int.MaxValue));
     }
 
-    [Theory]
-    [InlineData("80000000"), InlineData("00000001"), InlineData("7f800000"), InlineData("ff800000"), InlineData("7fc12345")]
+    [Theory, InlineData("80000000"), InlineData("00000001"), InlineData("7f800000"), InlineData("ff800000"), InlineData("7fc12345")]
     public void Float32PreservesEveryBitIncludingNaNsAndNegativeZero(string hex)
     {
-        byte[] bytes = TestWire.Bytes(hex);
-        int bits = BinaryPrimitives.ReadInt32BigEndian(bytes);
+        var bytes = TestWire.Bytes(hex);
+        var bits = BinaryPrimitives.ReadInt32BigEndian(bytes);
         Assert.Equal(bits, BitConverter.SingleToInt32Bits(Float32Converter.Read(bytes)));
         Assert.Equal(bits, BitConverter.SingleToInt32Bits(Float32Converter.Read(TestWire.ByteSegments(bytes))));
-        byte[] result = new byte[4];
+        var result = new byte[4];
         Float32Converter.Write(BitConverter.Int32BitsToSingle(bits), result);
         Assert.Equal(bytes, result);
     }
 
-    [Theory]
-    [InlineData("8000000000000000"), InlineData("0000000000000001"), InlineData("7ff0000000000000"), InlineData("fff0000000000000"), InlineData("7ff8123456789abc")]
+    [Theory, InlineData("8000000000000000"), InlineData("0000000000000001"), InlineData("7ff0000000000000"), InlineData("fff0000000000000"), InlineData("7ff8123456789abc")]
     public void Float64PreservesEveryBitIncludingNaNsAndNegativeZero(string hex)
     {
-        byte[] bytes = TestWire.Bytes(hex);
-        long bits = BinaryPrimitives.ReadInt64BigEndian(bytes);
+        var bytes = TestWire.Bytes(hex);
+        var bits = BinaryPrimitives.ReadInt64BigEndian(bytes);
         Assert.Equal(bits, BitConverter.DoubleToInt64Bits(Float64Converter.Read(bytes)));
         Assert.Equal(bits, BitConverter.DoubleToInt64Bits(Float64Converter.Read(TestWire.ByteSegments(bytes))));
-        byte[] result = new byte[8];
+        var result = new byte[8];
         Float64Converter.Write(BitConverter.Int64BitsToDouble(bits), result);
         Assert.Equal(bytes, result);
     }
@@ -63,8 +62,8 @@ public sealed class BuiltinEdgeTests
     [Fact]
     public void CalendarBoundariesInfinitiesAndExactClrMappings()
     {
-        byte[] bytes = new byte[16];
-        foreach (int days in new[] {PgDate.MinFiniteDays, PgDate.MaxFiniteDays, int.MinValue, int.MaxValue})
+        var bytes = new byte[16];
+        foreach (var days in new[] {PgDate.MinFiniteDays, PgDate.MaxFiniteDays, int.MinValue, int.MaxValue})
         {
             DateConverter.Write(new PgDate(days), bytes);
             Assert.Equal(days, DateConverter.Read(bytes.AsSpan(0, 4)).DaysSinceEpoch);
@@ -74,7 +73,7 @@ public sealed class BuiltinEdgeTests
         Assert.Equal(DateOnly.MinValue, PgDate.FromDateOnly(DateOnly.MinValue).ToDateOnly());
         Assert.Equal(DateOnly.MaxValue, PgDate.FromDateOnly(DateOnly.MaxValue).ToDateOnly());
         Assert.Throws<OverflowException>(() => PgDate.PositiveInfinity.ToDateOnly());
-        foreach (long micros in new[] {PgTimestamp.MinFiniteMicroseconds, PgTimestamp.MaxFiniteMicroseconds, long.MinValue, long.MaxValue})
+        foreach (var micros in new[] {PgTimestamp.MinFiniteMicroseconds, PgTimestamp.MaxFiniteMicroseconds, long.MinValue, long.MaxValue})
         {
             TimestampConverter.Write(new PgTimestamp(micros), bytes);
             TimestampTzConverter.Write(new PgTimestampTz(micros), bytes);
@@ -105,12 +104,12 @@ public sealed class BuiltinEdgeTests
     [Fact]
     public void InvalidScalarCalendarValuesFailBeforeOutputMutation()
     {
-        byte[] output = Enumerable.Repeat((byte)0xcc, 64).ToArray();
+        var output = Enumerable.Repeat((byte)0xcc, 64).ToArray();
         Assert.Throws<ArgumentOutOfRangeException>(() => DateConverter.Write(new PgDate(PgDate.MinFiniteDays - 1), output));
         Assert.Throws<ArgumentOutOfRangeException>(() => TimestampConverter.Write(new PgTimestamp(PgTimestamp.MaxFiniteMicroseconds + 1), output));
         Assert.Throws<ArgumentOutOfRangeException>(() => TimeTzConverter.Write(new PgTimeTz(default, 57600), output));
         Assert.All(output, b => Assert.Equal((byte)0xcc, b));
-        byte[] payload = new byte[8];
+        var payload = new byte[8];
         BinaryPrimitives.WriteInt64BigEndian(payload, -1);
         Assert.Throws<InvalidDataException>(() => TimeConverter.Read(payload));
         Assert.Throws<InvalidDataException>(() => TimeConverter.Read(TestWire.ByteSegments(payload)));
@@ -121,13 +120,13 @@ public sealed class BuiltinEdgeTests
     [Fact]
     public void FixedArraySizingDoesNotPrevalidateEveryValue()
     {
-        PgTime[] values = [default, new(-1)];
-        byte[] payload = new byte[44];
+        PgTime[] values = [default, new PgTime(-1)];
+        var payload = new byte[44];
         Assert.Equal(44, TimeArrayConverter.GetByteCount(values));
         Assert.Equal(44, TimeArrayConverter.Write(values, payload));
         Assert.Equal(-1L, BinaryPrimitives.ReadInt64BigEndian(payload.AsSpan(36)));
         Assert.Throws<InvalidDataException>(() => TimeArrayConverter.Read(payload));
-        PgTime?[] nullable = [new(-1), null];
+        PgTime?[] nullable = [new PgTime(-1), null];
         Assert.Equal(36, NullableTimeArrayConverter.GetByteCount(nullable));
         Assert.Equal(36, NullableTimeArrayConverter.Write(nullable, payload));
     }
@@ -135,8 +134,8 @@ public sealed class BuiltinEdgeTests
     [Fact]
     public void ClrArrayConversionErrorsCanLeaveEarlierElementsWritten()
     {
-        DateTime[] values = [new(2000, 1, 1), new(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc)];
-        byte[] payload = Enumerable.Repeat((byte)0xcc, 64).ToArray();
+        DateTime[] values = [new DateTime(2000, 1, 1), new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc)];
+        var payload = Enumerable.Repeat((byte)0xcc, 64).ToArray();
         Assert.Equal(44, TimestampArrayConverter.GetByteCount(values));
         Assert.Throws<ArgumentException>(() => TimestampArrayConverter.Write(values, payload));
         Assert.Equal(8, BinaryPrimitives.ReadInt32BigEndian(payload.AsSpan(20)));
@@ -144,12 +143,11 @@ public sealed class BuiltinEdgeTests
         Assert.All(payload[32..], b => Assert.Equal((byte)0xcc, b));
     }
 
-    [Theory]
-    [InlineData("::", 0), InlineData("::1", 128), InlineData("2001:db8::1234", 48), InlineData("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", 128)]
+    [Theory, InlineData("::", 0), InlineData("::1", 128), InlineData("2001:db8::1234", 48), InlineData("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", 128)]
     public void IPv6RoundTripsAndRejectsCidrHostBits(string address, int prefix)
     {
         var value = PgInet.FromIPAddress(IPAddress.Parse(address), prefix);
-        byte[] payload = new byte[20];
+        var payload = new byte[20];
         InetConverter.Write(value, payload);
         Assert.Equal(value, InetConverter.Read(payload));
         Assert.Equal(value, InetConverter.Read(TestWire.ByteSegments(payload)));
@@ -170,11 +168,11 @@ public sealed class BuiltinEdgeTests
     [Fact]
     public void OverlappingArraySourcesAreRejectedBeforeHeaderWrites()
     {
-        byte[] storage = new byte[256];
+        var storage = new byte[256];
         var source = new ByteMemory(storage);
         int[] values = [1, 2];
         values.CopyTo(source.Memory.Span);
-        byte[] before = storage.ToArray();
+        var before = storage.ToArray();
         Assert.Throws<ArgumentException>(() => Int32ArrayConverter.Write(source.Memory[..2], storage));
         Assert.Equal(before, storage);
         ReadOnlyMemory<byte>[] byteArrays = [storage.AsMemory(0, 1)];
@@ -189,8 +187,14 @@ public sealed class BuiltinEdgeTests
 
     private sealed class ByteMemory(byte[] bytes) : MemoryManager<int>
     {
-        public override Span<int> GetSpan() => System.Runtime.InteropServices.MemoryMarshal.Cast<byte, int>(bytes.AsSpan());
-        public override MemoryHandle Pin(int elementIndex = 0) => throw new NotSupportedException();
+        public override Span<int> GetSpan()
+        {
+            return MemoryMarshal.Cast<byte, int>(bytes.AsSpan());
+        }
+        public override MemoryHandle Pin(int elementIndex = 0)
+        {
+            throw new NotSupportedException();
+        }
         public override void Unpin() { }
         protected override void Dispose(bool disposing) { }
     }

@@ -9,9 +9,21 @@ internal readonly struct DateClrCodec : IBinaryCodec<DateOnly>
     public static int FixedSize => 4;
     public static bool MayOverlap => false;
     // Every DateOnly is within PostgreSQL's finite date range.
-    public static int Measure(DateOnly value) => FixedSize;
+    public static int Measure(DateOnly value)
+    {
+        return FixedSize;
+    }
     public static void CheckOverlap(DateOnly value, Span<byte> destination) { }
-    public static int Write(DateOnly value, Span<byte> destination) => DateCodec.Write(PgDate.FromDateOnly(value), destination);
-    public static DateOnly Read(ReadOnlySpan<byte> payload) => DateCodec.Read(payload).ToDateOnly();
-    public static DateOnly Read(ReadOnlySequence<byte> payload) => DateCodec.Read(payload).ToDateOnly();
+    public static int Write(DateOnly value, Span<byte> destination)
+    {
+        return DateCodec.Write(PgDate.FromDateOnly(value), destination);
+    }
+    public static DateOnly Read(ReadOnlySpan<byte> payload)
+    {
+        return DateCodec.Read(payload).ToDateOnly();
+    }
+    public static DateOnly Read(ReadOnlySequence<byte> payload)
+    {
+        return DateCodec.Read(payload).ToDateOnly();
+    }
 }

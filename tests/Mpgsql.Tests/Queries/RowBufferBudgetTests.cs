@@ -5,7 +5,8 @@ namespace Mpgsql.Tests.Queries;
 
 public sealed class RowBufferBudgetTests
 {
-    [ThreadStatic] private static bool _publishing;
+    [ThreadStatic]
+    private static bool _publishing;
 
     [Fact]
     public async Task CancelledCapacityWaitCanBeFollowedByANewReservation()
@@ -13,7 +14,7 @@ public sealed class RowBufferBudgetTests
         await using var wire = new ScriptedSession();
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         var budget = new RowBufferBudget(14);
-        for (int i = 0; i < 128; i++)
+        for (var i = 0; i < 128; i++)
         {
             Assert.True(await budget.ReserveAsync(14, batch, TestContext.Current.CancellationToken));
             using var cancelled = new CancellationTokenSource();
@@ -37,7 +38,7 @@ public sealed class RowBufferBudgetTests
         await using var wire = new ScriptedSession();
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         var budget = new RowBufferBudget(14);
-        for (int i = 0; i < 128; i++)
+        for (var i = 0; i < 128; i++)
         {
             Assert.True(await budget.ReserveAsync(14, batch, TestContext.Current.CancellationToken));
             using var cancelled = new CancellationTokenSource();
@@ -85,7 +86,7 @@ public sealed class RowBufferBudgetTests
         await using var wire = new ScriptedSession();
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         var budget = new RowBufferBudget(14);
-        for (int round = 0; round < 1000; round++)
+        for (var round = 0; round < 1000; round++)
         {
             Assert.True(await budget.ReserveAsync(14, batch, TestContext.Current.CancellationToken));
             var release = Task.Run(() => budget.Release(14), TestContext.Current.CancellationToken);
@@ -104,10 +105,12 @@ public sealed class RowBufferBudgetTests
         await using var wire = new ScriptedSession();
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         var budget = new RowBufferBudget(64);
-        for (int round = 0; round < 64; round++)
+        for (var round = 0; round < 64; round++)
         {
-            for (int i = 0; i < 64; i++)
+            for (var i = 0; i < 64; i++)
+            {
                 Assert.True(await budget.ReserveAsync(1, batch, TestContext.Current.CancellationToken));
+            }
             var oversized = budget.ReserveAsync(128, batch, TestContext.Current.CancellationToken).AsTask();
             Assert.False(oversized.IsCompleted);
             await Task.WhenAll(Enumerable.Range(0, 64).Select(_ => Task.Run(() => budget.Release(1),

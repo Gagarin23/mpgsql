@@ -11,8 +11,8 @@ public sealed class QueryPacketTests
     [Fact]
     public void CompleteBigintPacketIncludesTagsLengthsAndFormats()
     {
-        MpgsqlParameter[] parameters = [MpgsqlParameter.Int64(42)];
-        byte[] destination = new byte[QueryPacket.GetByteCount("select $1",
+        MpgsqlParameterValue[] parameters = [MpgsqlParameterValue.Int64(42)];
+        var destination = new byte[QueryPacket.GetByteCount("select $1",
             parameters)];
         Assert.Equal(destination.Length,
             QueryPacket.Write("select $1",
@@ -27,19 +27,19 @@ public sealed class QueryPacketTests
     {
         ReadOnlyMemory<long> array = new long[] {-1, 42};
         ReadOnlyMemory<long?> nullable = new long?[] {null, long.MinValue};
-        MpgsqlParameter[] parameters =
+        MpgsqlParameterValue[] parameters =
         [
-            MpgsqlParameter.Int64(null), MpgsqlParameter.Int64Array(array),
-            MpgsqlParameter.NullableInt64Array(nullable), MpgsqlParameter.Int64Array(ReadOnlyMemory<long>.Empty),
-            MpgsqlParameter.NullableInt64Array(null)
+            MpgsqlParameterValue.Int64(null), MpgsqlParameterValue.Int64Array(array),
+            MpgsqlParameterValue.NullableInt64Array(nullable), MpgsqlParameterValue.Int64Array(ReadOnlyMemory<long>.Empty),
+            MpgsqlParameterValue.NullableInt64Array(null)
         ];
-        byte[] a = new byte[Int64ArrayConverter.GetByteCount(array)];
+        var a = new byte[Int64ArrayConverter.GetByteCount(array)];
         Int64ArrayConverter.Write(array,
             a);
-        byte[] b = new byte[NullableInt64ArrayConverter.GetByteCount(nullable)];
+        var b = new byte[NullableInt64ArrayConverter.GetByteCount(nullable)];
         NullableInt64ArrayConverter.Write(nullable,
             b);
-        byte[] empty = new byte[12];
+        var empty = new byte[12];
         Int64ArrayConverter.Write(ReadOnlyMemory<long>.Empty,
             empty);
         var reference = new ArrayBufferWriter<byte>();
@@ -70,7 +70,7 @@ public sealed class QueryPacketTests
             }).Write(reference);
         FrontendMessage.Describe(StatementOrPortal.Portal).Write(reference);
         FrontendMessage.Execute().Write(reference);
-        byte[] actual = new byte[QueryPacket.GetByteCount("select $1, $2, $3, $4, $5",
+        var actual = new byte[QueryPacket.GetByteCount("select $1, $2, $3, $4, $5",
             parameters)];
         QueryPacket.Write("select $1, $2, $3, $4, $5",
             parameters,
@@ -91,13 +91,13 @@ public sealed class QueryPacketTests
         Assert.Throws<ArgumentException>(() => QueryPacket.Write("select $1",
             new[]
             {
-                MpgsqlParameter.Int64(1)
+                MpgsqlParameterValue.Int64(1)
             },
             target));
         Assert.Equal(before,
             target);
         Assert.Throws<InvalidOperationException>(() => QueryPacket.Write("select $1",
-            new MpgsqlParameter[1],
+            new MpgsqlParameterValue[1],
             target));
         Assert.Equal(before,
             target);
@@ -107,7 +107,7 @@ public sealed class QueryPacketTests
     public void NoParametersAndUtf8HaveCompleteBytePayload()
     {
         const string sql = "select 'я'";
-        byte[] actual = new byte[QueryPacket.GetByteCount(sql,
+        var actual = new byte[QueryPacket.GetByteCount(sql,
             [])];
         QueryPacket.Write(sql,
             [],

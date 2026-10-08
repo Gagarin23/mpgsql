@@ -1,10 +1,12 @@
+using Mpgsql.Protocol;
+
 namespace Mpgsql.IntegrationTests;
 
 internal static class PreparedStatementChecks
 {
     internal static async Task RunAsync(MpgsqlMessageSession session)
     {
-        int baseline = session.TrackedStatementCount;
+        var baseline = session.TrackedStatementCount;
         var local = session.CreatePreparedStatement("select 1::bigint");
         Check(session.TrackedStatementCount == baseline, "Local handle is not strongly registered");
         local.Dispose();
@@ -20,26 +22,26 @@ internal static class PreparedStatementChecks
         var arrays = session.CreatePreparedStatement("select $1, $2, $3", new uint[] {20, 1016, 1016});
         await using (var batch = session.CreateBatch())
         {
-            Task consumer = Task.Run(async () =>
+            var consumer = Task.Run(async () =>
             {
                 await using var reader = await batch.ReadResultsAsync();
-                for (int i = 0; i < 65; i++)
+                for (var i = 0; i < 65; i++)
                 {
                     Check(reader.QueryIndex == i, "Prepared pipeline query index");
                     Check(await reader.ReadAsync() && reader.GetInt64(0) == (i == 64 ? 999 : i),
                         "Prepared pipeline value");
-                    Check(!await reader.ReadAsync() && await reader.NextResultAsync() == (i < 64),
+                    Check(!await reader.ReadAsync() && await reader.NextResultAsync() == i < 64,
                         "Prepared pipeline result count");
                 }
             });
-            Task producer = Task.Run(async () =>
+            var producer = Task.Run(async () =>
             {
                 Task[] sends =
                 [
                     batch.SendPrepareAsync(scalar).AsTask(),
                     batch.SendPrepareAsync(arrays).AsTask(),
                     .. Enumerable.Range(0, 64).Select(i =>
-                        batch.SendQueryAsync(scalar, new[] {MpgsqlParameter.Int64(i)}).AsTask()),
+                        batch.SendQueryAsync(scalar, new[] {MpgsqlParameterValue.Int64(i)}).AsTask()),
                     batch.SendQueryAsync("select 999::bigint").AsTask()
                 ];
                 await batch.SendSyncAsync();
@@ -54,9 +56,9 @@ internal static class PreparedStatementChecks
         await using (var first = session.CreateBatch())
         await using (var second = session.CreateBatch())
         {
-            await first.SendQueryAsync(scalar, new[] {MpgsqlParameter.Int64(101)});
+            await first.SendQueryAsync(scalar, new[] {MpgsqlParameterValue.Int64(101)});
             await first.SendSyncAsync();
-            await second.SendQueryAsync(scalar, new[] {MpgsqlParameter.Int64(202)});
+            await second.SendQueryAsync(scalar, new[] {MpgsqlParameterValue.Int64(202)});
             await second.SendSyncAsync();
             await ReadOne(second, 202);
             await ReadOne(first, 101);
@@ -66,8 +68,8 @@ internal static class PreparedStatementChecks
             long?[] values = [long.MinValue, null, long.MaxValue];
             await batch.SendQueryAsync(arrays, new[]
             {
-                MpgsqlParameter.Int64(null), MpgsqlParameter.Int64Array(ReadOnlyMemory<long>.Empty),
-                MpgsqlParameter.NullableInt64Array(values)
+                MpgsqlParameterValue.Int64(null), MpgsqlParameterValue.Int64Array(ReadOnlyMemory<long>.Empty),
+                MpgsqlParameterValue.NullableInt64Array(values)
             });
             await batch.SendSyncAsync();
             await using var reader = await batch.ReadResultsAsync();
@@ -100,7 +102,7 @@ internal static class PreparedStatementChecks
 
     private static async Task Errors(MpgsqlMessageSession session)
     {
-        int baseline = session.TrackedStatementCount;
+        var baseline = session.TrackedStatementCount;
         var bad = session.CreatePreparedStatement("select from");
         await using (var batch = session.CreateBatch())
         {
@@ -117,7 +119,7 @@ internal static class PreparedStatementChecks
         {
             await batch.SendQueryAsync("select 1::bigint / 0");
             await batch.SendPrepareAsync(skipped);
-            await batch.SendQueryAsync(skipped, new[] {MpgsqlParameter.Int64(1)});
+            await batch.SendQueryAsync(skipped, new[] {MpgsqlParameterValue.Int64(1)});
             await batch.SendSyncAsync();
             var error = await ExpectError(batch, "22012", 0);
             await ExpectPreparationFailure(skipped, error);
@@ -128,7 +130,7 @@ internal static class PreparedStatementChecks
         await using (var failed = session.CreateBatch())
         {
             await failed.SendPrepareAsync(divide);
-            await failed.SendQueryAsync(divide, new[] {MpgsqlParameter.Int64(0)});
+            await failed.SendQueryAsync(divide, new[] {MpgsqlParameterValue.Int64(0)});
             await failed.SendSyncAsync();
             await ExpectError(failed, "22012", 0);
             await divide.Prepared;
@@ -137,7 +139,7 @@ internal static class PreparedStatementChecks
         CheckRejectedDispose(divide);
         await using (var recovered = session.CreateBatch())
         {
-            await recovered.SendQueryAsync(divide, new[] {MpgsqlParameter.Int64(4)});
+            await recovered.SendQueryAsync(divide, new[] {MpgsqlParameterValue.Int64(4)});
             await recovered.SendSyncAsync();
             await ReadOne(recovered, 25);
         }
@@ -161,7 +163,7 @@ internal static class PreparedStatementChecks
 
     private static void CheckRejectedDispose(MpgsqlPreparedStatement statement)
     {
-        bool rejected = false;
+        var rejected = false;
         try { statement.Dispose(); }
         catch (InvalidOperationException) { rejected = true; }
         Check(rejected, "Confirmed statement requires explicit server Close before local disposal");
@@ -182,7 +184,7 @@ internal static class PreparedStatementChecks
         await batch.SendSyncAsync();
         await using var reader = await batch.ReadResultsAsync();
         Check(await reader.ReadAsync(), "Prepared statement catalog row");
-        long count = reader.GetInt64(0)!.Value;
+        var count = reader.GetInt64(0)!.Value;
         Check(!await reader.NextResultAsync(), "Prepared statement catalog result count");
         return count;
     }
@@ -195,7 +197,8 @@ internal static class PreparedStatementChecks
         await batch.Completion;
     }
 
-    private static async Task<MpgsqlServerException> ExpectError(MpgsqlQueryBatch batch, string sqlState, int? queryIndex)
+    private static async Task<MpgsqlServerException> ExpectError(MpgsqlQueryBatch batch, string sqlState,
+        int? queryIndex)
     {
         try
         {
@@ -205,7 +208,7 @@ internal static class PreparedStatementChecks
         catch (MpgsqlServerException error)
         {
             Check(error.SqlState == sqlState && error.QueryIndex == queryIndex
-                  && error.TransactionStatus == Protocol.TransactionStatus.Idle, "Prepared error diagnostics");
+                                             && error.TransactionStatus == TransactionStatus.Idle, "Prepared error diagnostics");
             return error;
         }
         finally
@@ -230,6 +233,9 @@ internal static class PreparedStatementChecks
 
     private static void Check(bool condition, string name)
     {
-        if (!condition) throw new InvalidOperationException(name);
+        if (!condition)
+        {
+            throw new InvalidOperationException(name);
+        }
     }
 }

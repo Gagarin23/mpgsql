@@ -1,96 +1,371 @@
-using Mpgsql.Converters;
 using Mpgsql.Types;
 
 namespace Mpgsql;
 
-public readonly partial struct MpgsqlParameter
+public partial class MpgsqlParameter
 {
-    public static MpgsqlParameter Boolean(bool? value) => Scalar<bool, BooleanCodec>((uint)TypeOid.Boolean, value);
-    public static MpgsqlParameter BooleanArray(ReadOnlyMemory<bool>? value) => Array<bool, BooleanCodec>((uint)TypeOid.BooleanArray, value);
-    public static MpgsqlParameter NullableBooleanArray(ReadOnlyMemory<bool?>? value) => NullableArray<bool, BooleanCodec>((uint)TypeOid.BooleanArray, value);
-    public static MpgsqlParameter Bytea(ReadOnlyMemory<byte>? value) => Scalar<ReadOnlyMemory<byte>, ByteaCodec>((uint)TypeOid.Bytea, value);
-    public static MpgsqlParameter ByteaArray(ReadOnlyMemory<ReadOnlyMemory<byte>>? value) => Array<ReadOnlyMemory<byte>, ByteaCodec>((uint)TypeOid.ByteaArray, value);
-    public static MpgsqlParameter NullableByteaArray(ReadOnlyMemory<ReadOnlyMemory<byte>?>? value) => NullableArray<ReadOnlyMemory<byte>, ByteaCodec>((uint)TypeOid.ByteaArray, value);
-    public static MpgsqlParameter Int16(short? value) => Scalar<short, Int16Codec>((uint)TypeOid.Int16, value);
-    public static MpgsqlParameter Int16Array(ReadOnlyMemory<short>? value) => Array<short, Int16Codec>((uint)TypeOid.Int16Array, value);
-    public static MpgsqlParameter NullableInt16Array(ReadOnlyMemory<short?>? value) => NullableArray<short, Int16Codec>((uint)TypeOid.Int16Array, value);
-    public static MpgsqlParameter Int32(int? value) => Scalar<int, Int32Codec>((uint)TypeOid.Int32, value);
-    public static MpgsqlParameter Int32Array(ReadOnlyMemory<int>? value) => Array<int, Int32Codec>((uint)TypeOid.Int32Array, value);
-    public static MpgsqlParameter NullableInt32Array(ReadOnlyMemory<int?>? value) => NullableArray<int, Int32Codec>((uint)TypeOid.Int32Array, value);
-    public static MpgsqlParameter Float32(float? value) => Scalar<float, Float32Codec>((uint)TypeOid.Float32, value);
-    public static MpgsqlParameter Float32Array(ReadOnlyMemory<float>? value) => Array<float, Float32Codec>((uint)TypeOid.Float32Array, value);
-    public static MpgsqlParameter NullableFloat32Array(ReadOnlyMemory<float?>? value) => NullableArray<float, Float32Codec>((uint)TypeOid.Float32Array, value);
-    public static MpgsqlParameter Float64(double? value) => Scalar<double, Float64Codec>((uint)TypeOid.Float64, value);
-    public static MpgsqlParameter Float64Array(ReadOnlyMemory<double>? value) => Array<double, Float64Codec>((uint)TypeOid.Float64Array, value);
-    public static MpgsqlParameter NullableFloat64Array(ReadOnlyMemory<double?>? value) => NullableArray<double, Float64Codec>((uint)TypeOid.Float64Array, value);
-    public static MpgsqlParameter Numeric(PgNumeric? value) => Scalar<PgNumeric, NumericCodec>((uint)TypeOid.Numeric, value);
-    public static MpgsqlParameter NumericArray(ReadOnlyMemory<PgNumeric>? value) => Array<PgNumeric, NumericCodec>((uint)TypeOid.NumericArray, value);
-    public static MpgsqlParameter NullableNumericArray(ReadOnlyMemory<PgNumeric?>? value) => NullableArray<PgNumeric, NumericCodec>((uint)TypeOid.NumericArray, value);
-    public static MpgsqlParameter Money(long? value) => Scalar<long, MoneyCodec>((uint)TypeOid.Money, value);
-    public static MpgsqlParameter MoneyArray(ReadOnlyMemory<long>? value) => Array<long, MoneyCodec>((uint)TypeOid.MoneyArray, value);
-    public static MpgsqlParameter NullableMoneyArray(ReadOnlyMemory<long?>? value) => NullableArray<long, MoneyCodec>((uint)TypeOid.MoneyArray, value);
-    public static MpgsqlParameter Text(string? value) => Reference<string, TextCodec>((uint)TypeOid.Text, value);
-    public static MpgsqlParameter TextArray(ReadOnlyMemory<string?>? value) => ReferenceArray<string, TextCodec>((uint)TypeOid.TextArray, value);
-    public static MpgsqlParameter VarChar(string? value) => Reference<string, VarCharCodec>((uint)TypeOid.VarChar, value);
-    public static MpgsqlParameter VarCharArray(ReadOnlyMemory<string?>? value) => ReferenceArray<string, VarCharCodec>((uint)TypeOid.VarCharArray, value);
-    public static MpgsqlParameter BpChar(string? value) => Reference<string, BpCharCodec>((uint)TypeOid.BpChar, value);
-    public static MpgsqlParameter BpCharArray(ReadOnlyMemory<string?>? value) => ReferenceArray<string, BpCharCodec>((uint)TypeOid.BpCharArray, value);
-    public static MpgsqlParameter Name(string? value) => Reference<string, NameCodec>((uint)TypeOid.Name, value);
-    public static MpgsqlParameter NameArray(ReadOnlyMemory<string?>? value) => ReferenceArray<string, NameCodec>((uint)TypeOid.NameArray, value);
-    public static MpgsqlParameter Uuid(Guid? value) => Scalar<Guid, UuidCodec>((uint)TypeOid.Uuid, value);
-    public static MpgsqlParameter UuidArray(ReadOnlyMemory<Guid>? value) => Array<Guid, UuidCodec>((uint)TypeOid.UuidArray, value);
-    public static MpgsqlParameter NullableUuidArray(ReadOnlyMemory<Guid?>? value) => NullableArray<Guid, UuidCodec>((uint)TypeOid.UuidArray, value);
-    public static MpgsqlParameter Json(string? value) => Reference<string, JsonCodec>((uint)TypeOid.Json, value);
-    public static MpgsqlParameter JsonArray(ReadOnlyMemory<string?>? value) => ReferenceArray<string, JsonCodec>((uint)TypeOid.JsonArray, value);
-    public static MpgsqlParameter Jsonb(Memory<byte>? value) => Scalar<Memory<byte>, JsonbCodec>((uint)TypeOid.Jsonb, value);
-    public static MpgsqlParameter JsonbArray(ReadOnlyMemory<Memory<byte>>? value) => Array<Memory<byte>, JsonbCodec>((uint)TypeOid.JsonbArray, value);
-    public static MpgsqlParameter NullableJsonbArray(ReadOnlyMemory<Memory<byte>?>? value) => NullableArray<Memory<byte>, JsonbCodec>((uint)TypeOid.JsonbArray, value);
-    public static MpgsqlParameter Xml(string? value) => Reference<string, XmlCodec>((uint)TypeOid.Xml, value);
-    public static MpgsqlParameter XmlArray(ReadOnlyMemory<string?>? value) => ReferenceArray<string, XmlCodec>((uint)TypeOid.XmlArray, value);
-    public static MpgsqlParameter Date(PgDate? value) => Scalar<PgDate, DateCodec>((uint)TypeOid.Date, value);
-    public static MpgsqlParameter DateArray(ReadOnlyMemory<PgDate>? value) => Array<PgDate, DateCodec>((uint)TypeOid.DateArray, value);
-    public static MpgsqlParameter NullableDateArray(ReadOnlyMemory<PgDate?>? value) => NullableArray<PgDate, DateCodec>((uint)TypeOid.DateArray, value);
-    public static MpgsqlParameter Time(PgTime? value) => Scalar<PgTime, TimeCodec>((uint)TypeOid.Time, value);
-    public static MpgsqlParameter TimeArray(ReadOnlyMemory<PgTime>? value) => Array<PgTime, TimeCodec>((uint)TypeOid.TimeArray, value);
-    public static MpgsqlParameter NullableTimeArray(ReadOnlyMemory<PgTime?>? value) => NullableArray<PgTime, TimeCodec>((uint)TypeOid.TimeArray, value);
-    public static MpgsqlParameter TimeTz(PgTimeTz? value) => Scalar<PgTimeTz, TimeTzCodec>((uint)TypeOid.TimeTz, value);
-    public static MpgsqlParameter TimeTzArray(ReadOnlyMemory<PgTimeTz>? value) => Array<PgTimeTz, TimeTzCodec>((uint)TypeOid.TimeTzArray, value);
-    public static MpgsqlParameter NullableTimeTzArray(ReadOnlyMemory<PgTimeTz?>? value) => NullableArray<PgTimeTz, TimeTzCodec>((uint)TypeOid.TimeTzArray, value);
-    public static MpgsqlParameter Timestamp(PgTimestamp? value) => Scalar<PgTimestamp, TimestampCodec>((uint)TypeOid.Timestamp, value);
-    public static MpgsqlParameter TimestampArray(ReadOnlyMemory<PgTimestamp>? value) => Array<PgTimestamp, TimestampCodec>((uint)TypeOid.TimestampArray, value);
-    public static MpgsqlParameter NullableTimestampArray(ReadOnlyMemory<PgTimestamp?>? value) => NullableArray<PgTimestamp, TimestampCodec>((uint)TypeOid.TimestampArray, value);
-    public static MpgsqlParameter TimestampTz(PgTimestampTz? value) => Scalar<PgTimestampTz, TimestampTzCodec>((uint)TypeOid.TimestampTz, value);
-    public static MpgsqlParameter TimestampTzArray(ReadOnlyMemory<PgTimestampTz>? value) => Array<PgTimestampTz, TimestampTzCodec>((uint)TypeOid.TimestampTzArray, value);
-    public static MpgsqlParameter NullableTimestampTzArray(ReadOnlyMemory<PgTimestampTz?>? value) => NullableArray<PgTimestampTz, TimestampTzCodec>((uint)TypeOid.TimestampTzArray, value);
-    public static MpgsqlParameter Interval(PgInterval? value) => Scalar<PgInterval, IntervalCodec>((uint)TypeOid.Interval, value);
-    public static MpgsqlParameter IntervalArray(ReadOnlyMemory<PgInterval>? value) => Array<PgInterval, IntervalCodec>((uint)TypeOid.IntervalArray, value);
-    public static MpgsqlParameter NullableIntervalArray(ReadOnlyMemory<PgInterval?>? value) => NullableArray<PgInterval, IntervalCodec>((uint)TypeOid.IntervalArray, value);
-    public static MpgsqlParameter Inet(PgInet? value) => Scalar<PgInet, InetCodec>((uint)TypeOid.Inet, value);
-    public static MpgsqlParameter InetArray(ReadOnlyMemory<PgInet>? value) => Array<PgInet, InetCodec>((uint)TypeOid.InetArray, value);
-    public static MpgsqlParameter NullableInetArray(ReadOnlyMemory<PgInet?>? value) => NullableArray<PgInet, InetCodec>((uint)TypeOid.InetArray, value);
-    public static MpgsqlParameter Cidr(PgInet? value) => Scalar<PgInet, CidrCodec>((uint)TypeOid.Cidr, value);
-    public static MpgsqlParameter CidrArray(ReadOnlyMemory<PgInet>? value) => Array<PgInet, CidrCodec>((uint)TypeOid.CidrArray, value);
-    public static MpgsqlParameter NullableCidrArray(ReadOnlyMemory<PgInet?>? value) => NullableArray<PgInet, CidrCodec>((uint)TypeOid.CidrArray, value);
-    public static MpgsqlParameter Oid(uint? value) => Scalar<uint, OidCodec>((uint)TypeOid.Oid, value);
-    public static MpgsqlParameter OidArray(ReadOnlyMemory<uint>? value) => Array<uint, OidCodec>((uint)TypeOid.OidArray, value);
-    public static MpgsqlParameter NullableOidArray(ReadOnlyMemory<uint?>? value) => NullableArray<uint, OidCodec>((uint)TypeOid.OidArray, value);
-    public static MpgsqlParameter Decimal(decimal? value) => Scalar<decimal, DecimalCodec>((uint)TypeOid.Numeric, value);
-    public static MpgsqlParameter DecimalArray(ReadOnlyMemory<decimal>? value) => Array<decimal, DecimalCodec>((uint)TypeOid.NumericArray, value);
-    public static MpgsqlParameter NullableDecimalArray(ReadOnlyMemory<decimal?>? value) => NullableArray<decimal, DecimalCodec>((uint)TypeOid.NumericArray, value);
-    public static MpgsqlParameter DateOnly(DateOnly? value) => Scalar<DateOnly, DateClrCodec>((uint)TypeOid.Date, value);
-    public static MpgsqlParameter DateOnlyArray(ReadOnlyMemory<DateOnly>? value) => Array<DateOnly, DateClrCodec>((uint)TypeOid.DateArray, value);
-    public static MpgsqlParameter NullableDateOnlyArray(ReadOnlyMemory<DateOnly?>? value) => NullableArray<DateOnly, DateClrCodec>((uint)TypeOid.DateArray, value);
-    public static MpgsqlParameter TimeOnly(TimeOnly? value) => Scalar<TimeOnly, TimeClrCodec>((uint)TypeOid.Time, value);
-    public static MpgsqlParameter TimeOnlyArray(ReadOnlyMemory<TimeOnly>? value) => Array<TimeOnly, TimeClrCodec>((uint)TypeOid.TimeArray, value);
-    public static MpgsqlParameter NullableTimeOnlyArray(ReadOnlyMemory<TimeOnly?>? value) => NullableArray<TimeOnly, TimeClrCodec>((uint)TypeOid.TimeArray, value);
-    public static MpgsqlParameter DateTime(DateTime? value) => Scalar<DateTime, TimestampClrCodec>((uint)TypeOid.Timestamp, value);
-    public static MpgsqlParameter DateTimeArray(ReadOnlyMemory<DateTime>? value) => Array<DateTime, TimestampClrCodec>((uint)TypeOid.TimestampArray, value);
-    public static MpgsqlParameter NullableDateTimeArray(ReadOnlyMemory<DateTime?>? value) => NullableArray<DateTime, TimestampClrCodec>((uint)TypeOid.TimestampArray, value);
-    public static MpgsqlParameter DateTimeOffset(DateTimeOffset? value) => Scalar<DateTimeOffset, TimestampTzClrCodec>((uint)TypeOid.TimestampTz, value);
-    public static MpgsqlParameter DateTimeOffsetArray(ReadOnlyMemory<DateTimeOffset>? value) => Array<DateTimeOffset, TimestampTzClrCodec>((uint)TypeOid.TimestampTzArray, value);
-    public static MpgsqlParameter NullableDateTimeOffsetArray(ReadOnlyMemory<DateTimeOffset?>? value) => NullableArray<DateTimeOffset, TimestampTzClrCodec>((uint)TypeOid.TimestampTzArray, value);
-    public static MpgsqlParameter TimeSpan(TimeSpan? value) => Scalar<TimeSpan, IntervalClrCodec>((uint)TypeOid.Interval, value);
-    public static MpgsqlParameter TimeSpanArray(ReadOnlyMemory<TimeSpan>? value) => Array<TimeSpan, IntervalClrCodec>((uint)TypeOid.IntervalArray, value);
-    public static MpgsqlParameter NullableTimeSpanArray(ReadOnlyMemory<TimeSpan?>? value) => NullableArray<TimeSpan, IntervalClrCodec>((uint)TypeOid.IntervalArray, value);
-    public static MpgsqlParameter ByteaByteArrays(ReadOnlyMemory<byte[]?>? value) => ReferenceArray<byte[], ByteArrayCodec>((uint)TypeOid.ByteaArray, value);
+    public static MpgsqlParameter<long?> Int64(long? value)
+    {
+        return new MpgsqlParameter<long?>(TypeOid.Int64, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<long>?> Int64Array(ReadOnlyMemory<long>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<long>?>(TypeOid.Int64Array, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<long?>?> NullableInt64Array(ReadOnlyMemory<long?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<long?>?>(TypeOid.Int64Array, value);
+    }
+    public static MpgsqlParameter<bool?> Boolean(bool? value)
+    {
+        return new MpgsqlParameter<bool?>(TypeOid.Boolean, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<bool>?> BooleanArray(ReadOnlyMemory<bool>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<bool>?>(TypeOid.BooleanArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<bool?>?> NullableBooleanArray(ReadOnlyMemory<bool?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<bool?>?>(TypeOid.BooleanArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<byte>?> Bytea(ReadOnlyMemory<byte>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<byte>?>(TypeOid.Bytea, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<ReadOnlyMemory<byte>>?> ByteaArray(ReadOnlyMemory<ReadOnlyMemory<byte>>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<ReadOnlyMemory<byte>>?>(TypeOid.ByteaArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<ReadOnlyMemory<byte>?>?> NullableByteaArray(ReadOnlyMemory<ReadOnlyMemory<byte>?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<ReadOnlyMemory<byte>?>?>(TypeOid.ByteaArray, value);
+    }
+    public static MpgsqlParameter<short?> Int16(short? value)
+    {
+        return new MpgsqlParameter<short?>(TypeOid.Int16, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<short>?> Int16Array(ReadOnlyMemory<short>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<short>?>(TypeOid.Int16Array, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<short?>?> NullableInt16Array(ReadOnlyMemory<short?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<short?>?>(TypeOid.Int16Array, value);
+    }
+    public static MpgsqlParameter<int?> Int32(int? value)
+    {
+        return new MpgsqlParameter<int?>(TypeOid.Int32, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<int>?> Int32Array(ReadOnlyMemory<int>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<int>?>(TypeOid.Int32Array, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<int?>?> NullableInt32Array(ReadOnlyMemory<int?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<int?>?>(TypeOid.Int32Array, value);
+    }
+    public static MpgsqlParameter<float?> Float32(float? value)
+    {
+        return new MpgsqlParameter<float?>(TypeOid.Float32, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<float>?> Float32Array(ReadOnlyMemory<float>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<float>?>(TypeOid.Float32Array, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<float?>?> NullableFloat32Array(ReadOnlyMemory<float?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<float?>?>(TypeOid.Float32Array, value);
+    }
+    public static MpgsqlParameter<double?> Float64(double? value)
+    {
+        return new MpgsqlParameter<double?>(TypeOid.Float64, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<double>?> Float64Array(ReadOnlyMemory<double>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<double>?>(TypeOid.Float64Array, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<double?>?> NullableFloat64Array(ReadOnlyMemory<double?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<double?>?>(TypeOid.Float64Array, value);
+    }
+    public static MpgsqlParameter<PgNumeric?> Numeric(PgNumeric? value)
+    {
+        return new MpgsqlParameter<PgNumeric?>(TypeOid.Numeric, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<PgNumeric>?> NumericArray(ReadOnlyMemory<PgNumeric>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<PgNumeric>?>(TypeOid.NumericArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<PgNumeric?>?> NullableNumericArray(ReadOnlyMemory<PgNumeric?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<PgNumeric?>?>(TypeOid.NumericArray, value);
+    }
+    public static MpgsqlParameter<long?> Money(long? value)
+    {
+        return new MpgsqlParameter<long?>(TypeOid.Money, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<long>?> MoneyArray(ReadOnlyMemory<long>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<long>?>(TypeOid.MoneyArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<long?>?> NullableMoneyArray(ReadOnlyMemory<long?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<long?>?>(TypeOid.MoneyArray, value);
+    }
+    public static MpgsqlParameter<string?> Text(string? value)
+    {
+        return new MpgsqlParameter<string?>(TypeOid.Text, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<string?>?> TextArray(ReadOnlyMemory<string?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<string?>?>(TypeOid.TextArray, value);
+    }
+    public static MpgsqlParameter<string?> VarChar(string? value)
+    {
+        return new MpgsqlParameter<string?>(TypeOid.VarChar, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<string?>?> VarCharArray(ReadOnlyMemory<string?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<string?>?>(TypeOid.VarCharArray, value);
+    }
+    public static MpgsqlParameter<string?> BpChar(string? value)
+    {
+        return new MpgsqlParameter<string?>(TypeOid.BpChar, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<string?>?> BpCharArray(ReadOnlyMemory<string?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<string?>?>(TypeOid.BpCharArray, value);
+    }
+    public static MpgsqlParameter<string?> Name(string? value)
+    {
+        return new MpgsqlParameter<string?>(TypeOid.Name, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<string?>?> NameArray(ReadOnlyMemory<string?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<string?>?>(TypeOid.NameArray, value);
+    }
+    public static MpgsqlParameter<Guid?> Uuid(Guid? value)
+    {
+        return new MpgsqlParameter<Guid?>(TypeOid.Uuid, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<Guid>?> UuidArray(ReadOnlyMemory<Guid>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<Guid>?>(TypeOid.UuidArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<Guid?>?> NullableUuidArray(ReadOnlyMemory<Guid?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<Guid?>?>(TypeOid.UuidArray, value);
+    }
+    public static MpgsqlParameter<string?> Json(string? value)
+    {
+        return new MpgsqlParameter<string?>(TypeOid.Json, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<string?>?> JsonArray(ReadOnlyMemory<string?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<string?>?>(TypeOid.JsonArray, value);
+    }
+    public static MpgsqlParameter<Memory<byte>?> Jsonb(Memory<byte>? value)
+    {
+        return new MpgsqlParameter<Memory<byte>?>(TypeOid.Jsonb, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<Memory<byte>>?> JsonbArray(ReadOnlyMemory<Memory<byte>>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<Memory<byte>>?>(TypeOid.JsonbArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<Memory<byte>?>?> NullableJsonbArray(ReadOnlyMemory<Memory<byte>?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<Memory<byte>?>?>(TypeOid.JsonbArray, value);
+    }
+    public static MpgsqlParameter<string?> Xml(string? value)
+    {
+        return new MpgsqlParameter<string?>(TypeOid.Xml, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<string?>?> XmlArray(ReadOnlyMemory<string?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<string?>?>(TypeOid.XmlArray, value);
+    }
+    public static MpgsqlParameter<PgDate?> Date(PgDate? value)
+    {
+        return new MpgsqlParameter<PgDate?>(TypeOid.Date, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<PgDate>?> DateArray(ReadOnlyMemory<PgDate>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<PgDate>?>(TypeOid.DateArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<PgDate?>?> NullableDateArray(ReadOnlyMemory<PgDate?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<PgDate?>?>(TypeOid.DateArray, value);
+    }
+    public static MpgsqlParameter<PgTime?> Time(PgTime? value)
+    {
+        return new MpgsqlParameter<PgTime?>(TypeOid.Time, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<PgTime>?> TimeArray(ReadOnlyMemory<PgTime>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<PgTime>?>(TypeOid.TimeArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<PgTime?>?> NullableTimeArray(ReadOnlyMemory<PgTime?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<PgTime?>?>(TypeOid.TimeArray, value);
+    }
+    public static MpgsqlParameter<PgTimeTz?> TimeTz(PgTimeTz? value)
+    {
+        return new MpgsqlParameter<PgTimeTz?>(TypeOid.TimeTz, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<PgTimeTz>?> TimeTzArray(ReadOnlyMemory<PgTimeTz>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<PgTimeTz>?>(TypeOid.TimeTzArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<PgTimeTz?>?> NullableTimeTzArray(ReadOnlyMemory<PgTimeTz?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<PgTimeTz?>?>(TypeOid.TimeTzArray, value);
+    }
+    public static MpgsqlParameter<PgTimestamp?> Timestamp(PgTimestamp? value)
+    {
+        return new MpgsqlParameter<PgTimestamp?>(TypeOid.Timestamp, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<PgTimestamp>?> TimestampArray(ReadOnlyMemory<PgTimestamp>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<PgTimestamp>?>(TypeOid.TimestampArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<PgTimestamp?>?> NullableTimestampArray(ReadOnlyMemory<PgTimestamp?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<PgTimestamp?>?>(TypeOid.TimestampArray, value);
+    }
+    public static MpgsqlParameter<PgTimestampTz?> TimestampTz(PgTimestampTz? value)
+    {
+        return new MpgsqlParameter<PgTimestampTz?>(TypeOid.TimestampTz, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<PgTimestampTz>?> TimestampTzArray(ReadOnlyMemory<PgTimestampTz>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<PgTimestampTz>?>(TypeOid.TimestampTzArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<PgTimestampTz?>?> NullableTimestampTzArray(ReadOnlyMemory<PgTimestampTz?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<PgTimestampTz?>?>(TypeOid.TimestampTzArray, value);
+    }
+    public static MpgsqlParameter<PgInterval?> Interval(PgInterval? value)
+    {
+        return new MpgsqlParameter<PgInterval?>(TypeOid.Interval, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<PgInterval>?> IntervalArray(ReadOnlyMemory<PgInterval>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<PgInterval>?>(TypeOid.IntervalArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<PgInterval?>?> NullableIntervalArray(ReadOnlyMemory<PgInterval?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<PgInterval?>?>(TypeOid.IntervalArray, value);
+    }
+    public static MpgsqlParameter<PgInet?> Inet(PgInet? value)
+    {
+        return new MpgsqlParameter<PgInet?>(TypeOid.Inet, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<PgInet>?> InetArray(ReadOnlyMemory<PgInet>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<PgInet>?>(TypeOid.InetArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<PgInet?>?> NullableInetArray(ReadOnlyMemory<PgInet?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<PgInet?>?>(TypeOid.InetArray, value);
+    }
+    public static MpgsqlParameter<PgInet?> Cidr(PgInet? value)
+    {
+        return new MpgsqlParameter<PgInet?>(TypeOid.Cidr, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<PgInet>?> CidrArray(ReadOnlyMemory<PgInet>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<PgInet>?>(TypeOid.CidrArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<PgInet?>?> NullableCidrArray(ReadOnlyMemory<PgInet?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<PgInet?>?>(TypeOid.CidrArray, value);
+    }
+    public static MpgsqlParameter<uint?> Oid(uint? value)
+    {
+        return new MpgsqlParameter<uint?>(TypeOid.Oid, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<uint>?> OidArray(ReadOnlyMemory<uint>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<uint>?>(TypeOid.OidArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<uint?>?> NullableOidArray(ReadOnlyMemory<uint?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<uint?>?>(TypeOid.OidArray, value);
+    }
+    public static MpgsqlParameter<decimal?> Decimal(decimal? value)
+    {
+        return new MpgsqlParameter<decimal?>(TypeOid.Numeric, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<decimal>?> DecimalArray(ReadOnlyMemory<decimal>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<decimal>?>(TypeOid.NumericArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<decimal?>?> NullableDecimalArray(ReadOnlyMemory<decimal?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<decimal?>?>(TypeOid.NumericArray, value);
+    }
+    public static MpgsqlParameter<DateOnly?> DateOnly(DateOnly? value)
+    {
+        return new MpgsqlParameter<DateOnly?>(TypeOid.Date, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<DateOnly>?> DateOnlyArray(ReadOnlyMemory<DateOnly>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<DateOnly>?>(TypeOid.DateArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<DateOnly?>?> NullableDateOnlyArray(ReadOnlyMemory<DateOnly?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<DateOnly?>?>(TypeOid.DateArray, value);
+    }
+    public static MpgsqlParameter<TimeOnly?> TimeOnly(TimeOnly? value)
+    {
+        return new MpgsqlParameter<TimeOnly?>(TypeOid.Time, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<TimeOnly>?> TimeOnlyArray(ReadOnlyMemory<TimeOnly>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<TimeOnly>?>(TypeOid.TimeArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<TimeOnly?>?> NullableTimeOnlyArray(ReadOnlyMemory<TimeOnly?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<TimeOnly?>?>(TypeOid.TimeArray, value);
+    }
+    public static MpgsqlParameter<DateTime?> DateTime(DateTime? value)
+    {
+        return new MpgsqlParameter<DateTime?>(TypeOid.Timestamp, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<DateTime>?> DateTimeArray(ReadOnlyMemory<DateTime>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<DateTime>?>(TypeOid.TimestampArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<DateTime?>?> NullableDateTimeArray(ReadOnlyMemory<DateTime?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<DateTime?>?>(TypeOid.TimestampArray, value);
+    }
+    public static MpgsqlParameter<DateTimeOffset?> DateTimeOffset(DateTimeOffset? value)
+    {
+        return new MpgsqlParameter<DateTimeOffset?>(TypeOid.TimestampTz, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<DateTimeOffset>?> DateTimeOffsetArray(ReadOnlyMemory<DateTimeOffset>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<DateTimeOffset>?>(TypeOid.TimestampTzArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<DateTimeOffset?>?> NullableDateTimeOffsetArray(ReadOnlyMemory<DateTimeOffset?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<DateTimeOffset?>?>(TypeOid.TimestampTzArray, value);
+    }
+    public static MpgsqlParameter<TimeSpan?> TimeSpan(TimeSpan? value)
+    {
+        return new MpgsqlParameter<TimeSpan?>(TypeOid.Interval, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<TimeSpan>?> TimeSpanArray(ReadOnlyMemory<TimeSpan>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<TimeSpan>?>(TypeOid.IntervalArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<TimeSpan?>?> NullableTimeSpanArray(ReadOnlyMemory<TimeSpan?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<TimeSpan?>?>(TypeOid.IntervalArray, value);
+    }
+    public static MpgsqlParameter<ReadOnlyMemory<byte[]?>?> ByteaByteArrays(ReadOnlyMemory<byte[]?>? value)
+    {
+        return new MpgsqlParameter<ReadOnlyMemory<byte[]?>?>(TypeOid.ByteaArray, value);
+    }
 }

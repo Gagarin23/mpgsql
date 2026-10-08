@@ -17,14 +17,22 @@ public sealed class BufferedReaderTests
             Command("SELECT 3"), Query(4), Ready()));
         await batch.Completion.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         await using var reader = await batch.ReadResultsAsync();
-        Assert.True(await reader.ReadAsync()); Assert.Equal(1, reader.GetInt64(0));
-        Assert.True(await reader.ReadAsync()); Assert.True(reader.IsDBNull(0)); Assert.Null(reader.GetInt64(0));
-        Assert.True(await reader.ReadAsync()); Assert.Equal(3, reader.GetInt64(0));
-        Assert.False(await reader.ReadAsync()); Assert.Equal("SELECT 3", reader.CommandTag);
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(1, reader.GetInt64(0));
+        Assert.True(await reader.ReadAsync());
+        Assert.True(reader.IsDBNull(0));
+        Assert.Null(reader.GetInt64(0));
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(3, reader.GetInt64(0));
         Assert.False(await reader.ReadAsync());
-        Assert.True(await reader.NextResultAsync()); Assert.Equal(1, reader.QueryIndex);
-        Assert.True(await reader.ReadAsync()); Assert.Equal(4, reader.GetInt64(0));
-        Assert.False(await reader.ReadAsync()); Assert.False(await reader.NextResultAsync());
+        Assert.Equal("SELECT 3", reader.CommandTag);
+        Assert.False(await reader.ReadAsync());
+        Assert.True(await reader.NextResultAsync());
+        Assert.Equal(1, reader.QueryIndex);
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(4, reader.GetInt64(0));
+        Assert.False(await reader.ReadAsync());
+        Assert.False(await reader.NextResultAsync());
         Assert.True(wire.Session.IsIdleAndHealthy);
     }
 

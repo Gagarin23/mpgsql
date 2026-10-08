@@ -6,26 +6,28 @@ namespace Mpgsql.Tests.Queries;
 
 public sealed class ResultNotificationRaceTests
 {
-    [ThreadStatic] private static bool _publishing;
+    [ThreadStatic]
+    private static bool _publishing;
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task ConcurrentNotificationAndImmediateSourceReuseKeepEveryEvent(bool deferred)
     {
         var token = TestContext.Current.CancellationToken;
         var buffer = new ResultEventBuffer();
-        var requests = Channel.CreateUnbounded<int>(new() { SingleReader = true, SingleWriter = true });
+        var requests = Channel.CreateUnbounded<int>(new UnboundedChannelOptions {SingleReader = true, SingleWriter = true});
         const int iterations = 4096;
         var producer = Task.Run(async () =>
         {
-            await foreach (int index in requests.Reader.ReadAllAsync(token).ConfigureAwait(false))
+            await foreach (var index in requests.Reader.ReadAllAsync(token).ConfigureAwait(false))
             {
                 _publishing = true;
                 try
                 {
-                    Assert.True(buffer.TryWrite(new(index, default), notify: !deferred));
-                    if (deferred) buffer.NotifyAvailable();
+                    Assert.True(buffer.TryWrite(new ResultEvent(index, default), !deferred));
+                    if (deferred)
+                    {
+                        buffer.NotifyAvailable();
+                    }
                 }
                 finally { _publishing = false; }
             }
@@ -36,7 +38,7 @@ public sealed class ResultNotificationRaceTests
             // could hide an inline source continuation and make the publisher assertion vacuous.
             await Task.Run(async () =>
             {
-                for (int index = 0; index < iterations; index++)
+                for (var index = 0; index < iterations; index++)
                 {
                     var notification = buffer.WaitToReadAsync();
                     Assert.False(notification.IsCompleted);
@@ -59,13 +61,11 @@ public sealed class ResultNotificationRaceTests
         }
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task NotificationRacingFaultAndDrainPreservesExactlyOneTerminalError(bool deferred)
     {
         var token = TestContext.Current.CancellationToken;
-        for (int iteration = 0; iteration < 128; iteration++)
+        for (var iteration = 0; iteration < 128; iteration++)
         {
             var buffer = new ResultEventBuffer();
             var notification = buffer.WaitToReadAsync().AsTask();
@@ -74,8 +74,10 @@ public sealed class ResultNotificationRaceTests
             var producer = Task.Run(async () =>
             {
                 await start.Task.ConfigureAwait(false);
-                if (buffer.TryWrite(new(iteration, default), notify: !deferred) && deferred)
+                if (buffer.TryWrite(new ResultEvent(iteration, default), !deferred) && deferred)
+                {
                     buffer.NotifyAvailable();
+                }
             }, token);
             var terminal = Task.Run(async () =>
             {

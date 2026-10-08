@@ -1,7 +1,6 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
-using Mpgsql.Types;
 
 namespace Mpgsql.Converters;
 
@@ -29,6 +28,9 @@ internal readonly struct Float32Codec : IBinaryCodec<float>
 
         return value;
     }
-    public static float Read(ReadOnlySequence<byte> payload) => payload.IsSingleSegment ? Read(payload.FirstSpan) : BitConverter.Int32BitsToSingle(unchecked((int)BinaryPayload.ReadUnsigned(payload, 4)));
+    public static float Read(ReadOnlySequence<byte> payload)
+    {
+        return payload.IsSingleSegment ? Read(payload.FirstSpan) : BitConverter.Int32BitsToSingle(unchecked((int)BinaryPayload.ReadUnsigned(payload, 4)));
+    }
 
 }

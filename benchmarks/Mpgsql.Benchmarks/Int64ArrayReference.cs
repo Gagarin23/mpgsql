@@ -11,10 +11,10 @@ internal static class Int64ArrayReference
     internal static int WriteScalar(ReadOnlyMemory<long> value,
         Span<byte> destination)
     {
-        int size = Header(value,
+        var size = Header(value,
             destination);
-        int offset = 20;
-        foreach (long item in value.Span)
+        var offset = 20;
+        foreach (var item in value.Span)
         {
             BinaryPrimitives.WriteInt32BigEndian(destination[offset..],
                 8);
@@ -29,7 +29,7 @@ internal static class Int64ArrayReference
         Span<byte> destination,
         bool fill)
     {
-        int size = Header(value,
+        var size = Header(value,
             destination);
         if (value.IsEmpty)
         {
@@ -47,13 +47,13 @@ internal static class Int64ArrayReference
         Span<byte> destination,
         bool fill)
     {
-        int size = Header(value,
+        var size = Header(value,
             destination);
         if (value.IsEmpty)
         {
             return size;
         }
-        int wordCount = checked(value.Length * 3);
+        var wordCount = checked(value.Length * 3);
         using var owner = MemoryPool<int>.Shared.Rent(wordCount);
         var words = owner.Memory.Span[..wordCount];
         Pack(value.Span,
@@ -71,10 +71,10 @@ internal static class Int64ArrayReference
         {
             words.Fill(8);
         }
-        for (int i = 0; i < value.Length; i++)
+        for (var i = 0; i < value.Length; i++)
         {
-            long item = value[i];
-            int offset = i * 3;
+            var item = value[i];
+            var offset = i * 3;
             if (!fill)
             {
                 words[offset] = 8;
@@ -92,7 +92,7 @@ internal static class Int64ArrayReference
     private static int Header(ReadOnlyMemory<long> value,
         Span<byte> destination)
     {
-        int size = Int64ArrayConverter.GetByteCount(value);
+        var size = Int64ArrayConverter.GetByteCount(value);
         if (destination.Length < size)
         {
             throw new ArgumentException("Insufficient capacity.");
@@ -133,8 +133,8 @@ internal static class Int64ArrayReference
         {
             throw new InvalidDataException();
         }
-        int count = 0;
-        int lowerBound = 0;
+        var count = 0;
+        var lowerBound = 0;
         if (dimensions == 1 && (!reader.TryReadBigEndian(out count) || !reader.TryReadBigEndian(out lowerBound)))
         {
             throw new InvalidDataException();
@@ -147,11 +147,13 @@ internal static class Int64ArrayReference
             payload.Length,
             destination.Length);
         foreach (var segment in payload)
+        {
             if (segment.Span.Overlaps(MemoryMarshal.AsBytes(destination[..count])))
             {
                 throw new ArgumentException("Overlapping storage.");
             }
-        for (int i = 0; i < count; i++)
+        }
+        for (var i = 0; i < count; i++)
         {
             if (!reader.TryReadBigEndian(out int length) || length != 8 || !reader.TryReadBigEndian(out long value))
             {
@@ -169,15 +171,15 @@ internal static class Int64ArrayReference
         {
             throw new InvalidDataException();
         }
-        int dimensions = BinaryPrimitives.ReadInt32BigEndian(payload);
-        int flags = BinaryPrimitives.ReadInt32BigEndian(payload[4..]);
-        int oid = BinaryPrimitives.ReadInt32BigEndian(payload[8..]);
+        var dimensions = BinaryPrimitives.ReadInt32BigEndian(payload);
+        var flags = BinaryPrimitives.ReadInt32BigEndian(payload[4..]);
+        var oid = BinaryPrimitives.ReadInt32BigEndian(payload[8..]);
         if (dimensions == 1 && payload.Length < 20)
         {
             throw new InvalidDataException();
         }
-        int count = dimensions == 1 ? BinaryPrimitives.ReadInt32BigEndian(payload[12..]) : 0;
-        int lowerBound = dimensions == 1 ? BinaryPrimitives.ReadInt32BigEndian(payload[16..]) : 0;
+        var count = dimensions == 1 ? BinaryPrimitives.ReadInt32BigEndian(payload[12..]) : 0;
+        var lowerBound = dimensions == 1 ? BinaryPrimitives.ReadInt32BigEndian(payload[16..]) : 0;
         ValidateHeader(dimensions,
             flags,
             oid,
@@ -189,7 +191,7 @@ internal static class Int64ArrayReference
         {
             throw new ArgumentException("Overlapping storage.");
         }
-        for (int i = 0; i < count; i++)
+        for (var i = 0; i < count; i++)
         {
             if (BinaryPrimitives.ReadInt32BigEndian(payload[(20 + i * 12)..]) != 8)
             {

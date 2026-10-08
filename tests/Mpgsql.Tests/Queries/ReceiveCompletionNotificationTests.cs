@@ -31,9 +31,18 @@ public sealed class ReceiveCompletionNotificationTests
         Assert.Equal(11, reader.GetInt64(0));
         Assert.Equal(0, reader.QueryIndex);
         Assert.Equal(14, wire.Session.BufferedRowBytes);
-        if (release == 2) request.Cancel();
-        if (release != 0) await reader.DisposeAsync().AsTask().WaitAsync(TestTimeout, token);
-        else await FinishAsync(reader, token);
+        if (release == 2)
+        {
+            request.Cancel();
+        }
+        if (release != 0)
+        {
+            await reader.DisposeAsync().AsTask().WaitAsync(TestTimeout, token);
+        }
+        else
+        {
+            await FinishAsync(reader, token);
+        }
         await using var next = await secondOpening.WaitAsync(TestTimeout, token);
         Assert.True(await next.ReadAsync());
         Assert.Equal(22, next.GetInt64(0));
@@ -123,7 +132,11 @@ public sealed class ReceiveCompletionNotificationTests
             }
             await FollowingAsync(wire, token);
         }
-        finally { foreach (var batch in batches) if (batch is not null) await batch.DisposeAsync(); }
+        finally { foreach (var batch in batches) if (batch is not null)
+            {
+                await batch.DisposeAsync();
+            }
+        }
     }
 
     [Theory]

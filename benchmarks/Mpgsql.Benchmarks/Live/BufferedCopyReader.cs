@@ -12,16 +12,21 @@ internal sealed class BufferedCopyReader(Stream stream) : IDisposable
     private int _position, _filled;
     internal bool IsDrained => _position == _filled;
 
+    public void Dispose()
+    {
+        ArrayPool<byte>.Shared.Return(_buffer);
+    }
+
     internal BackendMessage Receive()
     {
         Ensure(5);
-        int length = BinaryPrimitives.ReadInt32BigEndian(_buffer.AsSpan(_position + 1,
+        var length = BinaryPrimitives.ReadInt32BigEndian(_buffer.AsSpan(_position + 1,
             4));
         if (length < 4 || length > BackendMessageReader.DefaultMaxMessageLength)
         {
             throw new InvalidDataException("Invalid COPY backend packet length.");
         }
-        int total = checked(length + 1);
+        var total = checked(length + 1);
         Ensure(total);
         var input = new ReadOnlySequence<byte>(_buffer.AsMemory(_position,
             total));
@@ -40,10 +45,10 @@ internal sealed class BufferedCopyReader(Stream stream) : IDisposable
         {
             return;
         }
-        int remaining = _filled - _position;
+        var remaining = _filled - _position;
         if (count > _buffer.Length)
         {
-            byte[] larger = ArrayPool<byte>.Shared.Rent(count);
+            var larger = ArrayPool<byte>.Shared.Rent(count);
             _buffer.AsSpan(_position,
                 remaining).CopyTo(larger);
             ArrayPool<byte>.Shared.Return(_buffer);
@@ -58,7 +63,7 @@ internal sealed class BufferedCopyReader(Stream stream) : IDisposable
         _position = 0;
         while (_filled < count)
         {
-            int read = stream.Read(_buffer.AsSpan(_filled));
+            var read = stream.Read(_buffer.AsSpan(_filled));
             if (read == 0)
             {
                 throw new EndOfStreamException();
@@ -66,6 +71,4 @@ internal sealed class BufferedCopyReader(Stream stream) : IDisposable
             _filled += read;
         }
     }
-
-    public void Dispose() => ArrayPool<byte>.Shared.Return(_buffer);
 }

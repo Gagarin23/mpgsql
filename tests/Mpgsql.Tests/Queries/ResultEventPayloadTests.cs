@@ -7,18 +7,18 @@ namespace Mpgsql.Tests.Queries;
 
 public sealed class ResultEventPayloadTests
 {
-    [Theory]
-    [InlineData(0, 0)]
-    [InlineData(1, 2)]
-    [InlineData(3, 0)]
+    [Theory, InlineData(0, 0), InlineData(1, 2), InlineData(3, 0)]
     public async Task DescriptionKeepsTheExactMemorySliceThroughTheBuffer(int start, int count)
     {
-        RowField[] fields = [new("one", 0, 0, 20, 8, -1, FormatCode.Binary),
-            new("two", 0, 0, 20, 8, -1, FormatCode.Binary),
-            new("three", 0, 0, 20, 8, -1, FormatCode.Binary)];
+        RowField[] fields =
+        [
+            new RowField("one", 0, 0, 20, 8, -1, FormatCode.Binary),
+            new RowField("two", 0, 0, 20, 8, -1, FormatCode.Binary),
+            new RowField("three", 0, 0, 20, 8, -1, FormatCode.Binary)
+        ];
         var columns = fields.AsMemory(start, count);
         var buffer = new ResultEventBuffer();
-        Assert.True(buffer.TryWrite(new(17, columns, IsRowSet: true)));
+        Assert.True(buffer.TryWrite(new ResultEvent(17, columns, IsRowSet: true)));
         buffer.Complete();
         Assert.True(buffer.TryRead(out var result));
         Assert.Equal(17, result.QueryIndex);
@@ -34,9 +34,9 @@ public sealed class ResultEventPayloadTests
     public void NoDataAndEndMarkersKeepTheirDistinctMeanings()
     {
         var buffer = new ResultEventBuffer();
-        Assert.True(buffer.TryWrite(new(2, default)));
-        Assert.True(buffer.TryWrite(new(2, default, CommandTag: "UPDATE 5", IsEnd: true)));
-        Assert.True(buffer.TryWrite(new(3, default, IsEnd: true)));
+        Assert.True(buffer.TryWrite(new ResultEvent(2, default)));
+        Assert.True(buffer.TryWrite(new ResultEvent(2, default, CommandTag: "UPDATE 5", IsEnd: true)));
+        Assert.True(buffer.TryWrite(new ResultEvent(3, default, IsEnd: true)));
         buffer.Complete();
         Assert.True(buffer.TryRead(out var noData));
         Assert.False(noData.IsRowSet);
@@ -61,10 +61,10 @@ public sealed class ResultEventPayloadTests
     {
         var pool = new RowStoragePool();
         var message = new BackendMessage((byte)'D', BackendMessageKind.DataRow,
-            new(Row(Int64(55)).AsMemory(5)), 1);
+            new ReadOnlySequence<byte>(Row(Int64(55)).AsMemory(5)), 1);
         var original = pool.Rent(message, null, null);
         var buffer = new ResultEventBuffer();
-        Assert.True(buffer.TryWrite(new(7, default, original)));
+        Assert.True(buffer.TryWrite(new ResultEvent(7, default, original)));
         Assert.True(buffer.TryRead(out var item));
         var stale = item.Row!.Value;
         original.Dispose();

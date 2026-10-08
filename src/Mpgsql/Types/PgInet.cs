@@ -11,7 +11,7 @@ public readonly record struct PgInet(UInt128 Address, byte PrefixLength, bool Is
     public static PgInet FromIPAddress(IPAddress address, int? prefixLength = null)
     {
         ArgumentNullException.ThrowIfNull(address);
-        bool ipv6 = address.AddressFamily == AddressFamily.InterNetworkV6;
+        var ipv6 = address.AddressFamily == AddressFamily.InterNetworkV6;
         if (!ipv6 && address.AddressFamily != AddressFamily.InterNetwork)
         {
             throw new ArgumentException("Only IPv4 and IPv6 addresses are supported.", nameof(address));
@@ -20,14 +20,14 @@ public readonly record struct PgInet(UInt128 Address, byte PrefixLength, bool Is
         {
             throw new ArgumentException("PostgreSQL inet cannot retain an IPv6 scope ID.", nameof(address));
         }
-        int bits = prefixLength ?? (ipv6 ? 128 : 32);
+        var bits = prefixLength ?? (ipv6 ? 128 : 32);
         if ((uint)bits > (ipv6 ? 128u : 32u))
         {
             throw new ArgumentOutOfRangeException(nameof(prefixLength));
         }
         Span<byte> bytes = stackalloc byte[16];
         address.TryWriteBytes(bytes, out _);
-        return new(ipv6 ? BinaryPrimitives.ReadUInt128BigEndian(bytes) : BinaryPrimitives.ReadUInt32BigEndian(bytes), (byte)bits, ipv6);
+        return new PgInet(ipv6 ? BinaryPrimitives.ReadUInt128BigEndian(bytes) : BinaryPrimitives.ReadUInt32BigEndian(bytes), (byte)bits, ipv6);
     }
 
     public IPAddress ToIPAddress()

@@ -36,6 +36,12 @@ internal readonly struct TimeCodec : IBinaryCodec<PgTime>
         }
         return value;
     }
-    public static PgTime Read(ReadOnlySequence<byte> payload) => BinaryPayload.ReadSmall<PgTime, TimeCodec>(payload, 8);
-    private static bool IsValid(PgTime value) => (ulong)value.Microseconds <= PgTime.MicrosecondsPerDay;
+    public static PgTime Read(ReadOnlySequence<byte> payload)
+    {
+        return BinaryPayload.ReadSmall<PgTime, TimeCodec>(payload, 8);
+    }
+    private static bool IsValid(PgTime value)
+    {
+        return (ulong)value.Microseconds <= PgTime.MicrosecondsPerDay;
+    }
 }

@@ -34,7 +34,7 @@ using Npgsql.Internal;
 
 namespace Mpgsql.Benchmarks.NpgsqlBaseline.Copied;
 
-class MultiWriteState : IDisposable
+internal class MultiWriteState : IDisposable
 {
     public required ArrayPool<(Size Size, object? WriteState)>? ArrayPool { get; init; }
     public required ArraySegment<(Size Size, object? WriteState)> Data { get; init; }
@@ -50,10 +50,12 @@ class MultiWriteState : IDisposable
         if (AnyWriteState)
         {
             for (var i = Data.Offset; i < array.Length; i++)
+            {
                 if (array[i].WriteState is IDisposable disposable)
                 {
                     disposable.Dispose();
                 }
+            }
 
             Array.Clear(Data.Array,
                 Data.Offset,

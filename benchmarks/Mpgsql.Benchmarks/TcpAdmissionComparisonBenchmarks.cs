@@ -1,47 +1,85 @@
 // Longer iterations for paired admission experiments. The 256-request fixed-worker workload
 // is identical to TcpConcurrencyComparisonBenchmarks; both drivers repeat it 64 times.
+
 using BenchmarkDotNet.Attributes;
 using Mpgsql.Benchmarks.Comparison;
 using Mpgsql.Benchmarks.Queries;
 
 namespace Mpgsql.Benchmarks;
 
-[MemoryDiagnoser, JsonExporterAttribute.Full]
-[Config(typeof(QueryBenchmarkConfig)), InvocationCount(64)]
+[MemoryDiagnoser, JsonExporterAttribute.Full, Config(typeof(QueryBenchmarkConfig)), InvocationCount(64)]
 public class TcpAdmissionComparisonBenchmarks
 {
+    private QueryLoadProfile _profile = null!;
     [Params("C1_P1_W1", "C8_P1_W8", "C64_P1_W8", "C64_P4_W8")]
     public string Profile { get; set; } = "C1_P1_W1";
-    private QueryLoadProfile _profile = null!;
-    private TcpComparisonFixture _fixture = null!;
-    internal TcpComparisonFixture Fixture => _fixture;
+    internal TcpComparisonFixture Fixture { get; private set; } = null!;
+
     private async Task Setup(ComparisonDriver driver)
     {
-        _profile = QueryLoadProfile.Find(Profile); _fixture = await TcpComparisonFixture.CreateAsync(driver, _profile);
+        _profile = QueryLoadProfile.Find(Profile);
+        Fixture = await TcpComparisonFixture.CreateAsync(driver, _profile);
     }
-    [GlobalSetup(Target = nameof(MpgsqlDataSource))] public Task SetupMpgsql() => Setup(ComparisonDriver.Mpgsql);
-    [GlobalSetup(Target = nameof(NpgsqlPool))] public Task SetupPool() => Setup(ComparisonDriver.NpgsqlPool);
-    [GlobalSetup(Target = nameof(NpgsqlMultiplexed))] public Task SetupMultiplexed() => Setup(ComparisonDriver.NpgsqlMultiplexed);
-    [Benchmark(Baseline = true, OperationsPerInvoke = 256)] public Task<long> MpgsqlDataSource() => FixedWorkers();
-    [Benchmark(OperationsPerInvoke = 256)] public Task<long> NpgsqlPool() => FixedWorkers();
-    [Benchmark(OperationsPerInvoke = 256)] public Task<long> NpgsqlMultiplexed() => FixedWorkers();
+    [GlobalSetup(Target = nameof(MpgsqlDataSource))]
+    public Task SetupMpgsql()
+    {
+        return Setup(ComparisonDriver.Mpgsql);
+    }
+    [GlobalSetup(Target = nameof(NpgsqlPool))]
+    public Task SetupPool()
+    {
+        return Setup(ComparisonDriver.NpgsqlPool);
+    }
+    [GlobalSetup(Target = nameof(NpgsqlMultiplexed))]
+    public Task SetupMultiplexed()
+    {
+        return Setup(ComparisonDriver.NpgsqlMultiplexed);
+    }
+    [Benchmark(Baseline = true, OperationsPerInvoke = 256)]
+    public Task<long> MpgsqlDataSource()
+    {
+        return FixedWorkers();
+    }
+    [Benchmark(OperationsPerInvoke = 256)]
+    public Task<long> NpgsqlPool()
+    {
+        return FixedWorkers();
+    }
+    [Benchmark(OperationsPerInvoke = 256)]
+    public Task<long> NpgsqlMultiplexed()
+    {
+        return FixedWorkers();
+    }
     private async Task<long> FixedWorkers()
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var workers = new Task<long>[_profile.Callers];
-        for (int worker = 0; worker < workers.Length; worker++) workers[worker] = WorkAsync(worker);
+        for (var worker = 0; worker < workers.Length; worker++)
+        {
+            workers[worker] = WorkAsync(worker);
+        }
         gate.SetResult();
         var values = await Task.WhenAll(workers).ConfigureAwait(false);
-        long sum = 0; foreach (long value in values) sum += value;
+        long sum = 0;
+        foreach (var value in values) sum += value;
         return sum;
+
         async Task<long> WorkAsync(int worker)
         {
-            bool slow = _profile.Mixed && worker % 8 == 0;
+            var slow = _profile.Mixed && worker % 8 == 0;
             long checksum = 0;
             await gate.Task.ConfigureAwait(false);
-            for (int i = worker; i < 256; i += _profile.Callers) checksum += await _fixture.ReadAsync(worker, slow).ConfigureAwait(false);
+            for (var i = worker; i < 256; i += _profile.Callers)
+            {
+                checksum += await Fixture.ReadAsync(worker, slow).ConfigureAwait(false);
+            }
             return checksum;
         }
     }
-    [GlobalCleanup] public async Task Cleanup() { _fixture.CheckIdle(); await _fixture.DisposeAsync(); }
+    [GlobalCleanup]
+    public async Task Cleanup()
+    {
+        Fixture.CheckIdle();
+        await Fixture.DisposeAsync();
+    }
 }

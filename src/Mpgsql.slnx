@@ -1,7 +1,10 @@
 <Solution>
-  <Project Path="Mpgsql/Mpgsql.csproj" />
-  <Project Path="Mpgsql.Client/Mpgsql.Client.csproj" />
-  <Project Path="../tests/Mpgsql.Tests/Mpgsql.Tests.csproj" />
-  <Project Path="../benchmarks/Mpgsql.Benchmarks/Mpgsql.Benchmarks.csproj" />
-  <Project Path="../tests/Mpgsql.IntegrationTests/Mpgsql.IntegrationTests.csproj" />
+    <Project Path="Mpgsql.Multiplexing/Mpgsql.Multiplexing.csproj"/>
+    <Project Path="Mpgsql.Sessions/Mpgsql.Sessions.csproj"/>
+    <Project Path="Mpgsql/Mpgsql.csproj"/>
+    <Project Path="Mpgsql.Client/Mpgsql.Client.csproj"/>
+    <Project Path="../tests/Mpgsql.Tests/Mpgsql.Tests.csproj"/>
+    <Project Path="../benchmarks/Mpgsql.Benchmarks/Mpgsql.Benchmarks.csproj"/>
+    <Project Path="../benchmarks/Mpgsql.PerformanceComparison/Mpgsql.PerformanceComparison.csproj"/>
+    <Project Path="../tests/Mpgsql.IntegrationTests/Mpgsql.IntegrationTests.csproj"/>
 </Solution>

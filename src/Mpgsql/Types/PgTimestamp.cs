@@ -6,8 +6,8 @@ public readonly record struct PgTimestamp(long MicrosecondsSinceEpoch)
     public const long MinFiniteMicroseconds = -211_813_488_000_000_000;
     public const long MaxFiniteMicroseconds = 9_223_371_331_199_999_999;
     internal const long EpochTicks = 630_822_816_000_000_000;
-    public static PgTimestamp NegativeInfinity => new(long.MinValue);
-    public static PgTimestamp PositiveInfinity => new(long.MaxValue);
+    public static PgTimestamp NegativeInfinity => new PgTimestamp(long.MinValue);
+    public static PgTimestamp PositiveInfinity => new PgTimestamp(long.MaxValue);
     public bool IsFinite => MicrosecondsSinceEpoch != long.MinValue && MicrosecondsSinceEpoch != long.MaxValue;
     public static PgTimestamp FromDateTime(DateTime value)
     {
@@ -19,7 +19,7 @@ public readonly record struct PgTimestamp(long MicrosecondsSinceEpoch)
         {
             throw new ArgumentException("PostgreSQL timestamps require exact microsecond precision.", nameof(value));
         }
-        return new((value.Ticks - EpochTicks) / 10);
+        return new PgTimestamp((value.Ticks - EpochTicks) / 10);
     }
     public DateTime ToDateTime()
     {
@@ -27,11 +27,11 @@ public readonly record struct PgTimestamp(long MicrosecondsSinceEpoch)
         {
             throw new OverflowException("DateTime cannot represent timestamp infinity.");
         }
-        long ticks = checked(MicrosecondsSinceEpoch * 10 + EpochTicks);
+        var ticks = checked(MicrosecondsSinceEpoch * 10 + EpochTicks);
         if (ticks < 0 || ticks > DateTime.MaxValue.Ticks)
         {
             throw new OverflowException("The PostgreSQL timestamp is outside DateTime's range.");
         }
-        return new(ticks, DateTimeKind.Unspecified);
+        return new DateTime(ticks, DateTimeKind.Unspecified);
     }
 }

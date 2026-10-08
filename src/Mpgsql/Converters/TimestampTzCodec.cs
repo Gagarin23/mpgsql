@@ -36,6 +36,12 @@ internal readonly struct TimestampTzCodec : IBinaryCodec<PgTimestampTz>
         }
         return value;
     }
-    public static PgTimestampTz Read(ReadOnlySequence<byte> payload) => BinaryPayload.ReadSmall<PgTimestampTz, TimestampTzCodec>(payload, 8);
-    private static bool IsValid(PgTimestampTz value) => !value.IsFinite || value.MicrosecondsSinceEpoch is >= PgTimestamp.MinFiniteMicroseconds and <= PgTimestamp.MaxFiniteMicroseconds;
+    public static PgTimestampTz Read(ReadOnlySequence<byte> payload)
+    {
+        return BinaryPayload.ReadSmall<PgTimestampTz, TimestampTzCodec>(payload, 8);
+    }
+    private static bool IsValid(PgTimestampTz value)
+    {
+        return !value.IsFinite || value.MicrosecondsSinceEpoch is >= PgTimestamp.MinFiniteMicroseconds and <= PgTimestamp.MaxFiniteMicroseconds;
+    }
 }

@@ -1,10 +1,10 @@
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
+using Mpgsql.Benchmarks.NpgsqlBaseline.Copied;
 using Npgsql;
 using Npgsql.Internal;
 using Npgsql.Internal.Postgres;
-using Mpgsql.Benchmarks.NpgsqlBaseline.Copied;
 
 namespace Mpgsql.Benchmarks.NpgsqlBaseline;
 
@@ -13,22 +13,17 @@ namespace Mpgsql.Benchmarks.NpgsqlBaseline;
 internal sealed class NpgsqlArrayHarness : IDisposable
 {
     private const BindingFlags Members = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
-    private readonly NpgsqlDataSource _dataSource;
-    private readonly PgWriter _writer;
-    private readonly Action _initWriter;
-    private readonly BufferRequirements _requirements;
-    private readonly PgReader? _reader;
-    private readonly IDisposable? _readBuffer;
-    private readonly Action? _resetReadBuffer;
-    private readonly MemoryStream? _readStream;
-    private readonly int _fieldLength;
     private readonly bool _bufferedRead;
+    private readonly NpgsqlDataSource _dataSource;
+    private readonly int _fieldLength;
+    private readonly Action _initWriter;
+    private readonly IDisposable? _readBuffer;
+    private readonly MemoryStream? _readStream;
+    private readonly PgReader? _reader;
+    private readonly BufferRequirements _requirements;
+    private readonly Action? _resetReadBuffer;
+    private readonly PgWriter _writer;
     private PgConverter<long?[]>? _nullableOriginal;
-
-    internal PgConverter<long[]> Original { get; }
-    internal PgConverter<long[]> Copy { get; } = CopiedConverterFactory.CreateLongArrayConverter();
-    internal PgConverter<long?[]> NullableOriginal => _nullableOriginal ??= CreateNullableConverter();
-    internal FixedBufferWriter Output { get; }
 
     internal NpgsqlArrayHarness(int outputCapacity,
         byte[]? input = null,
@@ -36,25 +31,25 @@ internal sealed class NpgsqlArrayHarness : IDisposable
     {
         // Constructing a data source does not open a connection.
         _dataSource = NpgsqlDataSource.Create("Host=localhost;Username=benchmark;Database=benchmark");
-        object connector = Create("Npgsql.Internal.NpgsqlConnector",
+        var connector = Create("Npgsql.Internal.NpgsqlConnector",
             _dataSource);
-        object catalog = Type("Npgsql.PostgresMinimalDatabaseInfo").GetProperty("DefaultTypeCatalog",
+        var catalog = Type("Npgsql.PostgresMinimalDatabaseInfo").GetProperty("DefaultTypeCatalog",
             Members)!.GetValue(null)!;
         var elementType = Type("Npgsql.Internal.Converters.Int8Converter`1").MakeGenericType(typeof(long));
         var element = (PgConverter<long>)Activator.CreateInstance(elementType,
-            nonPublic: true)!;
+            true)!;
         var arrayType = Type("Npgsql.Internal.Converters.ArrayBasedArrayConverter`2").MakeGenericType(typeof(long[]),
             typeof(long));
         Original = (PgConverter<long[]>)Activator.CreateInstance(arrayType,
             Members,
-            binder: null,
+            null,
             [
                 new PgConverterResolution(element,
                     new Oid(20)),
                 null,
                 1
             ],
-            culture: null)!;
+            null)!;
         if (!Original.CanConvert(DataFormat.Binary,
                 out _requirements) ||
             !Copy.CanConvert(DataFormat.Binary,
@@ -64,7 +59,7 @@ internal sealed class NpgsqlArrayHarness : IDisposable
             throw new InvalidOperationException("Original and copied converter requirements differ.");
         }
 
-        Output = new(outputCapacity);
+        Output = new FixedBufferWriter(outputCapacity);
         _writer = NpgsqlAccessors.CreateWriter(Output);
         var init = typeof(PgWriter).GetMethod("Init",
             Members)!;
@@ -86,8 +81,8 @@ internal sealed class NpgsqlArrayHarness : IDisposable
         _fieldLength = input.Length;
         _bufferedRead = readBufferSize != 0;
         _readStream = new MemoryStream(input,
-            writable: false);
-        object buffer = Create("Npgsql.Internal.NpgsqlReadBuffer",
+            false);
+        var buffer = Create("Npgsql.Internal.NpgsqlReadBuffer",
             connector,
             _readStream,
             null,
@@ -121,31 +116,43 @@ internal sealed class NpgsqlArrayHarness : IDisposable
             Expression.Empty())).Compile();
     }
 
+    internal PgConverter<long[]> Original { get; }
+    internal PgConverter<long[]> Copy { get; } = CopiedConverterFactory.CreateLongArrayConverter();
+    internal PgConverter<long?[]> NullableOriginal => _nullableOriginal ??= CreateNullableConverter();
+    internal FixedBufferWriter Output { get; }
+
+    public void Dispose()
+    {
+        _readBuffer?.Dispose();
+        _readStream?.Dispose();
+        _dataSource.Dispose();
+    }
+
     private PgConverter<long?[]> CreateNullableConverter()
     {
         var elementType = Type("Npgsql.Internal.Converters.Int8Converter`1").MakeGenericType(typeof(long));
         var element = (PgConverter<long>)Activator.CreateInstance(elementType,
-            nonPublic: true)!;
+            true)!;
         var nullableType = Type("Npgsql.Internal.Converters.NullableConverter`1").MakeGenericType(typeof(long));
         var nullable = (PgConverter<long?>)Activator.CreateInstance(nullableType,
             Members,
-            binder: null,
+            null,
             [
                 element
             ],
-            culture: null)!;
+            null)!;
         var arrayType = Type("Npgsql.Internal.Converters.ArrayBasedArrayConverter`2").MakeGenericType(typeof(long?[]),
             typeof(long?));
         var converter = (PgConverter<long?[]>)Activator.CreateInstance(arrayType,
             Members,
-            binder: null,
+            null,
             [
                 new PgConverterResolution(nullable,
                     new Oid(20)),
                 null,
                 1
             ],
-            culture: null)!;
+            null)!;
         if (!converter.CanConvert(DataFormat.Binary,
                 out var requirements) || !requirements.Equals(_requirements))
         {
@@ -170,7 +177,7 @@ internal sealed class NpgsqlArrayHarness : IDisposable
     {
         var metadata = Prepare(converter,
             value);
-        int count = WritePrepared(converter,
+        var count = WritePrepared(converter,
             value,
             metadata);
         if (metadata.WriteState is IDisposable disposable)
@@ -257,20 +264,18 @@ internal sealed class NpgsqlArrayHarness : IDisposable
             false);
     }
 
-    private static Type Type(string name) => typeof(PgReader).Assembly.GetType(name,
-        throwOnError: true)!;
+    private static Type Type(string name)
+    {
+        return typeof(PgReader).Assembly.GetType(name,
+            true)!;
+    }
     private static object Create(string name,
         params object?[] args)
-        => Activator.CreateInstance(Type(name),
-            Members,
-            binder: null,
-            args,
-            culture: null)!;
-
-    public void Dispose()
     {
-        _readBuffer?.Dispose();
-        _readStream?.Dispose();
-        _dataSource.Dispose();
+        return Activator.CreateInstance(Type(name),
+            Members,
+            null,
+            args,
+            null)!;
     }
 }

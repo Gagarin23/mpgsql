@@ -28,13 +28,16 @@ internal static class QueryWire
             output.Write(Frame('E', Encoding.UTF8.GetBytes("SERROR\0C22012\0Msynthetic division by zero\0\0")));
             return output.WrittenSpan.ToArray();
         }
-        for (int row = 0; row < scenario.Rows; row++)
+        for (var row = 0; row < scenario.Rows; row++)
         {
             var payload = new ArrayBufferWriter<byte>();
             UInt16(payload, (ushort)scenario.Columns);
-            for (int column = 0; column < scenario.Columns; column++)
+            for (var column = 0; column < scenario.Columns; column++)
             {
-                if (scenario.Null) Int32(payload, -1);
+                if (scenario.Null)
+                {
+                    Int32(payload, -1);
+                }
                 else if (scenario.ByteaBytes != 0 && column == 1)
                 {
                     Int32(payload, scenario.ByteaBytes);
@@ -43,14 +46,14 @@ internal static class QueryWire
                 else
                 {
                     Int32(payload, 8);
-                    int integers = scenario.ByteaBytes == 0 ? scenario.Columns : 1;
+                    var integers = scenario.ByteaBytes == 0 ? scenario.Columns : 1;
                     BinaryPrimitives.WriteInt64BigEndian(payload.GetSpan(8), worker + 1L + (long)row * integers + column);
                     payload.Advance(8);
                 }
             }
             output.Write(Frame('D', payload.WrittenSpan));
         }
-        string tag = scenario.NoData || scenario.Returning ? $"UPDATE {scenario.Rows}" : $"SELECT {scenario.Rows}";
+        var tag = scenario.NoData || scenario.Returning ? $"UPDATE {scenario.Rows}" : $"SELECT {scenario.Rows}";
         output.Write(Frame('C', Encoding.UTF8.GetBytes(tag + '\0')));
         return output.WrittenSpan.ToArray();
     }
@@ -59,12 +62,12 @@ internal static class QueryWire
     {
         var payload = new ArrayBufferWriter<byte>();
         UInt16(payload, (ushort)scenario.Columns);
-        for (int column = 0; column < scenario.Columns; column++)
+        for (var column = 0; column < scenario.Columns; column++)
         {
             payload.Write(Encoding.UTF8.GetBytes("c" + column + '\0'));
             Int32(payload, 0); // table OID
             UInt16(payload, 0); // attribute
-            bool blob = scenario.ByteaBytes != 0 && column == 1;
+            var blob = scenario.ByteaBytes != 0 && column == 1;
             Int32(payload, blob ? 17 : 20);
             UInt16(payload, blob ? ushort.MaxValue : (ushort)8);
             Int32(payload, -1); // type modifier
@@ -86,10 +89,16 @@ internal static class QueryWire
 
     internal static bool Equal(ReadOnlySequence<byte> bytes, ReadOnlySpan<byte> expected)
     {
-        if (bytes.Length != expected.Length) return false;
+        if (bytes.Length != expected.Length)
+        {
+            return false;
+        }
         foreach (var segment in bytes)
         {
-            if (!segment.Span.SequenceEqual(expected[..segment.Length])) return false;
+            if (!segment.Span.SequenceEqual(expected[..segment.Length]))
+            {
+                return false;
+            }
             expected = expected[segment.Length..];
         }
         return true;

@@ -1,13 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <OutputType>Exe</OutputType>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <IsPackable>false</IsPackable>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="../../src/Mpgsql/Mpgsql.csproj" />
-    <ProjectReference Include="../../src/Mpgsql.Client/Mpgsql.Client.csproj" />
-  </ItemGroup>
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <OutputType>Exe</OutputType>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../src/Mpgsql.Multiplexing/Mpgsql.Multiplexing.csproj"/>
+        <ProjectReference Include="../../src/Mpgsql.Sessions/Mpgsql.Sessions.csproj"/>
+        <ProjectReference Include="../../src/Mpgsql/Mpgsql.csproj"/>
+        <ProjectReference Include="../../src/Mpgsql.Client/Mpgsql.Client.csproj"/>
+    </ItemGroup>
 </Project>

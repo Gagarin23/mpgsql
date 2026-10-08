@@ -4,11 +4,11 @@ namespace Mpgsql.Protocol;
 
 /// <summary>A structurally validated backend frame with typed accessors and the original wire body.</summary>
 /// <remarks>
-/// Payload, DataRow values, COPY data, authentication data and function results borrow the input buffer.
-/// Consume them before PipeReader.AdvanceTo releases that buffer. Metadata accessors allocate strings
-/// and arrays on demand; call them once and retain their results when needed. Unknown tags are retained
-/// as Kind=Unknown; deciding whether they are legal belongs to the connection protocol state machine.
-/// UTF-8 is decoded by string accessors, without a separate content-validation pass over the frame.
+///     Payload, DataRow values, COPY data, authentication data and function results borrow the input buffer.
+///     Consume them before PipeReader.AdvanceTo releases that buffer. Metadata accessors allocate strings
+///     and arrays on demand; call them once and retain their results when needed. Unknown tags are retained
+///     as Kind=Unknown; deciding whether they are legal belongs to the connection protocol state machine.
+///     UTF-8 is decoded by string accessors, without a separate content-validation pass over the frame.
 /// </remarks>
 public readonly struct BackendMessage
 {
@@ -39,7 +39,7 @@ public readonly struct BackendMessage
         var method = (AuthenticationMethod)reader.Int32();
         if (method != AuthenticationMethod.Sasl)
         {
-            return new(method,
+            return new AuthenticationRequest(method,
                 reader.Rest(),
                 default);
         }
@@ -47,8 +47,10 @@ public readonly struct BackendMessage
         var mechanisms = new List<string>();
         ReadOnlySequence<byte> name;
         while (!(name = reader.CStringBytes()).IsEmpty)
+        {
             mechanisms.Add(WireEncoding.Decode(name));
-        return new(method,
+        }
+        return new AuthenticationRequest(method,
             default,
             mechanisms.ToArray());
     }
@@ -57,7 +59,7 @@ public readonly struct BackendMessage
     {
         RequireKind(BackendMessageKind.BackendKeyData);
         var reader = new WireReader(Payload);
-        return new(reader.Int32(),
+        return new BackendKeyData(reader.Int32(),
             reader.Int32());
     }
 
@@ -79,7 +81,7 @@ public readonly struct BackendMessage
     {
         RequireKind(BackendMessageKind.ParameterStatus);
         var reader = new WireReader(Payload);
-        return new(reader.CString(),
+        return new ParameterStatus(reader.CString(),
             reader.CString());
     }
 
@@ -87,7 +89,7 @@ public readonly struct BackendMessage
     {
         RequireKind(BackendMessageKind.NotificationResponse);
         var reader = new WireReader(Payload);
-        return new(reader.Int32(),
+        return new NotificationResponse(reader.Int32(),
             reader.CString(),
             reader.CString());
     }
@@ -97,8 +99,10 @@ public readonly struct BackendMessage
         RequireKind(BackendMessageKind.ParameterDescription);
         var reader = new WireReader(Payload);
         var types = new uint[reader.Count()];
-        for (int i = 0; i < types.Length; i++)
+        for (var i = 0; i < types.Length; i++)
+        {
             types[i] = reader.UInt32();
+        }
         return types;
     }
 
@@ -107,8 +111,9 @@ public readonly struct BackendMessage
         RequireKind(BackendMessageKind.RowDescription);
         var reader = new WireReader(Payload);
         var fields = new RowField[reader.Count()];
-        for (int i = 0; i < fields.Length; i++)
-            fields[i] = new(
+        for (var i = 0; i < fields.Length; i++)
+        {
+            fields[i] = new RowField(
                 reader.CString(),
                 reader.UInt32(),
                 reader.Int16(),
@@ -116,13 +121,14 @@ public readonly struct BackendMessage
                 reader.Int16(),
                 reader.Int32(),
                 reader.Format());
+        }
         return fields;
     }
 
     public DataRow GetDataRow()
     {
         RequireKind(BackendMessageKind.DataRow);
-        return new(_rowCount,
+        return new DataRow(_rowCount,
             Payload.Slice(2));
     }
 
@@ -148,9 +154,11 @@ public readonly struct BackendMessage
         var reader = new WireReader(Payload);
         var format = (FormatCode)reader.Byte();
         var columns = new FormatCode[reader.Count()];
-        for (int i = 0; i < columns.Length; i++)
+        for (var i = 0; i < columns.Length; i++)
+        {
             columns[i] = reader.Format();
-        return new(format,
+        }
+        return new CopyResponse(format,
             columns);
     }
 
@@ -164,20 +172,24 @@ public readonly struct BackendMessage
         var fields = new List<DiagnosticField>();
         byte code;
         while ((code = reader.Byte()) != 0)
-            fields.Add(new(code,
+        {
+            fields.Add(new DiagnosticField(code,
                 reader.CString()));
-        return new(fields.ToArray());
+        }
+        return new DiagnosticMessage(fields.ToArray());
     }
 
     public ProtocolVersionNegotiation GetProtocolVersionNegotiation()
     {
         RequireKind(BackendMessageKind.NegotiateProtocolVersion);
         var reader = new WireReader(Payload);
-        int minorVersion = reader.Int32();
+        var minorVersion = reader.Int32();
         var options = new string[reader.Int32()];
-        for (int i = 0; i < options.Length; i++)
+        for (var i = 0; i < options.Length; i++)
+        {
             options[i] = reader.CString();
-        return new(minorVersion,
+        }
+        return new ProtocolVersionNegotiation(minorVersion,
             options);
     }
 

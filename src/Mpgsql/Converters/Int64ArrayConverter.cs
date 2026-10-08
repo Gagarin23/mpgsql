@@ -7,10 +7,10 @@ namespace Mpgsql.Converters;
 
 /// <summary>Binary PostgreSQL bigint[] conversion for ReadOnlyMemory&lt;long&gt;.</summary>
 /// <remarks>
-/// Encodes the array payload only; Bind/DataRow own the outer value length.
-/// All wire integers are big-endian. Empty memory is an empty array, never SQL NULL.
-/// Only zero/one-dimensional arrays without NULL elements are supported.
-/// Reading normalizes PostgreSQL lower bounds to the memory's zero-based indexing.
+///     Encodes the array payload only; Bind/DataRow own the outer value length.
+///     All wire integers are big-endian. Empty memory is an empty array, never SQL NULL.
+///     Only zero/one-dimensional arrays without NULL elements are supported.
+///     Reading normalizes PostgreSQL lower bounds to the memory's zero-based indexing.
 /// </remarks>
 public static class Int64ArrayConverter
 {
@@ -21,7 +21,10 @@ public static class Int64ArrayConverter
     private const int HeaderSize = 20;
     private const int RecordSize = 4 + sizeof(long);
 
-    public static int GetByteCount(ReadOnlyMemory<long> value) => GetByteCount(value.Length);
+    public static int GetByteCount(ReadOnlyMemory<long> value)
+    {
+        return GetByteCount(value.Length);
+    }
 
     public static int GetByteCount(int elementCount)
     {
@@ -34,7 +37,7 @@ public static class Int64ArrayConverter
     public static int Write(ReadOnlyMemory<long> value,
         Span<byte> destination)
     {
-        int size = GetByteCount(value);
+        var size = GetByteCount(value);
         if (destination.Length < size)
         {
             throw new ArgumentException("The destination is too small for the bigint[] payload.",
@@ -55,7 +58,7 @@ public static class Int64ArrayConverter
         IBufferWriter<byte> destination)
     {
         ArgumentNullException.ThrowIfNull(destination);
-        int size = GetByteCount(value);
+        var size = GetByteCount(value);
         Write(value,
             destination.GetSpan(size));
         destination.Advance(size);
@@ -64,9 +67,9 @@ public static class Int64ArrayConverter
     /// <summary>Returns independently owned memory with one long[] allocation for a nonempty array.</summary>
     public static ReadOnlyMemory<long> Read(ReadOnlySpan<byte> payload)
     {
-        int count = ReadHeader(payload,
-            out int headerSize,
-            out bool nullable);
+        var count = ReadHeader(payload,
+            out var headerSize,
+            out var nullable);
         if (nullable && payload.Length - headerSize != (long)RecordSize * count)
         {
             ValidateNullableRecords(payload[headerSize..],
@@ -87,9 +90,9 @@ public static class Int64ArrayConverter
     public static int Read(ReadOnlySpan<byte> payload,
         Span<long> destination)
     {
-        int count = ReadHeader(payload,
-            out int headerSize,
-            out bool nullable);
+        var count = ReadHeader(payload,
+            out var headerSize,
+            out var nullable);
         if (nullable && payload.Length - headerSize != (long)RecordSize * count)
         {
             ValidateNullableRecords(payload[headerSize..],
@@ -113,8 +116,8 @@ public static class Int64ArrayConverter
             return Read(payload.FirstSpan);
         }
         var reader = new SequenceReader<byte>(payload);
-        int count = ReadHeader(ref reader,
-            out bool nullable);
+        var count = ReadHeader(ref reader,
+            out var nullable);
         if (nullable && reader.Remaining != (long)RecordSize * count)
         {
             ValidateNullableRecords(reader,
@@ -141,8 +144,8 @@ public static class Int64ArrayConverter
                 destination);
         }
         var reader = new SequenceReader<byte>(payload);
-        int count = ReadHeader(ref reader,
-            out bool nullable);
+        var count = ReadHeader(ref reader,
+            out var nullable);
         if (nullable && reader.Remaining != (long)RecordSize * count)
         {
             ValidateNullableRecords(reader,
@@ -153,8 +156,10 @@ public static class Int64ArrayConverter
         destination = destination[..count];
         var outputBytes = MemoryMarshal.AsBytes(destination);
         foreach (var segment in payload)
+        {
             RequireSeparateStorage(segment.Span,
                 outputBytes);
+        }
         ReadSegmentedRecords(ref reader,
             destination);
         return count;
@@ -187,10 +192,10 @@ public static class Int64ArrayConverter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void WriteSharedRecords(ReadOnlySpan<long> source, Span<byte> destination)
     {
-        int i = BinaryArray<long, Int64Codec>.CanUseNumericSimd && source.Length >= 4
+        var i = BinaryArray<long, Int64Codec>.CanUseNumericSimd && source.Length >= 4
             ? BinaryArray<long, Int64Codec>.WriteNumericVectors(source, destination)
             : 0;
-        for (int offset = i * RecordSize; i < source.Length; i++, offset += RecordSize)
+        for (var offset = i * RecordSize; i < source.Length; i++, offset += RecordSize)
         {
             BinaryPrimitives.WriteInt32BigEndian(destination[offset..], sizeof(long));
             BinaryPrimitives.WriteInt64BigEndian(destination[(offset + 4)..], source[i]);
@@ -200,10 +205,10 @@ public static class Int64ArrayConverter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void ReadSharedRecords(ReadOnlySpan<byte> source, Span<long> destination)
     {
-        int i = BinaryArray<long, Int64Codec>.CanUseNumericSimd && destination.Length >= 4
+        var i = BinaryArray<long, Int64Codec>.CanUseNumericSimd && destination.Length >= 4
             ? BinaryArray<long, Int64Codec>.ReadNumericVectors(source, destination)
             : 0;
-        for (int offset = i * RecordSize; i < destination.Length; i++, offset += RecordSize)
+        for (var offset = i * RecordSize; i < destination.Length; i++, offset += RecordSize)
         {
             if (BinaryPrimitives.ReadInt32BigEndian(source[offset..]) != sizeof(long))
             {
@@ -216,7 +221,7 @@ public static class Int64ArrayConverter
     private static int ReadHeader(ref SequenceReader<byte> reader,
         out bool nullable)
     {
-        long payloadLength = reader.Remaining;
+        var payloadLength = reader.Remaining;
         if (!reader.TryReadBigEndian(out int dimensions) || !reader.TryReadBigEndian(out int flags) ||
             !reader.TryReadBigEndian(out int oid))
         {
@@ -225,8 +230,8 @@ public static class Int64ArrayConverter
         nullable = ValidateArrayType(dimensions,
             flags,
             unchecked((uint)oid));
-        int count = 0;
-        int lowerBound = 0;
+        var count = 0;
+        var lowerBound = 0;
         if (dimensions == 1 && (!reader.TryReadBigEndian(out count) || !reader.TryReadBigEndian(out lowerBound)))
         {
             throw new InvalidDataException("Truncated PostgreSQL array dimension.");
@@ -249,9 +254,9 @@ public static class Int64ArrayConverter
         {
             throw new InvalidDataException("Truncated PostgreSQL array header.");
         }
-        int dimensions = BinaryPrimitives.ReadInt32BigEndian(payload);
-        int flags = BinaryPrimitives.ReadInt32BigEndian(payload[4..]);
-        uint oid = BinaryPrimitives.ReadUInt32BigEndian(payload[8..]);
+        var dimensions = BinaryPrimitives.ReadInt32BigEndian(payload);
+        var flags = BinaryPrimitives.ReadInt32BigEndian(payload[4..]);
+        var oid = BinaryPrimitives.ReadUInt32BigEndian(payload[8..]);
         nullable = ValidateArrayType(dimensions,
             flags,
             oid);
@@ -260,8 +265,8 @@ public static class Int64ArrayConverter
         {
             throw new InvalidDataException("Truncated PostgreSQL array dimension.");
         }
-        int count = dimensions == 0 ? 0 : BinaryPrimitives.ReadInt32BigEndian(payload[12..]);
-        int lowerBound = dimensions == 0 ? 0 : BinaryPrimitives.ReadInt32BigEndian(payload[16..]);
+        var count = dimensions == 0 ? 0 : BinaryPrimitives.ReadInt32BigEndian(payload[12..]);
+        var lowerBound = dimensions == 0 ? 0 : BinaryPrimitives.ReadInt32BigEndian(payload[16..]);
         ValidateBoundsAndLength(count,
             lowerBound,
             headerSize,
@@ -299,7 +304,7 @@ public static class Int64ArrayConverter
             throw new InvalidDataException("Invalid PostgreSQL array bounds.");
         }
         // Validate exact framing before allocating from an untrusted element count.
-        long expected = headerSize + (long)RecordSize * count;
+        var expected = headerSize + (long)RecordSize * count;
         // A NULL record has only its four-byte -1 length. Shorter payloads take the rejection
         // path before mutation; full-sized records validate their prefixes while decoding.
         if (nullable ? payloadLength < headerSize + 4L * count || payloadLength > expected : payloadLength != expected)
@@ -311,7 +316,7 @@ public static class Int64ArrayConverter
     private static void ValidateNullableRecords(ReadOnlySpan<byte> records,
         int count)
     {
-        for (int i = 0; i < count; i++)
+        for (var i = 0; i < count; i++)
         {
             if (records.Length < 4)
             {
@@ -333,7 +338,7 @@ public static class Int64ArrayConverter
     private static void ValidateNullableRecords(SequenceReader<byte> reader,
         int count)
     {
-        for (int i = 0; i < count; i++)
+        for (var i = 0; i < count; i++)
         {
             if (!reader.TryReadBigEndian(out int length))
             {
@@ -367,15 +372,15 @@ public static class Int64ArrayConverter
     private static void ReadSegmentedRecords(ref SequenceReader<byte> reader,
         Span<long> destination)
     {
-        int written = 0;
+        var written = 0;
         while (written < destination.Length)
         {
             // Decode whole records within a segment through the same contiguous fast path.
-            int count = Math.Min(reader.UnreadSpan.Length / RecordSize,
+            var count = Math.Min(reader.UnreadSpan.Length / RecordSize,
                 destination.Length - written);
             if (count != 0)
             {
-                int byteCount = count * RecordSize;
+                var byteCount = count * RecordSize;
                 ReadSharedRecords(reader.UnreadSpan[..byteCount],
                     destination.Slice(written,
                         count));

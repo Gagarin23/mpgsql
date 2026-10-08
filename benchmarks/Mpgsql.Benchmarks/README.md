@@ -28,13 +28,13 @@ also runs the existing converter/protocol/COPY verification.
 
 The five new benchmark classes contain 58 cases in total:
 
-| Class | Reported operation | Cases |
-| --- | --- | ---: |
-| QueryPacketBenchmarks | GetByteCount, Write or GetByteCount + Write | 24 |
-| QueryPipelineBenchmarks | One full raw Session or DataSource Reader request | 20 |
-| QueryBatchBenchmarks | A whole sixteen-query group with one Sync | 1 |
-| DataSourceConsumptionBenchmarks | Scalar, NonQuery or early reader Dispose | 7 |
-| DataSourceConcurrencyBenchmarks | One request, normalized from a 256-request wave | 6 |
+| Class                           | Reported operation                                | Cases |
+|---------------------------------|---------------------------------------------------|------:|
+| QueryPacketBenchmarks           | GetByteCount, Write or GetByteCount + Write       |    24 |
+| QueryPipelineBenchmarks         | One full raw Session or DataSource Reader request |    20 |
+| QueryBatchBenchmarks            | A whole sixteen-query group with one Sync         |     1 |
+| DataSourceConsumptionBenchmarks | Scalar, NonQuery or early reader Dispose          |     7 |
+| DataSourceConcurrencyBenchmarks | One request, normalized from a 256-request wave   |     6 |
 
 The default job launches once, performs three warmup iterations and eight measured
 iterations. Sequential cases target 150 ms/iteration. Concurrency cases use one
@@ -141,7 +141,8 @@ also uses the process-wide counter on .NET 10. Setup buffers, warmup and
 preallocated timing arrays are outside the load measurement. No estimated peer
 cost is subtracted. These are comparable baselines for this harness, not an
 isolated allocation profile of the driver.
-See the [BDN 0.15.8 allocation counter implementation](https://raw.githubusercontent.com/dotnet/BenchmarkDotNet/v0.15.8/src/BenchmarkDotNet/Engines/GcStats.cs).
+See
+the [BDN 0.15.8 allocation counter implementation](https://raw.githubusercontent.com/dotnet/BenchmarkDotNet/v0.15.8/src/BenchmarkDotNet/Engines/GcStats.cs).
 
 The maximum observed BufferedRowBytes is a consumer-sampled **per-session row
 payload reservation**, not exact peak memory, backing-buffer capacity, working
@@ -280,10 +281,11 @@ worker; caller command creation is excluded. Mpgsql's independent request path
 still creates its normal internal one-shot batches. For Scalar, Npgsql uses its
 native object-returning API (including bigint boxing), Mpgsql its typed API.
 See [Npgsql connection settings](https://www.npgsql.org/doc/connection-string-parameters.html)
-and the [native DataSource command lifetime](https://raw.githubusercontent.com/npgsql/npgsql/v10.0.3/src/Npgsql/NpgsqlDataSourceCommand.cs).
+and
+the [native DataSource command lifetime](https://raw.githubusercontent.com/npgsql/npgsql/v10.0.3/src/Npgsql/NpgsqlDataSourceCommand.cs).
 
-Both drivers copy the **entire** bytea field into a reusable caller destination
-(Mpgsql GetRawValue/CopyTo, Npgsql GetBytes). The original Pipe benchmark inspected
+Both drivers copy the **entire** bytea field into a reusable caller destination (Mpgsql GetRawValue/CopyTo, Npgsql
+GetBytes). The original Pipe benchmark inspected
 borrowed bytea endpoints; do not compare its timings directly with TCP timings.
 Native Npgsql public APIs do not expose client FlushAsync, CopiedRowBytes or
 BufferedRowBytes, so its fields are null/blank. No reflection or estimated zeros
@@ -484,7 +486,8 @@ invokes both GetFeatures methods without starting a fixture or workload, so
 missing lazy dependencies fail before profiling. A zero feature mask is
 expected for that check when no profiler is attached.
 
-Profiler controls: [dotTrace API](https://www.jetbrains.com/help/profiler/Profiling_Guidelines__Advanced_Profiling_Using_dotTrace_API.html),
+Profiler
+controls: [dotTrace API](https://www.jetbrains.com/help/profiler/Profiling_Guidelines__Advanced_Profiling_Using_dotTrace_API.html),
 [dotMemory API](https://www.jetbrains.com/help/dotmemory/API_Reference.html).
 
 ## Concurrent DataSource diagnostics with dotTrace

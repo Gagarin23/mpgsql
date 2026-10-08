@@ -2,20 +2,24 @@ namespace Mpgsql.IntegrationTests;
 
 internal static partial class UpperApiChecks
 {
-    private static void CheckTerminal(MpgsqlServerException error, string sqlState = "57P01", string? originalMessage = null)
+    private static void CheckTerminal(MpgsqlServerException error, string sqlState = "57P01",
+        string? originalMessage = null)
     {
         Check(error.SqlState == sqlState, "terminal SQLSTATE retained");
         Check((error.Diagnostics.InvariantSeverity ?? error.Diagnostics.Severity) == "FATAL", "terminal severity retained");
         Check(error.Message == error.Diagnostics.Message && (originalMessage is null
-            ? error.Message.Contains("terminating connection") : error.Message == originalMessage),
+                ? error.Message.Contains("terminating connection")
+                : error.Message == originalMessage),
             "original received termination message retained");
         Check(error.TransactionStatus is null, "no inferred transaction status without ReadyForQuery");
     }
 
-    private static async Task TerminalDiagnosticsAsync(string host, int port, string user, string password,
-        string database, bool transactionPool, bool activeEofOnly, CancellationToken token)
+    private static async Task TerminalDiagnosticsAsync(string host, int port,
+        string user, string password,
+        string database, bool transactionPool,
+        bool activeEofOnly, CancellationToken token)
     {
-        await using var fixture = new UpperApiTestSource(host, port, user, password, database, maxConnections: 1);
+        await using var fixture = new UpperApiTestSource(host, port, user, password, database, 1);
         // Warm the single shared transport, then terminate only this test's own backend.
         Check((await fixture.Source.ExecuteScalarAsync<long>("select 1::bigint", cancellationToken: token)).Value == 1,
             "terminal diagnostics transport opened");
@@ -52,13 +56,19 @@ internal static partial class UpperApiChecks
             "DataSource replaces terminated transport");
         Check(fixture.FactoryCalls == 2 && !terminated.IsHealthy, "terminated transport retired once");
 
-        if (transactionPool) return; // idle transaction-pool clients do not pin a backend
-        await using var connection = await fixture.Source.OpenConnectionAsync(token);
-        var idle = fixture.Sessions.Single(session => session.IsHealthy);
-        int pid = await Scalar<int>(connection, "select pg_backend_pid()", token);
-        await using var observer = new UpperApiTestSource(host, port, user, password, database, maxConnections: 1);
+        if (transactionPool)
+        {
+            return; // idle transaction-pool clients do not pin a backend
+        }
+        // Independent sources now have independent session pools. Release the multiplexer's
+        // pinned backend before the idle ADO.NET connection and observer use the two slots.
+        await fixture.Source.DisposeAsync();
+        await using var connection = await fixture.ClientSource.OpenConnectionAsync(token);
+        var idle = connection.Session;
+        var pid = await Scalar<int>(connection, "select pg_backend_pid()", token);
+        await using var observer = new UpperApiTestSource(host, port, user, password, database, 1);
         Check((await observer.Source.ExecuteScalarAsync<bool>("select pg_terminate_backend($1)",
-            new[] { MpgsqlParameter.Int32(pid) }, token)).Value, "observer terminates this test's idle backend");
+            new[] {MpgsqlParameterValue.Int32(pid)}, token)).Value, "observer terminates this test's idle backend");
         try
         {
             await idle.Completion.WaitAsync(TimeSpan.FromSeconds(5), token);
@@ -67,9 +77,15 @@ internal static partial class UpperApiChecks
         catch (MpgsqlServerException error)
         {
             // The same pg_doorman version does send its own FATAL diagnostic for an idle backend.
-            if (activeEofOnly) CheckTerminal(error, "08006",
-                "server closed the connection unexpectedly while client was idle in transaction");
-            else CheckTerminal(error);
+            if (activeEofOnly)
+            {
+                CheckTerminal(error, "08006",
+                    "server closed the connection unexpectedly while client was idle in transaction");
+            }
+            else
+            {
+                CheckTerminal(error);
+            }
             Check(error.QueryIndex is null, "idle session has no query index");
         }
         Check(!idle.IsHealthy, "idle terminal failure retires transport");

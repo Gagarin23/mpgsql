@@ -8,14 +8,13 @@ public sealed class BufferedDataRowTests
 {
     private const string ThreeValues = "44 00000014 0003 ffffffff 00000000 00000002 c3a9";
 
-    [Theory]
-    [MemberData(nameof(BackendMessageTests.Packets), MemberType = typeof(BackendMessageTests))]
+    [Theory, MemberData(nameof(BackendMessageTests.Packets), MemberType = typeof(BackendMessageTests))]
     public void BufferedReaderPreservesEveryMessageAndSegmentBoundary(BackendMessageKind kind,
         string hex)
     {
-        byte[] bytes = TestWire.Bytes(hex);
+        var bytes = TestWire.Bytes(hex);
         var storage = new ReadOnlySequence<byte>?[8];
-        for (int split = 0; split <= bytes.Length; split++)
+        for (var split = 0; split <= bytes.Length; split++)
         {
             var input = TestWire.Chunks(bytes.AsMemory(0,
                     split),
@@ -39,8 +38,7 @@ public sealed class BufferedDataRowTests
         }
     }
 
-    [Theory]
-    [MemberData(nameof(BackendValidationTests.InvalidPackets), MemberType = typeof(BackendValidationTests))]
+    [Theory, MemberData(nameof(BackendValidationTests.InvalidPackets), MemberType = typeof(BackendValidationTests))]
     public void BufferedReaderRetainsCompleteBodyValidation(string hex)
     {
         var input = TestWire.ByteSegments(TestWire.Bytes(hex));
@@ -59,10 +57,13 @@ public sealed class BufferedDataRowTests
     [Fact]
     public void IncompleteFramesDoNotTouchStorage()
     {
-        byte[] bytes = TestWire.Bytes(ThreeValues);
-        for (int length = 0; length < bytes.Length; length++)
+        var bytes = TestWire.Bytes(ThreeValues);
+        for (var length = 0; length < bytes.Length; length++)
         {
-            var storage = new ReadOnlySequence<byte>?[] {new([42]), null, null};
+            var storage = new ReadOnlySequence<byte>?[]
+            {
+                new ReadOnlySequence<byte>([42]), null, null
+            };
             var input = TestWire.ByteSegments(bytes[..length]);
             var before = input;
             Assert.False(BackendMessageReader.TryRead(ref input,
@@ -86,7 +87,10 @@ public sealed class BufferedDataRowTests
     {
         var input = TestWire.ByteSegments(TestWire.Bytes(ThreeValues));
         var before = input;
-        var storage = new ReadOnlySequence<byte>?[] {new([42]), null};
+        var storage = new ReadOnlySequence<byte>?[]
+        {
+            new ReadOnlySequence<byte>([42]), null
+        };
         Assert.Throws<ArgumentException>(() => BackendMessageReader.TryRead(ref input,
             storage,
             out _,
@@ -106,7 +110,7 @@ public sealed class BufferedDataRowTests
     [Fact]
     public void StorageSlicesPreserveNullEmptyAndBorrowedSegmentedValues()
     {
-        byte[] bytes = TestWire.Bytes(ThreeValues);
+        var bytes = TestWire.Bytes(ThreeValues);
         var input = TestWire.ByteSegments(bytes);
         var sentinel = new ReadOnlySequence<byte>([42]);
         var storage = new ReadOnlySequence<byte>?[] {sentinel, sentinel, sentinel, sentinel, sentinel};
@@ -128,7 +132,7 @@ public sealed class BufferedDataRowTests
         Assert.Null(storage[1]);
         Assert.True(storage[2]!.Value.IsEmpty);
         Assert.False(storage[3]!.Value.IsSingleSegment);
-        Assert.Equal(new string?[]
+        Assert.Equal(new[]
             {
                 null,
                 "",
@@ -136,7 +140,7 @@ public sealed class BufferedDataRowTests
             },
             ReadValues(row));
         bytes[^1] = 42; // bytes are borrowed, never copied into the metadata buffer
-        Assert.Equal(new string?[]
+        Assert.Equal(new[]
             {
                 null,
                 "",
@@ -148,7 +152,7 @@ public sealed class BufferedDataRowTests
     [Fact]
     public void IndexedEnumerationDoesNotRereadValueLengthsOrColumnCount()
     {
-        byte[] bytes = TestWire.Bytes("44 0000000d 0001 00000003 010203");
+        var bytes = TestWire.Bytes("44 0000000d 0001 00000003 010203");
         var input = TestWire.ByteSegments(bytes);
         var storage = new ReadOnlySequence<byte>?[1];
         Assert.True(BackendMessageReader.TryRead(ref input,
@@ -213,7 +217,7 @@ public sealed class BufferedDataRowTests
             new ReadOnlySequence<byte>?[1],
             out _,
             out var second));
-        Assert.Equal(new string?[]
+        Assert.Equal(new[]
             {
                 null,
                 "",

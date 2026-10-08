@@ -10,8 +10,6 @@ internal sealed class FixedBufferWriter(int capacity) : IBufferWriter<byte>
     public ReadOnlySpan<byte> WrittenSpan => _buffer.AsSpan(0,
         WrittenCount);
 
-    public void Reset() => WrittenCount = 0;
-
     public void Advance(int count)
     {
         if ((uint)count > (uint)(_buffer.Length - WrittenCount))
@@ -30,5 +28,13 @@ internal sealed class FixedBufferWriter(int capacity) : IBufferWriter<byte>
         return _buffer.AsMemory(WrittenCount);
     }
 
-    public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
+    public Span<byte> GetSpan(int sizeHint = 0)
+    {
+        return GetMemory(sizeHint).Span;
+    }
+
+    public void Reset()
+    {
+        WrittenCount = 0;
+    }
 }

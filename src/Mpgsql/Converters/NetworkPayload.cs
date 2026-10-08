@@ -7,8 +7,8 @@ internal static class NetworkPayload
 {
     internal static bool IsValid(PgInet value, bool cidr)
     {
-        int maxBits = value.IsIPv6 ? 128 : 32;
-        if (value.PrefixLength > maxBits || (!value.IsIPv6 && value.Address > uint.MaxValue))
+        var maxBits = value.IsIPv6 ? 128 : 32;
+        if (value.PrefixLength > maxBits || !value.IsIPv6 && value.Address > uint.MaxValue)
         {
             return false;
         }
@@ -20,7 +20,7 @@ internal static class NetworkPayload
         {
             return value.Address == 0;
         }
-        var hostMask = ((UInt128)1 << (maxBits - value.PrefixLength)) - 1;
+        var hostMask = ((UInt128)1 << maxBits - value.PrefixLength) - 1;
         return (value.Address & hostMask) == 0;
     }
 
@@ -58,8 +58,8 @@ internal static class NetworkPayload
         {
             throw new InvalidDataException("Invalid PostgreSQL address family.");
         }
-        bool ipv6 = payload[0] == 3;
-        int addressSize = ipv6 ? 16 : 4;
+        var ipv6 = payload[0] == 3;
+        var addressSize = ipv6 ? 16 : 4;
         if (payload[3] != addressSize || payload.Length != 4 + addressSize)
         {
             throw new InvalidDataException("Invalid PostgreSQL address length.");

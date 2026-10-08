@@ -17,7 +17,9 @@ internal static class Int64ArraySimdRegressionVerification
             Int64ArraySimdBaseline.Write(values, original);
             Int64ArrayConverter.Write(values, shared);
             if (!original.AsSpan().SequenceEqual(shared))
+            {
                 throw new InvalidDataException("Int64 encoder regression.");
+            }
             CheckReads(original, count);
         }
 
@@ -77,15 +79,22 @@ internal static class Int64ArraySimdRegressionVerification
         try { expected = original(); } catch (Exception error) { originalError = error; }
         try { actual = shared(); } catch (Exception error) { sharedError = error; }
         if (originalError?.GetType() != sharedError?.GetType() || originalError?.Message != sharedError?.Message)
+        {
             throw new InvalidDataException("Int64 exception regression.");
+        }
         if (originalError is null)
         {
             bool equal = expected is ReadOnlyMemory<long> expectedMemory && actual is ReadOnlyMemory<long> actualMemory
                 ? expectedMemory.Span.SequenceEqual(actualMemory.Span)
                 : EqualityComparer<T>.Default.Equals(expected!, actual!);
-            if (!equal) throw new InvalidDataException("Int64 decoded result regression.");
+            if (!equal)
+            {
+                throw new InvalidDataException("Int64 decoded result regression.");
+            }
         }
         if (originalStorage is not null && !originalStorage.AsSpan().SequenceEqual(sharedStorage))
+        {
             throw new InvalidDataException("Int64 destination mutation regression.");
+        }
     }
 }

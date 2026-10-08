@@ -16,7 +16,7 @@ internal readonly partial struct NumericCodec : IBinaryCodec<PgNumeric>
     public static int Measure(PgNumeric value)
     {
         if (value.Digits.Length > ushort.MaxValue || value.Scale > 16383 || !ValidSign(value.Sign) ||
-            (!value.IsFinite && !value.Digits.IsEmpty))
+            !value.IsFinite && !value.Digits.IsEmpty)
         {
             throw new ArgumentException("Invalid PostgreSQL numeric header.", nameof(value));
         }
@@ -24,7 +24,9 @@ internal readonly partial struct NumericCodec : IBinaryCodec<PgNumeric>
     }
 
     public static void CheckOverlap(PgNumeric value, Span<byte> destination)
-        => BinaryPayload.RequireSeparate(MemoryMarshal.AsBytes(value.Digits.Span), destination);
+    {
+        BinaryPayload.RequireSeparate(MemoryMarshal.AsBytes(value.Digits.Span), destination);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int Write(PgNumeric value, Span<byte> destination)
@@ -44,8 +46,8 @@ internal readonly partial struct NumericCodec : IBinaryCodec<PgNumeric>
         BinaryPrimitives.WriteInt16BigEndian(bytes[2..], weight);
         BinaryPrimitives.WriteUInt16BigEndian(bytes[4..], (ushort)sign);
         BinaryPrimitives.WriteUInt16BigEndian(bytes[6..], scale);
-        int offset = 8;
-        foreach (ushort digit in digits)
+        var offset = 8;
+        foreach (var digit in digits)
         {
             BinaryPrimitives.WriteUInt16BigEndian(bytes[offset..], digit);
             offset += 2;
@@ -53,8 +55,11 @@ internal readonly partial struct NumericCodec : IBinaryCodec<PgNumeric>
         return offset;
     }
 
-    private static bool ValidSign(PgNumericSign sign) => sign is PgNumericSign.Positive or PgNumericSign.Negative or
-        PgNumericSign.NaN or PgNumericSign.PositiveInfinity or PgNumericSign.NegativeInfinity;
+    private static bool ValidSign(PgNumericSign sign)
+    {
+        return sign is PgNumericSign.Positive or PgNumericSign.Negative or
+            PgNumericSign.NaN or PgNumericSign.PositiveInfinity or PgNumericSign.NegativeInfinity;
+    }
 
     internal static int ReadHeader(ReadOnlySpan<byte> payload, out short weight,
         out ushort scale, out PgNumericSign sign)
@@ -90,7 +95,7 @@ internal readonly partial struct NumericCodec : IBinaryCodec<PgNumeric>
         PgNumericSign sign, long remaining)
     {
         if (remaining != 2L * count || scale > 16383 || !ValidSign(sign) ||
-            (sign is not (PgNumericSign.Positive or PgNumericSign.Negative) && count != 0))
+            sign is not (PgNumericSign.Positive or PgNumericSign.Negative) && count != 0)
         {
             throw new InvalidDataException("Invalid numeric header or length.");
         }
@@ -101,11 +106,11 @@ internal readonly partial struct NumericCodec : IBinaryCodec<PgNumeric>
     {
         if (CanShuffleDigits && destination.Length >= 8)
         {
-            int read = ReadDigitVectors(records, destination);
+            var read = ReadDigitVectors(records, destination);
             records = records[(read * 2)..];
             destination = destination[read..];
         }
-        foreach (ref ushort item in destination)
+        foreach (ref var item in destination)
         {
             item = BinaryPrimitives.ReadUInt16BigEndian(records);
             if (item > 9999)
@@ -120,7 +125,7 @@ internal readonly partial struct NumericCodec : IBinaryCodec<PgNumeric>
     {
         while (!destination.IsEmpty)
         {
-            int count = Math.Min(reader.UnreadSpan.Length / 2, destination.Length);
+            var count = Math.Min(reader.UnreadSpan.Length / 2, destination.Length);
             if (count != 0)
             {
                 ReadDigits(reader.UnreadSpan[..(count * 2)], destination[..count]);
@@ -139,10 +144,10 @@ internal readonly partial struct NumericCodec : IBinaryCodec<PgNumeric>
 
     public static PgNumeric Read(ReadOnlySpan<byte> payload)
     {
-        int count = ReadHeader(payload, out short weight, out ushort scale, out var sign);
+        var count = ReadHeader(payload, out var weight, out var scale, out var sign);
         var digits = count == 0 ? Array.Empty<ushort>() : GC.AllocateUninitializedArray<ushort>(count);
         ReadDigits(payload[8..], digits);
-        return new(weight, scale, sign, digits);
+        return new PgNumeric(weight, scale, sign, digits);
     }
 
     public static PgNumeric Read(ReadOnlySequence<byte> payload)
@@ -152,20 +157,20 @@ internal readonly partial struct NumericCodec : IBinaryCodec<PgNumeric>
             return Read(payload.FirstSpan);
         }
         var reader = new SequenceReader<byte>(payload);
-        int count = ReadHeader(ref reader, out short weight, out ushort scale, out var sign);
+        var count = ReadHeader(ref reader, out var weight, out var scale, out var sign);
         var digits = count == 0 ? Array.Empty<ushort>() : GC.AllocateUninitializedArray<ushort>(count);
         ReadDigits(ref reader, digits);
-        return new(weight, scale, sign, digits);
+        return new PgNumeric(weight, scale, sign, digits);
     }
 
     internal static PgNumeric Read(ReadOnlySpan<byte> payload, Memory<ushort> destination)
     {
-        int count = ReadHeader(payload, out short weight, out ushort scale, out var sign);
+        var count = ReadHeader(payload, out var weight, out var scale, out var sign);
         BinaryPayload.RequireCapacity(count, destination.Length);
         destination = destination[..count];
         BinaryPayload.RequireSeparate(payload, MemoryMarshal.AsBytes(destination.Span));
         ReadDigits(payload[8..], destination.Span);
-        return new(weight, scale, sign, destination);
+        return new PgNumeric(weight, scale, sign, destination);
     }
 
     internal static PgNumeric Read(ReadOnlySequence<byte> payload, Memory<ushort> destination)
@@ -175,12 +180,12 @@ internal readonly partial struct NumericCodec : IBinaryCodec<PgNumeric>
             return Read(payload.FirstSpan, destination);
         }
         var reader = new SequenceReader<byte>(payload);
-        int count = ReadHeader(ref reader, out short weight, out ushort scale, out var sign);
+        var count = ReadHeader(ref reader, out var weight, out var scale, out var sign);
         BinaryPayload.RequireCapacity(count, destination.Length);
         destination = destination[..count];
         BinaryPayload.RequireSeparate(payload, destination.Span);
         ReadDigits(ref reader, destination.Span);
-        return new(weight, scale, sign, destination);
+        return new PgNumeric(weight, scale, sign, destination);
     }
 
     internal static int DecimalParts(decimal value, Span<ushort> digits,
@@ -189,24 +194,30 @@ internal readonly partial struct NumericCodec : IBinaryCodec<PgNumeric>
     {
         Span<int> bits = stackalloc int[4];
         decimal.GetBits(value, bits);
-        scale = (ushort)((bits[3] >> 16) & 0xff);
+        scale = (ushort)(bits[3] >> 16 & 0xff);
         sign = bits[3] < 0 ? PgNumericSign.Negative : PgNumericSign.Positive;
-        UInt128 coefficient = (UInt128)(uint)bits[2] << 64 | (UInt128)(uint)bits[1] << 32 | (uint)bits[0];
-        int padding = (4 - scale % 4) % 4;
-        for (int i = 0; i < padding; i++) coefficient *= 10;
-        int start = digits.Length;
+        var coefficient = (UInt128)(uint)bits[2] << 64 | (UInt128)(uint)bits[1] << 32 | (uint)bits[0];
+        var padding = (4 - scale % 4) % 4;
+        for (var i = 0; i < padding; i++)
+        {
+            coefficient *= 10;
+        }
+        var start = digits.Length;
         while (coefficient != 0)
         {
             digits[--start] = (ushort)(coefficient % 10000);
             coefficient /= 10000;
         }
-        int count = digits.Length - start;
+        var count = digits.Length - start;
         weight = count == 0 ? (short)0 : (short)(count - (scale + padding) / 4 - 1);
         if (count == 0)
         {
             sign = PgNumericSign.Positive;
         }
-        while (count > 0 && digits[start + count - 1] == 0) count--;
+        while (count > 0 && digits[start + count - 1] == 0)
+        {
+            count--;
+        }
         digits.Slice(start, count).CopyTo(digits);
         return count;
     }
@@ -214,8 +225,8 @@ internal readonly partial struct NumericCodec : IBinaryCodec<PgNumeric>
     internal static PgNumeric FromDecimal(decimal value)
     {
         Span<ushort> scratch = stackalloc ushort[8];
-        int count = DecimalParts(value, scratch, out short weight, out ushort scale, out var sign);
-        return new(weight, scale, sign, scratch[..count].ToArray());
+        var count = DecimalParts(value, scratch, out var weight, out var scale, out var sign);
+        return new PgNumeric(weight, scale, sign, scratch[..count].ToArray());
     }
 
     internal static decimal ToDecimal(short weight, ushort scale,
@@ -226,23 +237,29 @@ internal readonly partial struct NumericCodec : IBinaryCodec<PgNumeric>
             throw new OverflowException("Decimal cannot represent numeric NaN or infinity.");
         }
         int start = 0, end = digits.Length;
-        while (start < end && digits[start] == 0) start++;
-        while (end > start && digits[end - 1] == 0) end--;
+        while (start < end && digits[start] == 0)
+        {
+            start++;
+        }
+        while (end > start && digits[end - 1] == 0)
+        {
+            end--;
+        }
         if (start == end)
         {
             return new decimal(0, 0, 0, sign == PgNumericSign.Negative, (byte)Math.Min(scale, (ushort)28));
         }
         UInt128 coefficient = 0;
-        for (int i = start; i < end; i++)
+        for (var i = start; i < end; i++)
         {
-            ushort digit = digits[i];
+            var digit = digits[i];
             if (digit > 9999)
             {
                 throw new InvalidDataException("Invalid numeric digit.");
             }
             coefficient = checked(coefficient * 10000 + digit);
         }
-        int power = 4 * (weight - end + 1);
+        var power = 4 * (weight - end + 1);
         while (power < 0 && coefficient % 10 == 0)
         {
             coefficient /= 10;
@@ -257,7 +274,7 @@ internal readonly partial struct NumericCodec : IBinaryCodec<PgNumeric>
             coefficient = checked(coefficient * 10);
             power--;
         }
-        int resultScale = -power;
+        var resultScale = -power;
         if (coefficient > DecimalMax)
         {
             throw new OverflowException("Numeric is outside Decimal's exact range.");
@@ -275,12 +292,18 @@ internal readonly partial struct NumericCodec : IBinaryCodec<PgNumeric>
 
     internal static decimal ReadDecimal(ReadOnlySpan<byte> payload)
     {
-        int count = ReadHeader(payload, out short weight, out ushort scale, out var sign);
+        var count = ReadHeader(payload, out var weight, out var scale, out var sign);
         // Decimal can only need eight significant base-10000 digits. Strip redundant zero
         // groups before deciding; no buffer allocation is needed even for out-of-range numeric.
         int start = 0, end = count;
-        while (start < end && BinaryPrimitives.ReadUInt16BigEndian(payload[(8 + start * 2)..]) == 0) start++;
-        while (end > start && BinaryPrimitives.ReadUInt16BigEndian(payload[(8 + (end - 1) * 2)..]) == 0) end--;
+        while (start < end && BinaryPrimitives.ReadUInt16BigEndian(payload[(8 + start * 2)..]) == 0)
+        {
+            start++;
+        }
+        while (end > start && BinaryPrimitives.ReadUInt16BigEndian(payload[(8 + (end - 1) * 2)..]) == 0)
+        {
+            end--;
+        }
         if (start == end)
         {
             return ToDecimal(weight, scale, sign, ReadOnlySpan<ushort>.Empty);
@@ -301,16 +324,16 @@ internal readonly partial struct NumericCodec : IBinaryCodec<PgNumeric>
             return ReadDecimal(payload.FirstSpan);
         }
         var reader = new SequenceReader<byte>(payload);
-        int count = ReadHeader(ref reader, out short weight, out ushort scale, out var sign);
+        var count = ReadHeader(ref reader, out var weight, out var scale, out var sign);
         Span<ushort> digits = stackalloc ushort[8];
         int start = 0, stored = 0, pendingZeroes = 0;
-        for (int i = 0; i < count; i++)
+        for (var i = 0; i < count; i++)
         {
             if (!reader.TryReadBigEndian(out short field) || unchecked((ushort)field) > 9999)
             {
                 throw new InvalidDataException("Invalid numeric digit.");
             }
-            ushort digit = unchecked((ushort)field);
+            var digit = unchecked((ushort)field);
             if (stored == 0 && digit == 0)
             {
                 start++;

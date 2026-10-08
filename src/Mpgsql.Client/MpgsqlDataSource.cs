@@ -1,304 +1,269 @@
-using System.Runtime.CompilerServices;
-using Mpgsql.Internal;
-using Mpgsql.Protocol;
+using System.Data.Common;
 
 namespace Mpgsql;
 
-/// <summary>Owns authenticated transports and schedules independent, pipelined query groups.</summary>
-/// <remarks>The factory transfers exclusive ownership of idle protocol-3.0 UTF8 sessions. Completing
-/// their pipe endpoints must release the transport. No connection/authentication or cleanup SQL is hidden
-/// here. Dispose aborts transports and rejects further work; readers must still be disposed by callers.</remarks>
-/// <remarks>SyncGroupSize greater than one explicitly shares transaction/error boundaries between
-/// direct requests. Explicitly leased connections retain independent execution boundaries.</remarks>
-public sealed class MpgsqlDataSource : IAsyncDisposable
+/// <summary>A pool of exclusively leased sessions. Closing a healthy idle lease sends no reset SQL.</summary>
+public sealed class MpgsqlDataSource : DbDataSource
 {
+    private readonly HashSet<MpgsqlMessageSession> _all = [];
+    private readonly Func<MpgsqlMessageSession, CancellationToken, ValueTask> _cancel;
     private readonly Func<CancellationToken, ValueTask<MpgsqlMessageSession>> _factory;
-    internal readonly Func<MpgsqlMessageSession, CancellationToken, ValueTask> SendCancelRequest;
-    internal readonly MpgsqlDataSourceOptions Options;
-    private readonly Lock _gate = new();
-    private readonly List<PooledSession> _available = [];
-    private readonly HashSet<PooledSession> _all = [];
-    private readonly LinkedList<SessionWaiter> _waiters = new();
-    private readonly CancellationTokenSource _lifetime = new();
-    private TaskCompletionSource? _changed;
+    private readonly Lock _gate = new Lock();
+    private readonly Stack<MpgsqlMessageSession> _idle = new Stack<MpgsqlMessageSession>();
+    private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
+    private readonly SemaphoreSlim _slots;
     private int _creating;
-    private bool _disposed;
+    private TaskCompletionSource? _creationFinished;
     private Task? _dispose;
+    private bool _disposed;
 
-    public MpgsqlDataSource(
-        Func<CancellationToken, ValueTask<MpgsqlMessageSession>> sessionFactory,
-        Func<MpgsqlMessageSession, CancellationToken, ValueTask> sendCancelRequestAsync,
-        MpgsqlDataSourceOptions? options = null)
+    public MpgsqlDataSource(string connectionString, MpgsqlDataSourceOptions? options = null)
+    {
+        var builder = new MpgsqlConnectionStringBuilder(connectionString);
+        var settings = builder.ToSessionOptions();
+        ConnectionString = builder.ConnectionString;
+        Options = (options ?? new MpgsqlDataSourceOptions {MaxConnections = builder.MaxPoolSize}).CopyValidated();
+        DefaultCommandTimeout = builder.CommandTimeout;
+        OpenTimeout = settings.ConnectTimeout;
+        _factory = token => MpgsqlMessageSession.OpenAsync(settings, token);
+        _cancel = static (session, token) => session.SendCancelRequestAsync(token);
+        _slots = new SemaphoreSlim(Options.MaxConnections, Options.MaxConnections);
+    }
+
+    /// <summary>The factory transfers exclusive ownership of an authenticated, idle UTF8 session.</summary>
+    public MpgsqlDataSource(Func<CancellationToken, ValueTask<MpgsqlMessageSession>> sessionFactory,
+        Func<MpgsqlMessageSession, CancellationToken, ValueTask> sendCancelRequestAsync, MpgsqlDataSourceOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(sessionFactory);
         ArgumentNullException.ThrowIfNull(sendCancelRequestAsync);
+        ConnectionString = "";
+        Options = (options ?? new MpgsqlDataSourceOptions()).CopyValidated();
         _factory = sessionFactory;
-        SendCancelRequest = sendCancelRequestAsync;
-        Options = (options ?? new()).CopyValidated();
+        _cancel = sendCancelRequestAsync;
+        _slots = new SemaphoreSlim(Options.MaxConnections, Options.MaxConnections);
     }
+    internal MpgsqlDataSourceOptions Options { get; }
+    internal int DefaultCommandTimeout { get; }
+    internal TimeSpan OpenTimeout { get; } = TimeSpan.FromSeconds(15);
+    public override string ConnectionString { get; }
 
-    internal CancellationToken LifetimeToken => _lifetime.Token;
-
-    public async ValueTask<MpgsqlConnection> OpenConnectionAsync(CancellationToken cancellationToken = default)
-        => new(this, await AcquireAsync(exclusive: true, cancellationToken).ConfigureAwait(false));
-
-    /// <summary>Input memory is borrowed until this method completes. The reader owns the request slot
-    /// until it is fully consumed or disposed. Slow readers apply transport-wide backpressure.</summary>
-    public ValueTask<MpgsqlResultReader> ExecuteReaderAsync(string sql,
-        ReadOnlyMemory<MpgsqlParameter> parameters = default, CancellationToken cancellationToken = default)
+    internal bool IsDisposed
     {
-        try
+        get
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            int size = QueryPacket.GetByteCount(sql, parameters.Span);
-            var query = new QueryDefinition(sql, parameters, size);
-            var admission = AcquireAsync(exclusive: false, cancellationToken);
-            // A reserved slot needs no forwarding async machine around OpenReaderAsync.
-            return admission.IsCompletedSuccessfully
-                ? OpenReservedReader(admission.Result, query, cancellationToken)
-                : OpenAdmittedReaderAsync(admission, query, cancellationToken);
-        }
-        catch (Exception error) { return QueryExecution.ReaderFailureAsync(error); }
-    }
-
-    private ValueTask<MpgsqlResultReader> OpenReservedReader(PooledSession pooled,
-        QueryDefinition query, CancellationToken token)
-    {
-        try { return new QueryExecution(this, pooled, query, token).OpenReaderAsync(waitForInputRelease: true); }
-        catch (Exception error) { return ReleaseFailedReservationAsync(pooled, error); }
-    }
-
-    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
-    private async ValueTask<MpgsqlResultReader> OpenAdmittedReaderAsync(ValueTask<PooledSession> admission,
-        QueryDefinition query, CancellationToken token)
-        => await OpenReservedReader(await admission.ConfigureAwait(false), query, token).ConfigureAwait(false);
-
-    private async ValueTask<MpgsqlResultReader> ReleaseFailedReservationAsync(PooledSession pooled, Exception error)
-    {
-        await ReleaseRequestAsync(pooled).ConfigureAwait(false);
-        System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(error);
-        return null!;
-    }
-
-    public async ValueTask<MpgsqlScalarResult<T>> ExecuteScalarAsync<T>(string sql,
-        ReadOnlyMemory<MpgsqlParameter> parameters = default, CancellationToken cancellationToken = default)
-        => await ResultConsumption.ScalarAsync<T>(await ExecuteReaderAsync(sql, parameters, cancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
-
-    public async ValueTask<long> ExecuteNonQueryAsync(string sql,
-        ReadOnlyMemory<MpgsqlParameter> parameters = default, CancellationToken cancellationToken = default)
-        => await ResultConsumption.NonQueryAsync(await ExecuteReaderAsync(sql, parameters, cancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
-
-    private static TaskCompletionSource NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private void Signal()
-    {
-        var previous = _changed;
-        _changed = null;
-        previous?.TrySetResult();
-        while (_waiters.First is { } node)
-        {
-            var waiter = node.Value;
-            if (_disposed || waiter.Token.IsCancellationRequested)
+            lock (_gate)
             {
-                _waiters.RemoveFirst();
-                waiter.Node = null;
-                if (waiter.Token.IsCancellationRequested) waiter.TrySetCanceled();
-                else waiter.TrySetException(new ObjectDisposedException(nameof(MpgsqlDataSource)));
-                continue;
+                return _disposed;
             }
-            if (TryReserve(waiter.Exclusive) is { } pooled)
-            {
-                _waiters.RemoveFirst();
-                waiter.Node = null;
-                waiter.TrySetResult(pooled);
-            }
-            else if (_available.Count + _creating < Options.MaxConnections)
-            {
-                _waiters.RemoveFirst();
-                waiter.Node = null;
-                _creating++;
-                // A user factory never runs under the admission lock or on the receive loop.
-                _ = Task.Run(() => CreateForWaiterAsync(waiter));
-            }
-            else break;
         }
     }
 
-    // Called with the data source gate held. Reserve before waking a waiter so newcomers cannot steal it.
-    private PooledSession? TryReserve(bool exclusive)
+    protected override DbConnection CreateDbConnection()
     {
-        PooledSession? chosen = null;
-        foreach (var candidate in _available)
-        {
-            if (candidate.Retired || candidate.Leased
-                || (exclusive ? candidate.Active != 0 : candidate.Active >= Options.MaxInFlightPerConnection)
-                || !candidate.Session.IsIdleAndHealthy) continue;
-            if (chosen is null || candidate.Active < chosen.Active) chosen = candidate;
-            if (candidate.Active == 0) break;
-        }
-        if (chosen is null) return null;
-        if (exclusive) chosen.Leased = true;
-        else chosen.Active++;
-        return chosen;
-    }
-
-    private ValueTask<PooledSession> AcquireAsync(bool exclusive, CancellationToken token)
-    {
-        token.ThrowIfCancellationRequested();
-        SessionWaiter? waiter = null;
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            if (_waiters.Count == 0)
-            {
-                if (TryReserve(exclusive) is { } pooled) return new(pooled);
-                if (_available.Count + _creating < Options.MaxConnections) _creating++;
-                else waiter = new(this, exclusive, token);
-            }
-            else waiter = new(this, exclusive, token);
-            if (waiter is not null)
-            {
-                waiter.Node = _waiters.AddLast(waiter);
-                Signal();
-            }
         }
-        return waiter is null ? CreateSessionAsync(exclusive, token) : WaitForSessionAsync(waiter);
+        return new MpgsqlConnection(this);
     }
-
-    private static ValueTask<PooledSession> WaitForSessionAsync(SessionWaiter waiter)
-        => waiter.Token.CanBeCanceled ? WaitForCancelableSessionAsync(waiter) : waiter.WaitAsync();
-
-    private static async ValueTask<PooledSession> WaitForCancelableSessionAsync(SessionWaiter waiter)
+    public new MpgsqlConnection CreateConnection()
     {
-        using var registration = waiter.Token.UnsafeRegister(static state =>
-        {
-            var waiting = (SessionWaiter)state!;
-            waiting.Source.CancelWaiter(waiting);
-        }, waiter);
-        return await waiter.WaitAsync().ConfigureAwait(false);
+        return (MpgsqlConnection)CreateDbConnection();
     }
-
-    private void CancelWaiter(SessionWaiter waiter)
+    public async new ValueTask<MpgsqlConnection> OpenConnectionAsync(CancellationToken cancellationToken = default)
     {
-        lock (_gate)
-        {
-            if (waiter.Node is not { } node) return; // A handed-off slot is now owned by the caller.
-            _waiters.Remove(node);
-            waiter.Node = null;
-            waiter.TrySetCanceled();
-            Signal();
-        }
-    }
-
-    private async Task CreateForWaiterAsync(SessionWaiter waiter)
-    {
-        try { waiter.TrySetResult(await CreateSessionAsync(waiter.Exclusive, waiter.Token).ConfigureAwait(false)); }
-        catch (OperationCanceledException) when (waiter.Token.IsCancellationRequested) { waiter.TrySetCanceled(); }
-        catch (Exception error) { waiter.TrySetException(error); }
-    }
-
-    private async ValueTask<PooledSession> CreateSessionAsync(bool exclusive, CancellationToken token)
-    {
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, _lifetime.Token);
-        PooledSession? created = null;
-        MpgsqlMessageSession? returned = null;
+        var connection = CreateConnection();
         try
         {
-            returned = await _factory(linked.Token).ConfigureAwait(false)
-                ?? throw new InvalidOperationException("The session factory returned null.");
-            returned.ClaimForDataSource(Options.MaxBufferedRowBytesPerConnection);
-            created = new(returned, Options);
-            lock (_gate)
-            {
-                ObjectDisposedException.ThrowIf(_disposed, this);
-                token.ThrowIfCancellationRequested();
-                _available.Add(created);
-                _all.Add(created);
-                if (exclusive) created.Leased = true;
-                else created.Active = 1;
-            }
-            _ = MonitorAsync(created);
-            return created;
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            return connection;
         }
         catch
         {
-            if (created is not null) await created.DisposeAsync().ConfigureAwait(false);
-            else if (returned is not null && !returned.IsClaimedForDataSource)
-                await returned.DisposeAsync().ConfigureAwait(false);
+            await connection.DisposeAsync().ConfigureAwait(false);
             throw;
         }
-        finally { lock (_gate) { _creating--; Signal(); } }
     }
-
-    private async Task MonitorAsync(PooledSession pooled)
+    protected override async ValueTask<DbConnection> OpenDbConnectionAsync(CancellationToken cancellationToken = default)
     {
-        try { await pooled.Session.Completion.ConfigureAwait(false); }
-        catch { /* session failure is also delivered to its outstanding operations */ }
-        await RetireAsync(pooled).ConfigureAwait(false);
+        return await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
     }
-
-    internal async ValueTask ReleaseRequestAsync(PooledSession pooled)
+    protected override DbConnection OpenDbConnection()
     {
-        bool retire;
-        lock (_gate)
-        {
-            pooled.Active--;
-            retire = !pooled.Session.IsIdleAndHealthy;
-            Signal();
-        }
-        if (retire) await RetireAsync(pooled).ConfigureAwait(false);
+        throw new NotSupportedException("Use OpenConnectionAsync.");
     }
-
-    internal async ValueTask ReturnConnectionAsync(PooledSession pooled)
-    {
-        bool retire;
-        lock (_gate)
-        {
-            pooled.Leased = false;
-            retire = !pooled.Session.IsIdleAndHealthy;
-            Signal();
-        }
-        if (retire) await RetireAsync(pooled).ConfigureAwait(false);
-    }
-
-    internal async Task RetireAsync(PooledSession pooled)
+    protected override DbCommand CreateDbCommand(string? commandText = null)
     {
         lock (_gate)
         {
-            pooled.Retired = true;
-            _available.Remove(pooled);
-            Signal();
+            ObjectDisposedException.ThrowIf(_disposed, this);
         }
-        await pooled.DisposeAsync().ConfigureAwait(false);
-        lock (_gate) _all.Remove(pooled);
+        return new MpgsqlCommand(this, commandText ?? "");
+    }
+    public new MpgsqlCommand CreateCommand(string? commandText = null)
+    {
+        return (MpgsqlCommand)CreateDbCommand(commandText);
+    }
+    protected override DbBatch CreateDbBatch()
+    {
+        throw new NotSupportedException("Open a connection explicitly before creating a batch.");
     }
 
-    public ValueTask DisposeAsync()
+    internal async ValueTask<MpgsqlMessageSession> RentAsync(CancellationToken token)
     {
+        using var linked = token.CanBeCanceled ? CancellationTokenSource.CreateLinkedTokenSource(token, _lifetime.Token) : null;
+        var lifetime = linked?.Token ?? _lifetime.Token;
         lock (_gate)
         {
-            if (_dispose is not null) return new(_dispose);
-            _disposed = true;
-            _lifetime.Cancel();
-            Signal();
-            return new(_dispose = DisposeCoreAsync());
+            ObjectDisposedException.ThrowIf(_disposed, this);
         }
-    }
-
-    private async Task DisposeCoreAsync()
-    {
-        while (true)
+        await _slots.WaitAsync(lifetime).ConfigureAwait(false);
+        try
         {
-            Task wait;
             lock (_gate)
             {
-                if (_creating == 0) break;
-                wait = (_changed ??= NewSignal()).Task;
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                while (_idle.TryPop(out var session))
+                {
+                    if (session.IsIdleAndHealthy)
+                    {
+                        return session;
+                    }
+                    _all.Remove(session);
+                    session.Abort(new IOException("The idle pool session is no longer reusable."));
+                }
+                _creating++;
             }
-            await wait.ConfigureAwait(false);
+            MpgsqlMessageSession? created = null;
+            var owned = false;
+            try
+            {
+                created = await _factory(lifetime).ConfigureAwait(false) ?? throw new InvalidOperationException("The session factory returned null.");
+                created.ClaimForDataSource(Options.MaxBufferedRowBytesPerConnection);
+                owned = true;
+                lock (_gate)
+                {
+                    ObjectDisposedException.ThrowIf(_disposed, this);
+                    lifetime.ThrowIfCancellationRequested();
+                    _all.Add(created);
+                }
+                _ = ObserveAsync(created);
+                return created;
+            }
+            catch
+            {
+                if (created is not null && (owned || !created.IsClaimedForDataSource))
+                {
+                    await created.DisposeAsync().ConfigureAwait(false);
+                }
+                throw;
+            }
+            finally
+            {
+                lock (_gate)
+                {
+                    if (--_creating == 0)
+                    {
+                        _creationFinished?.TrySetResult();
+                    }
+                }
+            }
         }
-        PooledSession[] sessions;
-        lock (_gate) { sessions = [.. _all]; _available.Clear(); }
-        await Task.WhenAll(sessions.Select(RetireAsync)).ConfigureAwait(false);
-        // Keep the CTS alive: outstanding owners can still inspect the cancelled lifetime token.
+        catch
+        {
+            _slots.Release();
+            throw;
+        }
+    }
+
+    private async Task ObserveAsync(MpgsqlMessageSession session)
+    {
+        try { await session.Completion.ConfigureAwait(false); }
+        catch { }
+        lock (_gate)
+        {
+            _all.Remove(session);
+        }
+        await session.DisposeAsync().ConfigureAwait(false);
+    }
+    internal ValueTask SendCancelAsync(MpgsqlMessageSession session, CancellationToken token)
+    {
+        return _cancel(session, token);
+    }
+    internal async ValueTask ReturnAsync(MpgsqlMessageSession session)
+    {
+        bool close;
+        lock (_gate)
+        {
+            close = _disposed || !session.IsIdleAndHealthy;
+            if (!close)
+            {
+                _idle.Push(session);
+            }
+            else
+            {
+                _all.Remove(session);
+            }
+        }
+        try
+        {
+            if (close)
+            {
+                await session.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+        finally { _slots.Release(); }
+    }
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            lock (_gate)
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+                _disposed = true;
+                _lifetime.Cancel();
+                foreach (var session in _all) session.Abort(new ObjectDisposedException(nameof(MpgsqlDataSource)));
+                _dispose = DisposeCoreAsync();
+            }
+        }
+        base.Dispose(disposing);
+    }
+    protected override ValueTask DisposeAsyncCore()
+    {
+        lock (_gate)
+        {
+            if (_dispose is not null)
+            {
+                return new ValueTask(_dispose);
+            }
+            _disposed = true;
+            _lifetime.Cancel();
+            foreach (var session in _all) session.Abort(new ObjectDisposedException(nameof(MpgsqlDataSource)));
+            return new ValueTask(_dispose = DisposeCoreAsync());
+        }
+    }
+    private async Task DisposeCoreAsync()
+    {
+        Task? pending;
+        lock (_gate)
+        {
+            pending = _creating == 0 ? null : (_creationFinished ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
+        }
+        if (pending is not null)
+        {
+            await pending.ConfigureAwait(false);
+        }
+        MpgsqlMessageSession[] sessions;
+        lock (_gate)
+        {
+            sessions = [.. _all];
+            _all.Clear();
+            _idle.Clear();
+        }
+        foreach (var session in sessions) await session.DisposeAsync().ConfigureAwait(false);
     }
 }

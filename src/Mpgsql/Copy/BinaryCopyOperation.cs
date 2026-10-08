@@ -5,35 +5,17 @@ namespace Mpgsql.Copy;
 
 /// <summary>Tracks the exclusive COPY subprotocol and its command/ReadyForQuery boundary.</summary>
 /// <remarks>
-/// The connection scheduler must reserve the physical connection until IsCompleted.
-/// Asynchronous backend messages are returned to the caller for separate routing;
-/// no callbacks run here. COPY BOTH/replication is a different subprotocol.
+///     The connection scheduler must reserve the physical connection until IsCompleted.
+///     Asynchronous backend messages are returned to the caller for separate routing;
+///     no callbacks run here. COPY BOTH/replication is a different subprotocol.
 /// </remarks>
 public sealed class BinaryCopyOperation
 {
-    private enum Phase
-    {
-        Import,
-        Export,
-        Command,
-        Ready,
-        Recovery,
-        Completed
-    }
-
-    private Phase _phase;
     private readonly bool _extendedQuery;
-    private bool _syncSent;
     private bool _failedByClient;
 
-    public int ColumnCount { get; }
-    public bool IsImport { get; }
-    public bool IsCompleted => _phase == Phase.Completed;
-    public bool RequiresSync => _extendedQuery && !_syncSent && _phase is Phase.Command or Phase.Ready or Phase.Recovery;
-    public bool CanSendData => _phase == Phase.Import;
-    public ulong? RowsCopied { get; private set; }
-    public DiagnosticMessage? Error { get; private set; }
-    public TransactionStatus? TransactionStatus { get; private set; }
+    private Phase _phase;
+    private bool _syncSent;
 
     public BinaryCopyOperation(BackendMessage response,
         bool extendedQuery = false)
@@ -49,10 +31,12 @@ public sealed class BinaryCopyOperation
             throw new NotSupportedException("This operation requires FORMAT binary.");
         }
         foreach (var format in copy.ColumnFormats.Span)
+        {
             if (format != FormatCode.Binary)
             {
                 throw new InvalidDataException("A binary COPY column has a text format.");
             }
+        }
         ColumnCount = copy.ColumnFormats.Length;
         if (ColumnCount > short.MaxValue)
         {
@@ -62,6 +46,15 @@ public sealed class BinaryCopyOperation
         _phase = IsImport ? Phase.Import : Phase.Export;
         _extendedQuery = extendedQuery;
     }
+
+    public int ColumnCount { get; }
+    public bool IsImport { get; }
+    public bool IsCompleted => _phase == Phase.Completed;
+    public bool RequiresSync => _extendedQuery && !_syncSent && _phase is Phase.Command or Phase.Ready or Phase.Recovery;
+    public bool CanSendData => _phase == Phase.Import;
+    public ulong? RowsCopied { get; private set; }
+    public DiagnosticMessage? Error { get; private set; }
+    public TransactionStatus? TransactionStatus { get; private set; }
 
     public void CopyDoneSent()
     {
@@ -114,13 +107,13 @@ public sealed class BinaryCopyOperation
                 _phase = Phase.Command;
                 return true;
             case (Phase.Command, BackendMessageKind.CommandComplete) when !_failedByClient:
-                string tag = message.GetCommandTag();
+                var tag = message.GetCommandTag();
                 if (!tag.StartsWith("COPY ",
                         StringComparison.Ordinal) ||
                     !ulong.TryParse(tag.AsSpan(5),
                         NumberStyles.None,
                         CultureInfo.InvariantCulture,
-                        out ulong count))
+                        out var count))
                 {
                     throw new InvalidDataException("Invalid COPY command tag.");
                 }
@@ -145,5 +138,15 @@ public sealed class BinaryCopyOperation
         {
             throw new InvalidOperationException("The COPY IN data phase is not active.");
         }
+    }
+
+    private enum Phase
+    {
+        Import,
+        Export,
+        Command,
+        Ready,
+        Recovery,
+        Completed
     }
 }

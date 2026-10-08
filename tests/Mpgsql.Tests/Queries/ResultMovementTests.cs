@@ -5,14 +5,15 @@ namespace Mpgsql.Tests.Queries;
 
 public sealed class ResultMovementTests
 {
-    [Theory]
-    [InlineData(1)]
-    [InlineData(int.MaxValue)]
+    [Theory, InlineData(1), InlineData(int.MaxValue)]
     public async Task BufferedDescriptionsKeepNoDataEmptyRowsAndNullColumnsDistinct(int fragment)
     {
         await using var wire = new ScriptedSession();
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        for (int i = 0; i < 3; i++) await batch.SendQueryAsync("select result");
+        for (var i = 0; i < 3; i++)
+        {
+            await batch.SendQueryAsync("select result");
+        }
         await batch.SendSyncAsync();
         await wire.ReadOutputAsync();
         await wire.WriteAsync(Join(Packet('1'), Packet('2'), Packet('n'), Command("UPDATE 2"),
@@ -84,7 +85,7 @@ public sealed class ResultMovementTests
         await using var reader = await batch.ReadResultsAsync();
         Assert.True(await reader.ReadAsync());
         Assert.False(await reader.ReadAsync());
-        Task<bool> next = reader.NextResultAsync().AsTask();
+        var next = reader.NextResultAsync().AsTask();
         Assert.False(next.IsCompleted);
         await wire.WriteAsync(Error());
         Assert.False(next.IsCompleted);
@@ -110,7 +111,7 @@ public sealed class ResultMovementTests
         await using var reader = await batch.ReadResultsAsync();
         Assert.True(await reader.ReadAsync());
         Assert.False(await reader.ReadAsync());
-        Task<bool> next = reader.NextResultAsync().AsTask();
+        var next = reader.NextResultAsync().AsTask();
         Assert.False(next.IsCompleted);
         request.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => next.WaitAsync(TestTimeout,

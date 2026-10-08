@@ -5,20 +5,26 @@ namespace Mpgsql.Converters;
 
 /// <summary>Binary PostgreSQL bigint conversion for long and long?.</summary>
 /// <remarks>
-/// A non-NULL payload is exactly eight big-endian bytes. Bind/DataRow/COPY own
-/// the outer length and SQL NULL marker; this converter writes only the payload.
-/// NULL writes zero bytes and must be marked NULL by the caller's field encoder.
-/// An empty, non-NULL payload is invalid, rather than another representation of NULL.
+///     A non-NULL payload is exactly eight big-endian bytes. Bind/DataRow/COPY own
+///     the outer length and SQL NULL marker; this converter writes only the payload.
+///     NULL writes zero bytes and must be marked NULL by the caller's field encoder.
+///     An empty, non-NULL payload is invalid, rather than another representation of NULL.
 /// </remarks>
 public static class Int64Converter
 {
     public const uint TypeOid = (uint)Mpgsql.TypeOid.Int64;
     public const int ByteCount = sizeof(long);
 
-    public static int GetByteCount(long value) => ByteCount;
+    public static int GetByteCount(long value)
+    {
+        return ByteCount;
+    }
 
     /// <summary>Returns eight for a value, zero for SQL NULL's absent payload.</summary>
-    public static int GetByteCount(long? value) => value.HasValue ? ByteCount : 0;
+    public static int GetByteCount(long? value)
+    {
+        return value.HasValue ? ByteCount : 0;
+    }
 
     /// <summary>Writes eight bytes and returns the number written.</summary>
     /// <remarks>Insufficient capacity throws ArgumentException before changing the destination.</remarks>
@@ -37,10 +43,12 @@ public static class Int64Converter
     /// <summary>Writes a value, or leaves the destination unchanged and returns zero for NULL.</summary>
     public static int Write(long? value,
         Span<byte> destination)
-        => value.HasValue
+    {
+        return value.HasValue
             ? Write(value.GetValueOrDefault(),
                 destination)
             : 0;
+    }
 
     /// <summary>Reserves and advances exactly eight payload bytes.</summary>
     public static void Write(long value,
@@ -89,16 +97,20 @@ public static class Int64Converter
         // constructing a SequenceReader and copying a split value into its scratch buffer.
         long result = 0;
         foreach (var segment in payload)
-        foreach (byte part in segment.Span)
-            result = (result << 8) | part;
+        foreach (var part in segment.Span)
+            result = result << 8 | part;
         return result;
     }
 
     /// <summary>Uses the outer field's nullable memory to distinguish SQL NULL from payload bytes.</summary>
     public static long? ReadNullable(ReadOnlyMemory<byte>? payload)
-        => payload is { } value ? Read(value.Span) : null;
+    {
+        return payload is { } value ? Read(value.Span) : null;
+    }
 
     /// <summary>Uses the outer field's nullable sequence to distinguish SQL NULL from payload bytes.</summary>
     public static long? ReadNullable(ReadOnlySequence<byte>? payload)
-        => payload is { } value ? Read(value) : null;
+    {
+        return payload is { } value ? Read(value) : null;
+    }
 }

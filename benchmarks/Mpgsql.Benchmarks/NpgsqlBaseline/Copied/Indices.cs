@@ -31,7 +31,7 @@ OR MODIFICATIONS.
 
 namespace Mpgsql.Benchmarks.NpgsqlBaseline.Copied;
 
-struct Indices
+internal struct Indices
 {
     // Public field to be able to return it by ref in GetItem.
     public int One;
@@ -39,12 +39,14 @@ struct Indices
     public int Count { get; private init; }
 
     public static Indices Create(int dimensions)
-        => dimensions switch
+    {
+        return dimensions switch
         {
-            0 => new() {Count = dimensions, One = -1},
-            1 => new() {Count = dimensions},
-            _ => new() {Count = dimensions, Many = new int[dimensions]}
+            0 => new Indices {Count = dimensions, One = -1},
+            1 => new Indices {Count = dimensions},
+            _ => new Indices {Count = dimensions, Many = new int[dimensions]}
         };
+    }
 }
 
 #pragma warning restore NPG9001

@@ -9,7 +9,13 @@ public readonly struct IndexedDataRow
     public ReadOnlyMemory<ReadOnlySequence<byte>?> Values { get; }
     public int Count => Values.Length;
 
-    internal IndexedDataRow(ReadOnlyMemory<ReadOnlySequence<byte>?> values) => Values = values;
+    internal IndexedDataRow(ReadOnlyMemory<ReadOnlySequence<byte>?> values)
+    {
+        Values = values;
+    }
 
-    public ReadOnlySpan<ReadOnlySequence<byte>?>.Enumerator GetEnumerator() => Values.Span.GetEnumerator();
+    public ReadOnlySpan<ReadOnlySequence<byte>?>.Enumerator GetEnumerator()
+    {
+        return Values.Span.GetEnumerator();
+    }
 }

@@ -1,13 +1,24 @@
+using System.Buffers;
+
 namespace Mpgsql.Protocol;
 
 /// <summary>An opaque body, also used for COPY, GSS and SASL continuation bytes.</summary>
 public readonly struct RawFrontendMessage : IFrontendMessage<RawFrontendMessage>
 {
-    public int GetByteCount() => FrontendMessageWriter.GetByteCount(in this);
-    public int Write(Span<byte> destination) => FrontendMessageWriter.Write(in this,
-        destination);
-    public void Write(System.Buffers.IBufferWriter<byte> destination) => FrontendMessageWriter.Write(in this,
-        destination);
+    public int GetByteCount()
+    {
+        return FrontendMessageWriter.GetByteCount(in this);
+    }
+    public int Write(Span<byte> destination)
+    {
+        return FrontendMessageWriter.Write(in this,
+            destination);
+    }
+    public void Write(IBufferWriter<byte> destination)
+    {
+        FrontendMessageWriter.Write(in this,
+            destination);
+    }
 
     private readonly ReadOnlyMemory<byte> _payload;
     private readonly int _byteCount;
@@ -23,20 +34,38 @@ public readonly struct RawFrontendMessage : IFrontendMessage<RawFrontendMessage>
         _byteCount = FrontendSize.Packet(payload.Length,
             type.HasValue);
     }
-    static byte? IFrontendMessage<RawFrontendMessage>.GetMessageType(in RawFrontendMessage message) => message.Type;
-    static int IFrontendMessage<RawFrontendMessage>.GetByteCount(in RawFrontendMessage message) => FrontendSize.Initialized(message._byteCount);
+    static byte? IFrontendMessage<RawFrontendMessage>.GetMessageType(in RawFrontendMessage message)
+    {
+        return message.Type;
+    }
+    static int IFrontendMessage<RawFrontendMessage>.GetByteCount(in RawFrontendMessage message)
+    {
+        return FrontendSize.Initialized(message._byteCount);
+    }
     static void IFrontendMessage<RawFrontendMessage>.WritePayload(in RawFrontendMessage message,
-        Span<byte> destination) => message._payload.Span.CopyTo(destination);
+        Span<byte> destination)
+    {
+        message._payload.Span.CopyTo(destination);
+    }
 }
 
 /// <summary>A Query, Password or CopyFail string with a prepared UTF-8 byte count.</summary>
 public readonly struct TextMessage : IFrontendMessage<TextMessage>
 {
-    public int GetByteCount() => FrontendMessageWriter.GetByteCount(in this);
-    public int Write(Span<byte> destination) => FrontendMessageWriter.Write(in this,
-        destination);
-    public void Write(System.Buffers.IBufferWriter<byte> destination) => FrontendMessageWriter.Write(in this,
-        destination);
+    public int GetByteCount()
+    {
+        return FrontendMessageWriter.GetByteCount(in this);
+    }
+    public int Write(Span<byte> destination)
+    {
+        return FrontendMessageWriter.Write(in this,
+            destination);
+    }
+    public void Write(IBufferWriter<byte> destination)
+    {
+        FrontendMessageWriter.Write(in this,
+            destination);
+    }
 
     private readonly string _text;
     private readonly int _byteCount;
@@ -52,8 +81,14 @@ public readonly struct TextMessage : IFrontendMessage<TextMessage>
         _text = text;
         Kind = kind;
     }
-    static byte? IFrontendMessage<TextMessage>.GetMessageType(in TextMessage message) => message.Type;
-    static int IFrontendMessage<TextMessage>.GetByteCount(in TextMessage message) => FrontendSize.Initialized(message._byteCount);
+    static byte? IFrontendMessage<TextMessage>.GetMessageType(in TextMessage message)
+    {
+        return message.Type;
+    }
+    static int IFrontendMessage<TextMessage>.GetByteCount(in TextMessage message)
+    {
+        return FrontendSize.Initialized(message._byteCount);
+    }
     static void IFrontendMessage<TextMessage>.WritePayload(in TextMessage message,
         Span<byte> destination)
     {
@@ -65,11 +100,20 @@ public readonly struct TextMessage : IFrontendMessage<TextMessage>
 /// <summary>A Flush, Sync, Terminate or CopyDone packet with no body.</summary>
 public readonly struct EmptyMessage : IFrontendMessage<EmptyMessage>
 {
-    public int GetByteCount() => FrontendMessageWriter.GetByteCount(in this);
-    public int Write(Span<byte> destination) => FrontendMessageWriter.Write(in this,
-        destination);
-    public void Write(System.Buffers.IBufferWriter<byte> destination) => FrontendMessageWriter.Write(in this,
-        destination);
+    public int GetByteCount()
+    {
+        return FrontendMessageWriter.GetByteCount(in this);
+    }
+    public int Write(Span<byte> destination)
+    {
+        return FrontendMessageWriter.Write(in this,
+            destination);
+    }
+    public void Write(IBufferWriter<byte> destination)
+    {
+        FrontendMessageWriter.Write(in this,
+            destination);
+    }
 
     private readonly byte _type;
     public byte? Type => _type;
@@ -80,8 +124,14 @@ public readonly struct EmptyMessage : IFrontendMessage<EmptyMessage>
         _type = type;
         Kind = kind;
     }
-    static byte? IFrontendMessage<EmptyMessage>.GetMessageType(in EmptyMessage message) => message.Type;
-    static int IFrontendMessage<EmptyMessage>.GetByteCount(in EmptyMessage message) => FrontendSize.Initialized(message._type == 0 ? 0 : 5);
+    static byte? IFrontendMessage<EmptyMessage>.GetMessageType(in EmptyMessage message)
+    {
+        return message.Type;
+    }
+    static int IFrontendMessage<EmptyMessage>.GetByteCount(in EmptyMessage message)
+    {
+        return FrontendSize.Initialized(message._type == 0 ? 0 : 5);
+    }
     static void IFrontendMessage<EmptyMessage>.WritePayload(in EmptyMessage message,
         Span<byte> destination) { }
 }
@@ -89,11 +139,20 @@ public readonly struct EmptyMessage : IFrontendMessage<EmptyMessage>
 /// <summary>A Describe or Close command; the target selects statement or portal.</summary>
 public readonly struct TargetMessage : IFrontendMessage<TargetMessage>
 {
-    public int GetByteCount() => FrontendMessageWriter.GetByteCount(in this);
-    public int Write(Span<byte> destination) => FrontendMessageWriter.Write(in this,
-        destination);
-    public void Write(System.Buffers.IBufferWriter<byte> destination) => FrontendMessageWriter.Write(in this,
-        destination);
+    public int GetByteCount()
+    {
+        return FrontendMessageWriter.GetByteCount(in this);
+    }
+    public int Write(Span<byte> destination)
+    {
+        return FrontendMessageWriter.Write(in this,
+            destination);
+    }
+    public void Write(IBufferWriter<byte> destination)
+    {
+        FrontendMessageWriter.Write(in this,
+            destination);
+    }
 
     private readonly byte _type;
     private readonly StatementOrPortal _target;
@@ -116,8 +175,14 @@ public readonly struct TargetMessage : IFrontendMessage<TargetMessage>
         _name = name;
         Kind = kind;
     }
-    static byte? IFrontendMessage<TargetMessage>.GetMessageType(in TargetMessage message) => message.Type;
-    static int IFrontendMessage<TargetMessage>.GetByteCount(in TargetMessage message) => FrontendSize.Initialized(message._byteCount);
+    static byte? IFrontendMessage<TargetMessage>.GetMessageType(in TargetMessage message)
+    {
+        return message.Type;
+    }
+    static int IFrontendMessage<TargetMessage>.GetByteCount(in TargetMessage message)
+    {
+        return FrontendSize.Initialized(message._byteCount);
+    }
     static void IFrontendMessage<TargetMessage>.WritePayload(in TargetMessage message,
         Span<byte> destination)
     {
@@ -129,11 +194,20 @@ public readonly struct TargetMessage : IFrontendMessage<TargetMessage>
 
 public readonly struct ExecuteMessage : IFrontendMessage<ExecuteMessage>
 {
-    public int GetByteCount() => FrontendMessageWriter.GetByteCount(in this);
-    public int Write(Span<byte> destination) => FrontendMessageWriter.Write(in this,
-        destination);
-    public void Write(System.Buffers.IBufferWriter<byte> destination) => FrontendMessageWriter.Write(in this,
-        destination);
+    public int GetByteCount()
+    {
+        return FrontendMessageWriter.GetByteCount(in this);
+    }
+    public int Write(Span<byte> destination)
+    {
+        return FrontendMessageWriter.Write(in this,
+            destination);
+    }
+    public void Write(IBufferWriter<byte> destination)
+    {
+        FrontendMessageWriter.Write(in this,
+            destination);
+    }
 
     private readonly string _portal;
     private readonly int _maxRows;
@@ -148,8 +222,14 @@ public readonly struct ExecuteMessage : IFrontendMessage<ExecuteMessage>
         _portal = portal;
         _maxRows = maxRows;
     }
-    static byte? IFrontendMessage<ExecuteMessage>.GetMessageType(in ExecuteMessage message) => (byte)'E';
-    static int IFrontendMessage<ExecuteMessage>.GetByteCount(in ExecuteMessage message) => FrontendSize.Initialized(message._byteCount);
+    static byte? IFrontendMessage<ExecuteMessage>.GetMessageType(in ExecuteMessage message)
+    {
+        return (byte)'E';
+    }
+    static int IFrontendMessage<ExecuteMessage>.GetByteCount(in ExecuteMessage message)
+    {
+        return FrontendSize.Initialized(message._byteCount);
+    }
     static void IFrontendMessage<ExecuteMessage>.WritePayload(in ExecuteMessage message,
         Span<byte> destination)
     {

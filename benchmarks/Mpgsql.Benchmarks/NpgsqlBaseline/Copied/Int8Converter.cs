@@ -34,7 +34,7 @@ using Npgsql.Internal;
 
 namespace Mpgsql.Benchmarks.NpgsqlBaseline.Copied;
 
-sealed class Int8Converter<T> : PgBufferedConverter<T> where T : INumberBase<T>
+internal sealed class Int8Converter<T> : PgBufferedConverter<T> where T : INumberBase<T>
 {
     public override bool CanConvert(DataFormat format,
         out BufferRequirements bufferRequirements)
@@ -43,9 +43,15 @@ sealed class Int8Converter<T> : PgBufferedConverter<T> where T : INumberBase<T>
         return format is DataFormat.Binary;
     }
 
-    protected override T ReadCore(PgReader reader) => T.CreateChecked(reader.ReadInt64());
+    protected override T ReadCore(PgReader reader)
+    {
+        return T.CreateChecked(reader.ReadInt64());
+    }
     protected override void WriteCore(PgWriter writer,
-        T value) => writer.WriteInt64(long.CreateChecked(value));
+        T value)
+    {
+        writer.WriteInt64(long.CreateChecked(value));
+    }
 }
 
 #pragma warning restore NPG9001

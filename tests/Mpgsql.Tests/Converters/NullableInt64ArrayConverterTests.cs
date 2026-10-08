@@ -10,7 +10,7 @@ namespace Mpgsql.Tests.Converters;
 
 public sealed class NullableInt64ArrayConverterTests
 {
-    public static TheoryData<long?[], string> Payloads => new()
+    public static TheoryData<long?[], string> Payloads => new TheoryData<long?[], string>
     {
         {[], "00000000 00000000 00000014"},
         {[null], "00000001 00000001 00000014 00000001 00000001 ffffffff"},
@@ -27,7 +27,7 @@ public sealed class NullableInt64ArrayConverterTests
     public void WritesAndReadsLiteralPayload(long?[] values,
         string hex)
     {
-        byte[] expected = TestWire.Bytes(hex);
+        var expected = TestWire.Bytes(hex);
         Assert.Equal(expected.Length,
             NullableInt64ArrayConverter.GetByteCount(values));
         Assert.Equal(expected.Length,
@@ -106,22 +106,22 @@ public sealed class NullableInt64ArrayConverterTests
         ]);
     }
 
-    [Theory]
-    [InlineData(0), InlineData(1), InlineData(3), InlineData(4), InlineData(5), InlineData(8)]
-    [InlineData(255), InlineData(256), InlineData(257), InlineData(4095), InlineData(4096), InlineData(4097), InlineData(65536)]
+    [Theory, InlineData(0), InlineData(1), InlineData(3), InlineData(4), InlineData(5), InlineData(8), InlineData(255), InlineData(256), InlineData(257), InlineData(4095), InlineData(4096), InlineData(4097), InlineData(65536)]
     public void MixedNullPatternsAndMemorySlicesRoundTrip(int count)
     {
-        foreach (int period in new[] {0, 1, 2, 7})
+        foreach (var period in new[] {0, 1, 2, 7})
         {
-            long?[] backing = new long?[count + 2];
+            var backing = new long?[count + 2];
             backing[0] = 99;
             backing[^1] = 100;
-            for (int i = 0; i < count; i++)
+            for (var i = 0; i < count; i++)
+            {
                 backing[i + 1] = period != 0 && i % period == 0 ? null : unchecked(long.MinValue + i);
+            }
             var before = backing.ToArray();
             var values = backing.AsMemory(1,
                 count);
-            byte[] bytes = Encode(values);
+            var bytes = Encode(values);
             Assert.Equal(before,
                 backing);
             Assert.Equal(before[1..^1],
@@ -150,8 +150,8 @@ public sealed class NullableInt64ArrayConverterTests
     public void EverySplitAndEmptySegmentAreAccepted()
     {
         long?[] values = [null, long.MinValue, null, 0x0102030405060708, null, long.MaxValue, null];
-        byte[] bytes = Encode(values);
-        for (int split = 0; split <= bytes.Length; split++)
+        var bytes = Encode(values);
+        for (var split = 0; split <= bytes.Length; split++)
         {
             var sequence = TestWire.Chunks(ReadOnlyMemory<byte>.Empty,
                 bytes.AsMemory(0,
@@ -175,8 +175,11 @@ public sealed class NullableInt64ArrayConverterTests
     [Fact]
     public void EveryTruncationAndTrailingBytesAreRejected()
     {
-        byte[] bytes = Encode(new long?[] {null, 42, null, long.MinValue, null});
-        for (int length = 0; length < bytes.Length; length++) AssertInvalid(bytes[..length]);
+        var bytes = Encode(new long?[] {null, 42, null, long.MinValue, null});
+        for (var length = 0; length < bytes.Length; length++)
+        {
+            AssertInvalid(bytes[..length]);
+        }
         AssertInvalid([.. bytes, 0]);
         // Trailing bytes can fall within the min/max size envelope, but must still be rejected.
         AssertInvalid(TestWire.Bytes("00000001 00000001 00000014 00000001 00000001 ffffffff 0000000000000000"));
@@ -184,35 +187,30 @@ public sealed class NullableInt64ArrayConverterTests
         AssertInvalid(TestWire.Bytes("00000001 00000001 00000014 00000002 00000001 ffffffff fffffffe"));
     }
 
-    [Theory]
-    [InlineData(0, -1), InlineData(0, 7), InlineData(4, -1), InlineData(4, 2)]
-    [InlineData(8, 23), InlineData(8, 1016), InlineData(12, -1), InlineData(12, int.MaxValue)]
-    [InlineData(16, int.MaxValue)]
+    [Theory, InlineData(0, -1), InlineData(0, 7), InlineData(4, -1), InlineData(4, 2), InlineData(8, 23), InlineData(8, 1016), InlineData(12, -1), InlineData(12, int.MaxValue), InlineData(16, int.MaxValue)]
     public void InvalidHeaderIsRejected(int offset,
         int value)
     {
-        byte[] bytes = Encode(new long?[] {null, 42, null});
+        var bytes = Encode(new long?[] {null, 42, null});
         BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(offset),
             value);
         AssertInvalid(bytes);
     }
 
-    [Theory]
-    [InlineData(-2), InlineData(0), InlineData(4), InlineData(7), InlineData(9), InlineData(int.MaxValue)]
+    [Theory, InlineData(-2), InlineData(0), InlineData(4), InlineData(7), InlineData(9), InlineData(int.MaxValue)]
     public void InvalidElementLengthsAreRejected(int length)
     {
-        byte[] bytes = Encode(new long?[] {null, 42, null});
+        var bytes = Encode(new long?[] {null, 42, null});
         BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(24),
             length);
         AssertInvalid(bytes);
     }
 
-    [Theory]
-    [InlineData(int.MinValue), InlineData(-2), InlineData(0), InlineData(1), InlineData(int.MaxValue - 3)]
+    [Theory, InlineData(int.MinValue), InlineData(-2), InlineData(0), InlineData(1), InlineData(int.MaxValue - 3)]
     public void LowerBoundsAreNormalized(int lowerBound)
     {
         long?[] values = [null, long.MinValue, long.MaxValue];
-        byte[] bytes = Encode(values);
+        var bytes = Encode(values);
         BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(16),
             lowerBound);
         Assert.Equal(values,
@@ -226,10 +224,10 @@ public sealed class NullableInt64ArrayConverterTests
     [Fact]
     public void NullLengthsAreAuthoritativeAndRetainedNullFlagIsAccepted()
     {
-        foreach (long?[] values in new long?[][] {[1, 2], [null, 2]})
-        foreach (int flags in new[] {0, 1})
+        foreach (var values in new long?[][] {[1, 2], [null, 2]})
+        foreach (var flags in new[] {0, 1})
         {
-            byte[] bytes = Encode(values);
+            var bytes = Encode(values);
             BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(4),
                 flags);
             Assert.Equal(values,
@@ -244,12 +242,12 @@ public sealed class NullableInt64ArrayConverterTests
     [Fact]
     public void DefaultAndOneDimensionalEmptyArraysAreAccepted()
     {
-        byte[] bytes = new byte[12];
+        var bytes = new byte[12];
         NullableInt64ArrayConverter.Write(default,
             bytes);
         Assert.Equal(TestWire.Bytes("00000000 00000000 00000014"),
             bytes);
-        byte[] dimensional = TestWire.Bytes("00000001 00000001 00000014 00000000 fffffffe");
+        var dimensional = TestWire.Bytes("00000001 00000001 00000014 00000000 fffffffe");
         Assert.True(NullableInt64ArrayConverter.Read(dimensional.AsSpan()).IsEmpty);
         Assert.True(NullableInt64ArrayConverter.Read(TestWire.ByteSegments(dimensional)).IsEmpty);
         Assert.Equal(0,
@@ -261,7 +259,7 @@ public sealed class NullableInt64ArrayConverterTests
     public void BoundsChecksPrecedeMutationAndSizeArithmeticIsChecked()
     {
         long?[] values = [null, 42];
-        byte[] bytes = Encode(values);
+        var bytes = Encode(values);
         byte[] destination =
         [
             .. Enumerable.Repeat((byte)0xcc,
@@ -291,7 +289,7 @@ public sealed class NullableInt64ArrayConverterTests
             int.MaxValue));
         Assert.Throws<OverflowException>(() => NullableInt64ArrayConverter.GetByteCount(int.MaxValue,
             0));
-        int largestAllNull = (int.MaxValue - 20) / 4;
+        var largestAllNull = (int.MaxValue - 20) / 4;
         Assert.Equal(20 + 4 * largestAllNull,
             NullableInt64ArrayConverter.GetByteCount(largestAllNull,
                 largestAllNull));
@@ -309,7 +307,7 @@ public sealed class NullableInt64ArrayConverterTests
             Bytes(values)));
         Assert.Equal(before,
             values);
-        byte[] payload = Encode(new long?[] {null, 42});
+        var payload = Encode(new long?[] {null, 42});
         payload.CopyTo(Bytes(values));
         byte[] original = [.. Bytes(values)];
         Assert.Throws<ArgumentException>(() => NullableInt64ArrayConverter.Read(Bytes(values)[..payload.Length],
@@ -331,12 +329,12 @@ public sealed class NullableInt64ArrayConverterTests
     public void OwnedResultDoesNotBorrowBytesAndMultidimensionalArraysAreRejected()
     {
         long?[] values = [null, 42];
-        byte[] bytes = Encode(values);
+        var bytes = Encode(values);
         var result = NullableInt64ArrayConverter.Read(TestWire.ByteSegments(bytes));
         bytes.AsSpan().Clear();
         Assert.Equal(values,
             result.ToArray());
-        byte[] matrix = TestWire.Bytes("00000002 00000001 00000014 00000001 00000001 00000001 00000001 ffffffff");
+        var matrix = TestWire.Bytes("00000002 00000001 00000014 00000001 00000001 00000001 00000001 ffffffff");
         Assert.Throws<NotSupportedException>(() => NullableInt64ArrayConverter.Read(matrix.AsSpan()));
         Assert.Throws<NotSupportedException>(() => NullableInt64ArrayConverter.Read(TestWire.ByteSegments(matrix)));
     }
@@ -344,7 +342,7 @@ public sealed class NullableInt64ArrayConverterTests
     [Fact]
     public void BindAndDataRowKeepOuterNullSeparateFromNullElements()
     {
-        byte[] payload = Encode(new long?[] {null});
+        var payload = Encode(new long?[] {null});
         var bind = FrontendMessage.Bind(parameters: new ReadOnlyMemory<byte>?[]
             {
                 payload,
@@ -358,7 +356,7 @@ public sealed class NullableInt64ArrayConverterTests
             {
                 FormatCode.Binary
             });
-        byte[] packet = new byte[bind.GetByteCount()];
+        var packet = new byte[bind.GetByteCount()];
         bind.Write(packet);
         Assert.Equal(TestWire.Bytes("42 00000030 00 00 0001 0001 0002 00000018 " + "00000001 00000001 00000014 00000001 00000001 ffffffff ffffffff 0001 0001"),
             packet);
@@ -390,39 +388,51 @@ public sealed class NullableInt64ArrayConverterTests
 
     private static byte[] Encode(ReadOnlyMemory<long?> values)
     {
-        byte[] bytes = new byte[NullableInt64ArrayConverter.GetByteCount(values)];
+        var bytes = new byte[NullableInt64ArrayConverter.GetByteCount(values)];
         NullableInt64ArrayConverter.Write(values,
             bytes);
         return bytes;
     }
 
-    private static Span<byte> Bytes(long?[] values) => MemoryMarshal.CreateSpan(
-        ref Unsafe.As<long?, byte>(ref MemoryMarshal.GetArrayDataReference(values)),
-        values.Length * Unsafe.SizeOf<long?>());
+    private static Span<byte> Bytes(long?[] values)
+    {
+        return MemoryMarshal.CreateSpan(
+            ref Unsafe.As<long?, byte>(ref MemoryMarshal.GetArrayDataReference(values)),
+            values.Length * Unsafe.SizeOf<long?>());
+    }
 
     private sealed class ByteView(long?[] values) : MemoryManager<byte>
     {
-        public override Span<byte> GetSpan() => Bytes(values);
-        public override MemoryHandle Pin(int elementIndex = 0) => throw new NotSupportedException();
+        public override Span<byte> GetSpan()
+        {
+            return Bytes(values);
+        }
+        public override MemoryHandle Pin(int elementIndex = 0)
+        {
+            throw new NotSupportedException();
+        }
         public override void Unpin() { }
         protected override void Dispose(bool disposing) { }
     }
 
     private sealed class RecordingWriter(int size) : IBufferWriter<byte>
     {
+        internal int SizeHint, Advanced, Reservations, Advances;
         internal byte[] Bytes { get; } =
         [
             .. Enumerable.Repeat((byte)0xcc,
                 size + 16)
         ];
-        internal int SizeHint, Advanced, Reservations, Advances;
         public Span<byte> GetSpan(int sizeHint = 0)
         {
             SizeHint = sizeHint;
             Reservations++;
             return Bytes;
         }
-        public Memory<byte> GetMemory(int sizeHint = 0) => throw new NotSupportedException();
+        public Memory<byte> GetMemory(int sizeHint = 0)
+        {
+            throw new NotSupportedException();
+        }
         public void Advance(int count)
         {
             Advanced = count;

@@ -27,7 +27,9 @@ internal sealed class TcpQueryCatalog
             Executions[i] = new ReadOnlyMemory<byte>[queries.Replies[i].Length];
             for (int worker = 0; worker < Executions[i].Length; worker++)
                 if (queries.Replies[i][worker].Length != 0)
+                {
                     Executions[i][worker] = queries.Replies[i][worker].AsMemory(10 + descriptionLength);
+                }
         }
     }
 

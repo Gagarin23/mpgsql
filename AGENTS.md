@@ -3,9 +3,9 @@
 ## Project intent
 
 Mpgsql is a standalone PostgreSQL driver written in C#. It is not an Npgsql
-adapter or extension. The library is designed around request multiplexing and
-PostgreSQL pipeline mode, while retaining control over the Extended Query
-Protocol for advanced callers.
+adapter or extension. The library provides asynchronous ADO.NET and a separate
+request multiplexer, while retaining explicit PostgreSQL pipeline and Extended
+Query Protocol control for advanced callers.
 
 The repository is an early .NET 10 library. Keep changes narrow, prove each
 protocol path end-to-end, and do not introduce general-purpose abstractions
@@ -15,8 +15,13 @@ without a concrete use in the driver.
 
 - `src/Mpgsql/` contains protocol, converters, PostgreSQL types, and binary COPY;
   it targets `net10.0` and produces the `Mpgsql` NuGet package.
-- `src/Mpgsql.Client/` contains sessions, query helpers, scheduling, and the upper
-  API; it references `Mpgsql` and is not packed.
+- `src/Mpgsql.Sessions/` contains transport, authentication, cancellation, explicit
+  pipelines, query encoding, prepared handles and result buffers; it references `Mpgsql`.
+- `src/Mpgsql.Client/` contains asynchronous ADO.NET and exclusively leased session
+  pools; it references `Mpgsql.Sessions`.
+- `src/Mpgsql.Multiplexing/` schedules independent requests and shared Sync groups;
+  it references `Mpgsql.Sessions` and has no dependency on `Mpgsql.Client`.
+- All three upper projects are non-packable. Preserve existing `Mpgsql` namespaces.
 - `src/Mpgsql.slnx` is the solution entry point.
 - `docs/ideas.md` holds goals and unresolved product decisions.
 - `docs/extended-query-protocol.md` is the living description of Extended Query
@@ -27,8 +32,10 @@ without a concrete use in the driver.
 - Allow callers to construct raw Extended Query messages when they need
   low-level control. Add factory methods for common messages without removing
   that capability.
-- Design connection and scheduling code with multiplexed, pipelined requests in
-  mind. Do not silently assume one active request per physical connection.
+- In `Sessions`, retain multiple sealed pipeline groups in flight and explicit
+  producer-controlled Sync. In `Client`, one ADO.NET operation or reader exclusively
+  owns its connection until protocol and cancellation recovery finish. Automatic
+  multiplexing and shared Sync scheduling belong only to `Multiplexing`.
 - High performance is a mandatory, primary requirement of this project.
   Do not add content-validation scans (`Contains`, UTF-8 prevalidation, or
   separate array walks) to hot paths when the server validates the value or

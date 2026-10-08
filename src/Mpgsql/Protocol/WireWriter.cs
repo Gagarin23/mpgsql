@@ -42,7 +42,7 @@ internal ref struct WireWriter(Span<byte> destination)
 
     internal void CString(string value)
     {
-        int written = WireEncoding.Utf8.GetBytes(value.AsSpan(),
+        var written = WireEncoding.Utf8.GetBytes(value.AsSpan(),
             _remaining);
         _remaining = _remaining[written..];
         Byte(0);

@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using Npgsql.Internal;
 
@@ -7,7 +8,7 @@ namespace Mpgsql.Benchmarks.NpgsqlBaseline;
 internal static class NpgsqlAccessors
 {
     [UnsafeAccessor(UnsafeAccessorKind.Constructor)]
-    internal static extern PgWriter CreateWriter(System.Buffers.IBufferWriter<byte> writer);
+    internal static extern PgWriter CreateWriter(IBufferWriter<byte> writer);
 
     [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "BeginWrite")]
     internal static extern ValueTask BeginWrite(PgWriter writer,

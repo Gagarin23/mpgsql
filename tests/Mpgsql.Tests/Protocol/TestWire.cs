@@ -5,9 +5,12 @@ namespace Mpgsql.Tests.Protocol;
 
 internal static class TestWire
 {
-    internal static byte[] Bytes(string hex) => Convert.FromHexString(hex.Replace(" ",
-        "",
-        StringComparison.Ordinal));
+    internal static byte[] Bytes(string hex)
+    {
+        return Convert.FromHexString(hex.Replace(" ",
+            "",
+            StringComparison.Ordinal));
+    }
 
     internal static BackendMessage Read(string hex,
         bool fragmented = true)
@@ -20,11 +23,13 @@ internal static class TestWire
         return message;
     }
 
-    internal static ReadOnlySequence<byte> ByteSegments(byte[] bytes) =>
-        Chunks([
+    internal static ReadOnlySequence<byte> ByteSegments(byte[] bytes)
+    {
+        return Chunks([
             .. bytes.Select((_, i) => (ReadOnlyMemory<byte>)bytes.AsMemory(i,
                 1))
         ]);
+    }
 
     internal static ReadOnlySequence<byte> Chunks(params ReadOnlyMemory<byte>[] chunks)
     {
@@ -34,9 +39,11 @@ internal static class TestWire
         }
         var first = new Segment(chunks[0]);
         var last = first;
-        for (int i = 1; i < chunks.Length; i++)
+        for (var i = 1; i < chunks.Length; i++)
+        {
             last = last.Append(chunks[i]);
-        return new(first,
+        }
+        return new ReadOnlySequence<byte>(first,
             0,
             last,
             last.Memory.Length);
@@ -44,7 +51,10 @@ internal static class TestWire
 
     private sealed class Segment : ReadOnlySequenceSegment<byte>
     {
-        internal Segment(ReadOnlyMemory<byte> memory) => Memory = memory;
+        internal Segment(ReadOnlyMemory<byte> memory)
+        {
+            Memory = memory;
+        }
 
         internal Segment Append(ReadOnlyMemory<byte> memory)
         {

@@ -31,6 +31,9 @@ internal readonly struct IntervalCodec : IBinaryCodec<PgInterval>
 
         return value;
     }
-    public static PgInterval Read(ReadOnlySequence<byte> payload) => BinaryPayload.ReadSmall<PgInterval, IntervalCodec>(payload, 16);
+    public static PgInterval Read(ReadOnlySequence<byte> payload)
+    {
+        return BinaryPayload.ReadSmall<PgInterval, IntervalCodec>(payload, 16);
+    }
 
 }

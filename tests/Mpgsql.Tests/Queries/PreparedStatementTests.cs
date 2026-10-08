@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Text;
 using Mpgsql.Internal;
 using Mpgsql.Protocol;
 using Mpgsql.Tests.Protocol;
@@ -8,8 +9,14 @@ namespace Mpgsql.Tests.Queries;
 
 public sealed class PreparedStatementTests
 {
-    private static Task Wait(Task task) => task.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
-    private static byte[] Execution(long value) => Join(Packet('2'), Description(20), Row(Int64(value)), Command());
+    private static Task Wait(Task task)
+    {
+        return task.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
+    }
+    private static byte[] Execution(long value)
+    {
+        return Join(Packet('2'), Description(20), Row(Int64(value)), Command());
+    }
 
     [Fact]
     public async Task CreationCopiesTypesAndDoesNotWrite()
@@ -39,7 +46,7 @@ public sealed class PreparedStatementTests
         Task[] sends =
         [
             batch.SendPrepareAsync(statement).AsTask(),
-            batch.SendQueryAsync(statement, new[] {MpgsqlParameter.Int64(42)}).AsTask(),
+            batch.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(42)}).AsTask(),
             batch.SendCloseAsync(statement).AsTask()
         ];
         await batch.SendSyncAsync();
@@ -50,7 +57,7 @@ public sealed class PreparedStatementTests
             "44 00000006 50 00 45 00000009 00 00000000 " +
             "43 00000011 53 6d706773716c5f70735f3100 53 00000004"), await wire.ReadOutputAsync());
         Assert.False(statement.Prepared.IsCompleted);
-        await wire.WriteAsync(Join(Packet('1'), Execution(42), Packet('3'), Ready()), fragment: 1);
+        await wire.WriteAsync(Join(Packet('1'), Execution(42), Packet('3'), Ready()), 1);
         await Wait(statement.Prepared);
         await using var reader = await batch.ReadResultsAsync();
         Assert.Equal(0, reader.QueryIndex);
@@ -68,15 +75,15 @@ public sealed class PreparedStatementTests
         Task[] sends =
         [
             batch.SendPrepareAsync(statement).AsTask(),
-            batch.SendQueryAsync(statement, new[] {MpgsqlParameter.Int64(11)}).AsTask(),
-            batch.SendQueryAsync(statement, new[] {MpgsqlParameter.Int64(22)}).AsTask()
+            batch.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(11)}).AsTask(),
+            batch.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(22)}).AsTask()
         ];
         await batch.SendSyncAsync();
         await Wait(Task.WhenAll(sends));
         Assert.Equal("PBDEBDES", new string(Tags(await wire.ReadOutputAsync())));
         await wire.WriteAsync(Join(Packet('1'), Execution(11), Execution(22), Ready()));
         await using var reader = await batch.ReadResultsAsync();
-        for (int i = 0; i < 2; i++)
+        for (var i = 0; i < 2; i++)
         {
             Assert.Equal(i, reader.QueryIndex);
             Assert.True(await reader.ReadAsync());
@@ -94,17 +101,17 @@ public sealed class PreparedStatementTests
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         await batch.SendQueryAsync("select 1::bigint");
         await batch.SendPrepareAsync(first);
-        await batch.SendQueryAsync(first, new[] {MpgsqlParameter.Int64(2)});
+        await batch.SendQueryAsync(first, new[] {MpgsqlParameterValue.Int64(2)});
         await batch.SendPrepareAsync(second);
         await batch.SendQueryAsync("select 3::bigint");
         await batch.SendCloseAsync(first);
-        await batch.SendQueryAsync(second, new[] {MpgsqlParameter.Int64(4)});
+        await batch.SendQueryAsync(second, new[] {MpgsqlParameterValue.Int64(4)});
         await batch.SendCloseAsync(second);
         await batch.SendSyncAsync();
         await wire.WriteAsync(Join(Query(1), Packet('1'), Execution(2), Packet('1'), Query(3),
-            Packet('3'), Execution(4), Packet('3'), Ready()), fragment: 3);
+            Packet('3'), Execution(4), Packet('3'), Ready()), 3);
         await using var reader = await batch.ReadResultsAsync();
-        for (int i = 0; i < 4; i++)
+        for (var i = 0; i < 4; i++)
         {
             Assert.Equal(i, reader.QueryIndex);
             Assert.True(await reader.ReadAsync());
@@ -120,13 +127,13 @@ public sealed class PreparedStatementTests
         var statement = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
         await using var first = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         await first.SendPrepareAsync(statement);
-        await first.SendQueryAsync(statement, new[] {MpgsqlParameter.Int64(1)});
+        await first.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(1)});
         await first.SendSyncAsync();
         await wire.WriteAsync(Packet('1'));
         await Wait(statement.Prepared);
         Assert.False(first.Completion.IsCompleted);
         await using var second = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        await second.SendQueryAsync(statement, new[] {MpgsqlParameter.Int64(2)});
+        await second.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(2)});
         await second.SendSyncAsync();
         Assert.Equal("PBDESBDES", new string(Tags(await wire.ReadOutputAsync())));
         await wire.WriteAsync(Join(Execution(1), Ready(), Execution(2), Ready()));
@@ -150,7 +157,7 @@ public sealed class PreparedStatementTests
         await preparing.SendSyncAsync();
         Assert.Equal("PS", new string(Tags(await wire.ReadOutputAsync())));
         await using var other = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        Assert.Throws<InvalidOperationException>(() => other.SendQueryAsync(statement, new[] {MpgsqlParameter.Int64(1)}));
+        Assert.Throws<InvalidOperationException>(() => other.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(1)}));
         Assert.False(wire.HasOutput());
         await wire.WriteAsync(Join(Packet('1'), Ready()));
         await Wait(statement.Prepared);
@@ -178,8 +185,8 @@ public sealed class PreparedStatementTests
         Assert.Equal("P", new string(Tags(await wire.ReadOutputAsync())));
         Assert.Throws<InvalidOperationException>(() => batch.SendPrepareAsync(statement));
         Assert.Throws<ArgumentException>(() => batch.SendQueryAsync(statement));
-        Assert.Throws<ArgumentException>(() => batch.SendQueryAsync(statement, new[] {MpgsqlParameter.Int64Array(null)}));
-        Assert.Throws<InvalidOperationException>(() => batch.SendQueryAsync(statement, new MpgsqlParameter[1]));
+        Assert.Throws<ArgumentException>(() => batch.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64Array(null)}));
+        Assert.Throws<InvalidOperationException>(() => batch.SendQueryAsync(statement, new MpgsqlParameterValue[1]));
         Assert.False(wire.HasOutput());
         await batch.SendSyncAsync();
         await wire.WriteAsync(Join(Packet('1'), Ready()));
@@ -190,15 +197,16 @@ public sealed class PreparedStatementTests
         Assert.False(await emptyReader.NextResultAsync());
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task FailedOrSkippedPreparationFaultsOnlyAtRecoveryBoundary(bool skipped)
     {
         await using var wire = new ScriptedSession();
         var statement = wire.Session.CreatePreparedStatement("bad sql");
         var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        if (skipped) await batch.SendQueryAsync("earlier bad sql");
+        if (skipped)
+        {
+            await batch.SendQueryAsync("earlier bad sql");
+        }
         await batch.SendPrepareAsync(statement);
         await batch.SendQueryAsync(statement);
         await batch.SendSyncAsync();
@@ -207,7 +215,7 @@ public sealed class PreparedStatementTests
         Assert.False(batch.Completion.IsCompleted);
         await wire.WriteAsync(Ready());
         var error = await FailBatch(batch);
-        Assert.Equal(skipped ? 0 : (int?)null, error.QueryIndex);
+        Assert.Equal(skipped ? 0 : null, error.QueryIndex);
         Assert.Same(error, await Assert.ThrowsAsync<MpgsqlServerException>(() => Wait(statement.Prepared)));
         Assert.Equal(0, wire.Session.TrackedStatementCount);
         await using var next = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
@@ -233,14 +241,14 @@ public sealed class PreparedStatementTests
         var statement = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
         var failed = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         await failed.SendPrepareAsync(statement);
-        await failed.SendQueryAsync(statement, new[] {MpgsqlParameter.Int64(0)});
+        await failed.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(0)});
         await failed.SendSyncAsync();
         await wire.ReadOutputAsync();
         await wire.WriteAsync(Join(Packet('1'), Packet('2'), Description(20), Error(), Ready()));
         Assert.Equal(0, (await FailBatch(failed)).QueryIndex);
         await Wait(statement.Prepared);
         await using var next = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        await next.SendQueryAsync(statement, new[] {MpgsqlParameter.Int64(42)});
+        await next.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(42)});
         await next.SendSyncAsync();
         Assert.Equal("BDES", new string(Tags(await wire.ReadOutputAsync())));
         await wire.WriteAsync(Join(Execution(42), Ready()));
@@ -250,24 +258,25 @@ public sealed class PreparedStatementTests
         Assert.False(await reader.NextResultAsync());
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task FailedOrSkippedCloseRetiresStatementAndCanBeRetried(bool skipped)
     {
         await using var wire = new ScriptedSession();
         var statement = await Prepare(wire);
         var failed = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        if (skipped) await failed.SendQueryAsync(statement, new[] {MpgsqlParameter.Int64(0)});
+        if (skipped)
+        {
+            await failed.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(0)});
+        }
         await failed.SendCloseAsync(statement);
-        Assert.Throws<InvalidOperationException>(() => failed.SendQueryAsync(statement, new[] {MpgsqlParameter.Int64(1)}));
+        Assert.Throws<InvalidOperationException>(() => failed.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(1)}));
         Assert.Throws<InvalidOperationException>(() => failed.SendCloseAsync(statement));
         await failed.SendSyncAsync();
         await wire.WriteAsync(Join(Error(), Ready()));
-        Assert.Equal(skipped ? 0 : (int?)null, (await FailBatch(failed)).QueryIndex);
+        Assert.Equal(skipped ? 0 : null, (await FailBatch(failed)).QueryIndex);
         Assert.True(statement.Prepared.IsCompletedSuccessfully);
         await using var retry = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        Assert.Throws<InvalidOperationException>(() => retry.SendQueryAsync(statement, new[] {MpgsqlParameter.Int64(1)}));
+        Assert.Throws<InvalidOperationException>(() => retry.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(1)}));
         await retry.SendCloseAsync(statement);
         await retry.SendSyncAsync();
         await wire.WriteAsync(Join(Packet('3'), Ready()));
@@ -276,14 +285,14 @@ public sealed class PreparedStatementTests
         await using var noop = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         await noop.SendCloseAsync(statement);
         Assert.False(wire.HasOutput());
-        Assert.Throws<InvalidOperationException>(() => noop.SendQueryAsync(statement, new[] {MpgsqlParameter.Int64(1)}));
+        Assert.Throws<InvalidOperationException>(() => noop.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(1)}));
     }
 
     [Fact]
     public async Task CancellationDropsQueuedPrepareExecuteCloseAndNeedsNoServerClose()
     {
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        await using var wire = new ScriptedSession(blockWrites: true);
+        await using var wire = new ScriptedSession(true);
         var statement = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
         var batch = wire.Session.CreateBatch(request.Token);
         var published = batch.SendQueryAsync("select 11::bigint").AsTask();
@@ -291,7 +300,7 @@ public sealed class PreparedStatementTests
         Task[] queued =
         [
             batch.SendPrepareAsync(statement).AsTask(),
-            batch.SendQueryAsync(statement, new[] {MpgsqlParameter.Int64(22)}).AsTask(),
+            batch.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(22)}).AsTask(),
             batch.SendCloseAsync(statement).AsTask()
         ];
         var sync = batch.SendSyncAsync().AsTask();
@@ -302,7 +311,7 @@ public sealed class PreparedStatementTests
         wire.Outgoing.Reader.AdvanceTo(held.Buffer.End);
         Assert.Equal("S", new string(Tags(await wire.ReadOutputAsync())));
         await Wait(sync);
-        await wire.WriteAsync(Join(Query(11), Ready()), fragment: 1);
+        await wire.WriteAsync(Join(Query(11), Ready()), 1);
         await Wait(batch.Completion);
         await batch.DisposeAsync();
         await using var retry = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
@@ -316,7 +325,7 @@ public sealed class PreparedStatementTests
     public async Task PublishedPreparationSurvivesLogicalCancellation()
     {
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        await using var wire = new ScriptedSession(blockWrites: true);
+        await using var wire = new ScriptedSession(true);
         var statement = wire.Session.CreatePreparedStatement("select 1::bigint");
         var batch = wire.Session.CreateBatch(request.Token);
         var send = batch.SendPrepareAsync(statement).AsTask();
@@ -355,7 +364,7 @@ public sealed class PreparedStatementTests
         confirmed.Dispose();
         pending.Dispose();
         unused.Dispose();
-        Assert.Throws<ObjectDisposedException>(() => batch.SendQueryAsync(confirmed, new[] {MpgsqlParameter.Int64(1)}));
+        Assert.Throws<ObjectDisposedException>(() => batch.SendQueryAsync(confirmed, new[] {MpgsqlParameterValue.Int64(1)}));
     }
 
     [Fact]
@@ -365,14 +374,14 @@ public sealed class PreparedStatementTests
         var statement = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         await batch.SendPrepareAsync(statement);
-        await batch.SendQueryAsync(statement, new[] {MpgsqlParameter.Int64(42)});
+        await batch.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(42)});
         await batch.SendCloseAsync(statement);
         await batch.SendSyncAsync();
-        var notice = Packet('N', System.Text.Encoding.UTF8.GetBytes("SNOTICE\0Mhello\0\0"));
-        var parameter = Packet('S', System.Text.Encoding.UTF8.GetBytes("application_name\0prepared-tests\0"));
-        var notification = Packet('A', [0, 0, 0, 7, .. System.Text.Encoding.UTF8.GetBytes("events\0ready\0")]);
+        var notice = Packet('N', Encoding.UTF8.GetBytes("SNOTICE\0Mhello\0\0"));
+        var parameter = Packet('S', Encoding.UTF8.GetBytes("application_name\0prepared-tests\0"));
+        var notification = Packet('A', [0, 0, 0, 7, .. Encoding.UTF8.GetBytes("events\0ready\0")]);
         await wire.WriteAsync(Join(notice, Packet('1'), parameter, Packet('2'), notification,
-            Description(20), Row(Int64(42)), Command(), notice, Packet('3'), Ready()), fragment: 1);
+            Description(20), Row(Int64(42)), Command(), notice, Packet('3'), Ready()), 1);
         await Wait(statement.Prepared);
         await using var reader = await batch.ReadResultsAsync();
         Assert.True(await reader.ReadAsync());
@@ -386,9 +395,7 @@ public sealed class PreparedStatementTests
         Assert.Equal("prepared-tests", name);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task PreparedNoDataAndEmptyQueryStillHaveOneResult(bool empty)
     {
         await using var wire = new ScriptedSession();
@@ -410,39 +417,41 @@ public sealed class PreparedStatementTests
     [Fact]
     public void PreparedEncoderChecksCompleteCapacityAndValidationBeforeWriting()
     {
-        MpgsqlParameter[] parameters = [MpgsqlParameter.Int64(42)];
+        MpgsqlParameterValue[] parameters = [MpgsqlParameterValue.Int64(42)];
         byte[] destination = [.. Enumerable.Repeat((byte)0xa5, QueryPacket.GetPreparedByteCount("statement", parameters) - 1)];
         byte[] before = [.. destination];
         Assert.Throws<ArgumentException>(() => QueryPacket.WritePrepared("statement", parameters, destination));
         Assert.Equal(before, destination);
-        Assert.Throws<InvalidOperationException>(() => QueryPacket.WritePrepared("statement", new MpgsqlParameter[1], destination));
+        Assert.Throws<InvalidOperationException>(() => QueryPacket.WritePrepared("statement", new MpgsqlParameterValue[1], destination));
         Assert.Equal(before, destination);
     }
 
     [Fact]
     public void PreparedNullEmptyAndNullableArrayPayloadsMatchLowLevelComposition()
     {
-        MpgsqlParameter[] parameters =
+        MpgsqlParameterValue[] parameters =
         [
-            MpgsqlParameter.Int64(null), MpgsqlParameter.Int64Array(null),
-            MpgsqlParameter.Int64Array(ReadOnlyMemory<long>.Empty),
-            MpgsqlParameter.NullableInt64Array(new long?[] {long.MinValue, null, long.MaxValue})
+            MpgsqlParameterValue.Int64(null), MpgsqlParameterValue.Int64Array(null),
+            MpgsqlParameterValue.Int64Array(ReadOnlyMemory<long>.Empty),
+            MpgsqlParameterValue.NullableInt64Array(new long?[] {long.MinValue, null, long.MaxValue})
         ];
-        ReadOnlyMemory<byte>?[] payloads = new ReadOnlyMemory<byte>?[parameters.Length];
-        for (int i = 0; i < parameters.Length; i++)
+        var payloads = new ReadOnlyMemory<byte>?[parameters.Length];
+        for (var i = 0; i < parameters.Length; i++)
+        {
             if (parameters[i].PayloadLength >= 0)
             {
-                byte[] bytes = new byte[parameters[i].PayloadLength];
+                var bytes = new byte[parameters[i].PayloadLength];
                 parameters[i].WritePayload(bytes);
                 payloads[i] = bytes;
             }
+        }
         const string name = "statement_ж";
         var reference = new ArrayBufferWriter<byte>();
         FrontendMessage.Bind(statement: name, parameters: payloads,
             parameterFormats: new[] {FormatCode.Binary}, resultFormats: new[] {FormatCode.Binary}).Write(reference);
         FrontendMessage.Describe(StatementOrPortal.Portal).Write(reference);
         FrontendMessage.Execute().Write(reference);
-        byte[] destination = new byte[QueryPacket.GetPreparedByteCount(name, parameters)];
+        var destination = new byte[QueryPacket.GetPreparedByteCount(name, parameters)];
         Assert.Equal(destination.Length, QueryPacket.WritePrepared(name, parameters, destination));
         Assert.Equal(reference.WrittenSpan.ToArray(), destination);
     }

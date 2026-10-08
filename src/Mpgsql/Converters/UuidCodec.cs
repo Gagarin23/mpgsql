@@ -1,7 +1,5 @@
 using System.Buffers;
-using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
-using Mpgsql.Types;
 
 namespace Mpgsql.Converters;
 
@@ -18,17 +16,20 @@ internal readonly struct UuidCodec : IBinaryCodec<Guid>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int Write(Guid value, Span<byte> destination)
     {
-        value.TryWriteBytes(destination, bigEndian: true, out _);
+        value.TryWriteBytes(destination, true, out _);
         return FixedSize;
     }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Guid Read(ReadOnlySpan<byte> payload)
     {
         BinaryPayload.RequireLength(payload.Length, 16);
-        var value = new Guid(payload, bigEndian: true);
+        var value = new Guid(payload, true);
 
         return value;
     }
-    public static Guid Read(ReadOnlySequence<byte> payload) => BinaryPayload.ReadSmall<Guid, UuidCodec>(payload, 16);
+    public static Guid Read(ReadOnlySequence<byte> payload)
+    {
+        return BinaryPayload.ReadSmall<Guid, UuidCodec>(payload, 16);
+    }
 
 }

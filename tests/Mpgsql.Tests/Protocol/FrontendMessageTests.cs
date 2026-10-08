@@ -1,6 +1,5 @@
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Text;
 using Mpgsql.Protocol;
 
 namespace Mpgsql.Tests.Protocol;
@@ -8,7 +7,7 @@ namespace Mpgsql.Tests.Protocol;
 public sealed class FrontendMessageTests
 {
     // Literal vectors from protocol 3.0 field order; every vector includes its complete header.
-    public static TheoryData<FrontendTestCase, string> Packets => new()
+    public static TheoryData<FrontendTestCase, string> Packets => new TheoryData<FrontendTestCase, string>
     {
         {
             FrontendMessage.Startup("u"),
@@ -20,12 +19,10 @@ public sealed class FrontendMessageTests
             "00000030 00030000 7573657200 7500 646174616261736500 6400 636c69656e745f656e636f64696e6700 5554463800 00"
         },
         {
-            FrontendMessage.Startup(new KeyValuePair<string, string>[]
+            FrontendMessage.Startup(new[]
             {
-                new("user",
-                    "u"),
-                new("client_encoding",
-                    "UTF8")
+                new KeyValuePair<string, string>("user", "u"),
+                new KeyValuePair<string, string>("client_encoding", "UTF8")
             }),
             "00000025 00030000 7573657200 7500 636c69656e745f656e636f64696e6700 5554463800 00"
         },
@@ -150,12 +147,11 @@ public sealed class FrontendMessageTests
         }
     };
 
-    [Theory]
-    [MemberData(nameof(Packets), DisableDiscoveryEnumeration = true)]
+    [Theory, MemberData(nameof(Packets), DisableDiscoveryEnumeration = true)]
     public void WritesCompleteWirePacket(FrontendTestCase message,
         string hex)
     {
-        byte[] expected = TestWire.Bytes(hex);
+        var expected = TestWire.Bytes(hex);
         Assert.Equal(expected.Length,
             message.GetByteCount());
         var destination = Enumerable.Repeat((byte)0xcc,
@@ -178,8 +174,7 @@ public sealed class FrontendMessageTests
             buffer.WrittenSpan.ToArray());
     }
 
-    [Theory]
-    [MemberData(nameof(Packets), DisableDiscoveryEnumeration = true)]
+    [Theory, MemberData(nameof(Packets), DisableDiscoveryEnumeration = true)]
     public void InsufficientDestinationRemainsUnchanged(FrontendTestCase message,
         string hex)
     {
@@ -257,8 +252,8 @@ public sealed class FrontendMessageTests
     [Fact]
     public void ValidatesTargetsRowLimitAndSaslMechanism()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => FrontendMessage.Describe((StatementOrPortal)0).GetByteCount());
-        Assert.Throws<ArgumentOutOfRangeException>(() => FrontendMessage.Close((StatementOrPortal)0).GetByteCount());
+        Assert.Throws<ArgumentOutOfRangeException>(() => FrontendMessage.Describe(0).GetByteCount());
+        Assert.Throws<ArgumentOutOfRangeException>(() => FrontendMessage.Close(0).GetByteCount());
         Assert.Throws<ArgumentOutOfRangeException>(() => FrontendMessage.Execute(maxRows: -1).GetByteCount());
         Assert.Throws<ArgumentException>(() => FrontendMessage.SaslInitialResponse("").GetByteCount());
         Assert.Throws<ArgumentNullException>(() => FrontendMessage.Query(null!).GetByteCount());
@@ -272,34 +267,27 @@ public sealed class FrontendMessageTests
     {
         Assert.Throws<ArgumentException>(() => FrontendMessage.Startup("").GetByteCount());
         Assert.Throws<ArgumentException>(() => FrontendMessage.Startup(
-            new KeyValuePair<string, string>[]
+            new[]
             {
-                new("database",
-                    "d")
+                new KeyValuePair<string, string>("database", "d")
             }).GetByteCount());
         Assert.Throws<ArgumentException>(() => FrontendMessage.Startup(
-            new KeyValuePair<string, string>[]
+            new[]
             {
-                new("user",
-                    "u"),
-                new("client_encoding",
-                    "LATIN1")
+                new KeyValuePair<string, string>("user", "u"),
+                new KeyValuePair<string, string>("client_encoding", "LATIN1")
             }).GetByteCount());
         Assert.Throws<ArgumentException>(() => FrontendMessage.Startup(
-            new KeyValuePair<string, string>[]
+            new[]
             {
-                new("user",
-                    "u"),
-                new("user",
-                    "v")
+                new KeyValuePair<string, string>("user", "u"),
+                new KeyValuePair<string, string>("user", "v")
             }).GetByteCount());
         Assert.Throws<ArgumentException>(() => FrontendMessage.Startup(
-            new KeyValuePair<string, string>[]
+            new[]
             {
-                new("user",
-                    "u"),
-                new("",
-                    "v")
+                new KeyValuePair<string, string>("user", "u"),
+                new KeyValuePair<string, string>("", "v")
             }).GetByteCount());
     }
 
@@ -356,7 +344,10 @@ public sealed class FrontendMessageTests
             Advanced = count;
             AdvanceCalls++;
         }
-        public Memory<byte> GetMemory(int sizeHint = 0) => throw new NotSupportedException();
+        public Memory<byte> GetMemory(int sizeHint = 0)
+        {
+            throw new NotSupportedException();
+        }
         public Span<byte> GetSpan(int sizeHint = 0)
         {
             SizeHint = sizeHint;

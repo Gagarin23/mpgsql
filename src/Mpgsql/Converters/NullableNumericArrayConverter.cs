@@ -9,12 +9,33 @@ public static partial class NullableNumericArrayConverter
 {
     public const uint ElementTypeOid = (uint)TypeOid.Numeric;
     public const uint ArrayTypeOid = (uint)TypeOid.NumericArray;
-    public static int GetByteCount(ReadOnlyMemory<PgNumeric?> value) => BinaryNullableArray<PgNumeric, NumericCodec>.Measure(value.Span, out _);
+    public static int GetByteCount(ReadOnlyMemory<PgNumeric?> value)
+    {
+        return BinaryNullableArray<PgNumeric, NumericCodec>.Measure(value.Span, out _);
+    }
 
-    public static int Write(ReadOnlyMemory<PgNumeric?> value, Span<byte> destination) => BinaryNullableArray<PgNumeric, NumericCodec>.Write(value, destination);
-    public static void Write(ReadOnlyMemory<PgNumeric?> value, IBufferWriter<byte> destination) => BinaryNullableArray<PgNumeric, NumericCodec>.Write(value, destination);
-    public static ReadOnlyMemory<PgNumeric?> Read(ReadOnlySpan<byte> payload) => BinaryNullableArray<PgNumeric, NumericCodec>.Read(payload);
-    public static ReadOnlyMemory<PgNumeric?> Read(ReadOnlySequence<byte> payload) => BinaryNullableArray<PgNumeric, NumericCodec>.Read(payload);
-    public static int Read(ReadOnlySpan<byte> payload, Span<PgNumeric?> destination) => BinaryNullableArray<PgNumeric, NumericCodec>.Read(payload, destination);
-    public static int Read(ReadOnlySequence<byte> payload, Span<PgNumeric?> destination) => BinaryNullableArray<PgNumeric, NumericCodec>.Read(payload, destination);
+    public static int Write(ReadOnlyMemory<PgNumeric?> value, Span<byte> destination)
+    {
+        return BinaryNullableArray<PgNumeric, NumericCodec>.Write(value, destination);
+    }
+    public static void Write(ReadOnlyMemory<PgNumeric?> value, IBufferWriter<byte> destination)
+    {
+        BinaryNullableArray<PgNumeric, NumericCodec>.Write(value, destination);
+    }
+    public static ReadOnlyMemory<PgNumeric?> Read(ReadOnlySpan<byte> payload)
+    {
+        return BinaryNullableArray<PgNumeric, NumericCodec>.Read(payload);
+    }
+    public static ReadOnlyMemory<PgNumeric?> Read(ReadOnlySequence<byte> payload)
+    {
+        return BinaryNullableArray<PgNumeric, NumericCodec>.Read(payload);
+    }
+    public static int Read(ReadOnlySpan<byte> payload, Span<PgNumeric?> destination)
+    {
+        return BinaryNullableArray<PgNumeric, NumericCodec>.Read(payload, destination);
+    }
+    public static int Read(ReadOnlySequence<byte> payload, Span<PgNumeric?> destination)
+    {
+        return BinaryNullableArray<PgNumeric, NumericCodec>.Read(payload, destination);
+    }
 }

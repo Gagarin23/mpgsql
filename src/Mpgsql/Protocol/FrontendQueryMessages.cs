@@ -1,12 +1,23 @@
+using System.Buffers;
+
 namespace Mpgsql.Protocol;
 
 public readonly struct ParseMessage : IFrontendMessage<ParseMessage>
 {
-    public int GetByteCount() => FrontendMessageWriter.GetByteCount(in this);
-    public int Write(Span<byte> destination) => FrontendMessageWriter.Write(in this,
-        destination);
-    public void Write(System.Buffers.IBufferWriter<byte> destination) => FrontendMessageWriter.Write(in this,
-        destination);
+    public int GetByteCount()
+    {
+        return FrontendMessageWriter.GetByteCount(in this);
+    }
+    public int Write(Span<byte> destination)
+    {
+        return FrontendMessageWriter.Write(in this,
+            destination);
+    }
+    public void Write(IBufferWriter<byte> destination)
+    {
+        FrontendMessageWriter.Write(in this,
+            destination);
+    }
 
     private readonly string _statement;
     private readonly string _query;
@@ -27,8 +38,14 @@ public readonly struct ParseMessage : IFrontendMessage<ParseMessage>
         _parameterTypes = parameterTypes;
     }
 
-    static byte? IFrontendMessage<ParseMessage>.GetMessageType(in ParseMessage message) => (byte)'P';
-    static int IFrontendMessage<ParseMessage>.GetByteCount(in ParseMessage message) => FrontendSize.Initialized(message._byteCount);
+    static byte? IFrontendMessage<ParseMessage>.GetMessageType(in ParseMessage message)
+    {
+        return (byte)'P';
+    }
+    static int IFrontendMessage<ParseMessage>.GetByteCount(in ParseMessage message)
+    {
+        return FrontendSize.Initialized(message._byteCount);
+    }
     static void IFrontendMessage<ParseMessage>.WritePayload(in ParseMessage message,
         Span<byte> destination)
     {
@@ -36,7 +53,7 @@ public readonly struct ParseMessage : IFrontendMessage<ParseMessage>
         writer.CString(message._statement);
         writer.CString(message._query);
         writer.Count(message._parameterTypes.Length);
-        foreach (uint oid in message._parameterTypes.Span)
+        foreach (var oid in message._parameterTypes.Span)
             writer.UInt32(oid);
     }
 }
@@ -44,11 +61,20 @@ public readonly struct ParseMessage : IFrontendMessage<ParseMessage>
 /// <summary>Parameter memory is nullable: null means SQL NULL; empty memory means an empty value.</summary>
 public readonly struct BindMessage : IFrontendMessage<BindMessage>
 {
-    public int GetByteCount() => FrontendMessageWriter.GetByteCount(in this);
-    public int Write(Span<byte> destination) => FrontendMessageWriter.Write(in this,
-        destination);
-    public void Write(System.Buffers.IBufferWriter<byte> destination) => FrontendMessageWriter.Write(in this,
-        destination);
+    public int GetByteCount()
+    {
+        return FrontendMessageWriter.GetByteCount(in this);
+    }
+    public int Write(Span<byte> destination)
+    {
+        return FrontendMessageWriter.Write(in this,
+            destination);
+    }
+    public void Write(IBufferWriter<byte> destination)
+    {
+        FrontendMessageWriter.Write(in this,
+            destination);
+    }
 
     private readonly string _portal;
     private readonly string _statement;
@@ -77,8 +103,14 @@ public readonly struct BindMessage : IFrontendMessage<BindMessage>
         _resultFormats = resultFormats;
     }
 
-    static byte? IFrontendMessage<BindMessage>.GetMessageType(in BindMessage message) => (byte)'B';
-    static int IFrontendMessage<BindMessage>.GetByteCount(in BindMessage message) => FrontendSize.Initialized(message._byteCount);
+    static byte? IFrontendMessage<BindMessage>.GetMessageType(in BindMessage message)
+    {
+        return (byte)'B';
+    }
+    static int IFrontendMessage<BindMessage>.GetByteCount(in BindMessage message)
+    {
+        return FrontendSize.Initialized(message._byteCount);
+    }
     static void IFrontendMessage<BindMessage>.WritePayload(in BindMessage message,
         Span<byte> destination)
     {
@@ -93,11 +125,20 @@ public readonly struct BindMessage : IFrontendMessage<BindMessage>
 
 public readonly struct FunctionCallMessage : IFrontendMessage<FunctionCallMessage>
 {
-    public int GetByteCount() => FrontendMessageWriter.GetByteCount(in this);
-    public int Write(Span<byte> destination) => FrontendMessageWriter.Write(in this,
-        destination);
-    public void Write(System.Buffers.IBufferWriter<byte> destination) => FrontendMessageWriter.Write(in this,
-        destination);
+    public int GetByteCount()
+    {
+        return FrontendMessageWriter.GetByteCount(in this);
+    }
+    public int Write(Span<byte> destination)
+    {
+        return FrontendMessageWriter.Write(in this,
+            destination);
+    }
+    public void Write(IBufferWriter<byte> destination)
+    {
+        FrontendMessageWriter.Write(in this,
+            destination);
+    }
 
     private readonly uint _functionOid;
     private readonly ReadOnlyMemory<ReadOnlyMemory<byte>?> _arguments;
@@ -123,8 +164,14 @@ public readonly struct FunctionCallMessage : IFrontendMessage<FunctionCallMessag
         _resultFormat = resultFormat;
     }
 
-    static byte? IFrontendMessage<FunctionCallMessage>.GetMessageType(in FunctionCallMessage message) => (byte)'F';
-    static int IFrontendMessage<FunctionCallMessage>.GetByteCount(in FunctionCallMessage message) => FrontendSize.Initialized(message._byteCount);
+    static byte? IFrontendMessage<FunctionCallMessage>.GetMessageType(in FunctionCallMessage message)
+    {
+        return (byte)'F';
+    }
+    static int IFrontendMessage<FunctionCallMessage>.GetByteCount(in FunctionCallMessage message)
+    {
+        return FrontendSize.Initialized(message._byteCount);
+    }
     static void IFrontendMessage<FunctionCallMessage>.WritePayload(in FunctionCallMessage message,
         Span<byte> destination)
     {

@@ -11,16 +11,10 @@ namespace Mpgsql.IntegrationTests;
 internal sealed class TestConnection : IDisposable
 {
     private readonly TcpClient _client;
-    private readonly NetworkStream _stream;
-    private readonly ArrayBufferWriter<byte> _output = new();
+    private readonly ArrayBufferWriter<byte> _output = new ArrayBufferWriter<byte>();
+    private readonly Dictionary<string, string> _parameters = new Dictionary<string, string>();
     private readonly ReadOnlySequence<byte>?[] _rowStorage = new ReadOnlySequence<byte>?[8];
-    private readonly Dictionary<string, string> _parameters = new();
-    public List<BackendMessage> AsynchronousMessages { get; } = [];
-    public string ServerVersion => _parameters["server_version"];
-    public string Authentication { get; private set; } = "trust";
-    internal BackendKeyData BackendKey { get; private set; }
-    internal Stream CopyStream => _stream;
-    internal BackendMessage Receive() => Read(out _);
+    private readonly NetworkStream _stream;
 
     private TestConnection(string host,
         int port)
@@ -39,6 +33,20 @@ internal sealed class TestConnection : IDisposable
             _client.Dispose();
             throw;
         }
+    }
+    public List<BackendMessage> AsynchronousMessages { get; } = [];
+    public string ServerVersion => _parameters["server_version"];
+    public string Authentication { get; private set; } = "trust";
+    internal BackendKeyData BackendKey { get; private set; }
+    internal Stream CopyStream => _stream;
+
+    public void Dispose()
+    {
+        _client.Dispose();
+    }
+    internal BackendMessage Receive()
+    {
+        return Read(out _);
     }
 
     public static TestConnection Open(string host,
@@ -63,8 +71,11 @@ internal sealed class TestConnection : IDisposable
         }
     }
 
-    public void Append<T>(T message) where T : struct, IFrontendMessage<T> => FrontendMessageWriter.Write(in message,
-        _output);
+    public void Append<T>(T message) where T : struct, IFrontendMessage<T>
+    {
+        FrontendMessageWriter.Write(in message,
+            _output);
+    }
 
     public void Flush()
     {
@@ -78,8 +89,11 @@ internal sealed class TestConnection : IDisposable
         Flush();
     }
 
-    public BackendMessage Expect(BackendMessageKind kind) => Expect(kind,
-        out _);
+    public BackendMessage Expect(BackendMessageKind kind)
+    {
+        return Expect(kind,
+            out _);
+    }
 
     public BackendMessage ExpectCopyDataOrDone()
     {
@@ -156,12 +170,12 @@ internal sealed class TestConnection : IDisposable
     {
         Span<byte> header = stackalloc byte[5];
         _stream.ReadExactly(header);
-        int length = BinaryPrimitives.ReadInt32BigEndian(header[1..]);
+        var length = BinaryPrimitives.ReadInt32BigEndian(header[1..]);
         if (length < 4 || length > BackendMessageReader.DefaultMaxMessageLength)
         {
             throw new InvalidDataException("Invalid live server packet length.");
         }
-        byte[] packet = new byte[length + 1];
+        var packet = new byte[length + 1];
         header.CopyTo(packet);
         _stream.ReadExactly(packet.AsSpan(5));
         var input = new ReadOnlySequence<byte>(packet);
@@ -192,7 +206,7 @@ internal sealed class TestConnection : IDisposable
         Send(FrontendMessage.Startup(user,
             database));
         TestScram? scram = null;
-        bool authenticated = false;
+        var authenticated = false;
         while (true)
         {
             var message = Read(out _);
@@ -223,7 +237,7 @@ internal sealed class TestConnection : IDisposable
                         break;
                     case AuthenticationMethod.Md5Password:
                         Authentication = "MD5";
-                        byte[] inner = Encoding.ASCII.GetBytes(Convert.ToHexStringLower(MD5.HashData(Encoding.UTF8.GetBytes(password + user))));
+                        var inner = Encoding.ASCII.GetBytes(Convert.ToHexStringLower(MD5.HashData(Encoding.UTF8.GetBytes(password + user))));
                         byte[] salted = [.. inner, .. request.Data.ToArray()];
                         Send(FrontendMessage.Password("md5" + Convert.ToHexStringLower(MD5.HashData(salted))));
                         break;
@@ -271,6 +285,4 @@ internal sealed class TestConnection : IDisposable
             }
         }
     }
-
-    public void Dispose() => _client.Dispose();
 }

@@ -8,9 +8,11 @@ internal static class NullableLongArrayChecks
 {
     internal static void Run(TestConnection connection)
     {
-        long?[] large = new long?[4097];
-        for (int i = 0; i < large.Length; i++)
+        var large = new long?[4097];
+        for (var i = 0; i < large.Length; i++)
+        {
             large[i] = i % 3 == 0 ? null : unchecked(long.MinValue + i);
+        }
         long?[][] cases =
         [
             [], [null], [long.MinValue, -1, 0, 1, long.MaxValue],
@@ -24,7 +26,7 @@ internal static class NullableLongArrayChecks
             }));
         foreach (var values in cases)
         {
-            byte[] payload = new byte[NullableInt64ArrayConverter.GetByteCount(values)];
+            var payload = new byte[NullableInt64ArrayConverter.GetByteCount(values)];
             NullableInt64ArrayConverter.Write(values,
                 payload);
             connection.Append(FrontendMessage.Bind(statement: "wire_nullable_long",
@@ -55,7 +57,7 @@ internal static class NullableLongArrayChecks
             Check(NullableInt64ArrayConverter.Read(payload)
                     .Span.SequenceEqual(values),
                 "owned round trip");
-            int count = NullableInt64ArrayConverter.Read(payload,
+            var count = NullableInt64ArrayConverter.Read(payload,
                 storage);
             Check(count == values.Length
                   && storage.AsSpan(0,
@@ -66,7 +68,7 @@ internal static class NullableLongArrayChecks
         }
 
         // Like array_recv, the nullable reader identifies NULLs by lengths, independently of flags.
-        byte[] atypical = new byte[NullableInt64ArrayConverter.GetByteCount(new long?[] {null, 42})];
+        var atypical = new byte[NullableInt64ArrayConverter.GetByteCount(new long?[] {null, 42})];
         NullableInt64ArrayConverter.Write(new long?[]
             {
                 null,

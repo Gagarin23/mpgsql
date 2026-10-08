@@ -5,7 +5,7 @@ $mpgsqlRepo = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $mpgsqlConfig = Join-Path $PSScriptRoot 'compose.yaml'
 $mpgsqlProject = Join-Path $mpgsqlRepo 'tests/Mpgsql.IntegrationTests'
 $mpgsqlVariables = @('MPGSQL_TEST_HOST', 'MPGSQL_TEST_PORT', 'MPGSQL_TEST_USER', 'MPGSQL_TEST_PASSWORD',
-    'MPGSQL_TEST_DATABASE', 'MPGSQL_TEST_UPPER_ONLY', 'MPGSQL_TEST_POOL_MODE', 'MPGSQL_TEST_ACTIVE_TERMINAL_EOF_ONLY')
+    'MPGSQL_TEST_DATABASE', 'MPGSQL_TEST_UPPER_ONLY', 'MPGSQL_TEST_POOL_MODE', 'MPGSQL_TEST_ACTIVE_TERMINAL_EOF_ONLY', 'MPGSQL_TEST_CANCEL_MAPPING_ONCE')
 $mpgsqlSaved = @{}
 foreach ($mpgsqlName in $mpgsqlVariables) { $mpgsqlSaved[$mpgsqlName] = [Environment]::GetEnvironmentVariable($mpgsqlName) }
 
@@ -24,7 +24,7 @@ try {
         @{Name='PostgreSQL'; Port=16430; Mode='session'},
         @{Name='PgBouncer session'; Port=16431; Mode='session'},
         @{Name='PgBouncer transaction'; Port=16432; Mode='transaction'},
-        @{Name='pg_doorman session'; Port=16433; Mode='session'; ActiveTerminalEofOnly=$true},
+        @{Name='pg_doorman session'; Port=16433; Mode='session'; ActiveTerminalEofOnly=$true; CancelMappingOnce=$true},
         @{Name='pg_doorman transaction'; Port=16434; Mode='transaction'; ActiveTerminalEofOnly=$true}
     )) {
         Write-Host ('Checking ' + $mpgsqlEndpoint.Name)
@@ -32,6 +32,7 @@ try {
         $env:MPGSQL_TEST_POOL_MODE = $mpgsqlEndpoint.Mode
         # pg_doorman 3.10.6 forwards no FATAL for an active self-termination; idle gets its own FATAL.
         $env:MPGSQL_TEST_ACTIVE_TERMINAL_EOF_ONLY = if ($mpgsqlEndpoint.ActiveTerminalEofOnly) { '1' } else { '0' }
+        $env:MPGSQL_TEST_CANCEL_MAPPING_ONCE = if ($mpgsqlEndpoint.CancelMappingOnce) { '1' } else { '0' }
         dotnet run --project $mpgsqlProject -c Release --no-build --no-restore
         if ($LASTEXITCODE -ne 0) { throw ('Integration checks failed: ' + $mpgsqlEndpoint.Name) }
     }

@@ -7,7 +7,7 @@ namespace Mpgsql.Tests.Converters;
 
 public sealed class Int64ConverterTests
 {
-    public static TheoryData<long, string> Payloads => new()
+    public static TheoryData<long, string> Payloads => new TheoryData<long, string>
     {
         {long.MinValue, "8000000000000000"},
         {long.MaxValue, "7fffffffffffffff"},
@@ -22,7 +22,7 @@ public sealed class Int64ConverterTests
     public void WritesLiteralPayloadWithoutChangingOtherBytes(long value,
         string hex)
     {
-        byte[] expected = TestWire.Bytes(hex);
+        var expected = TestWire.Bytes(hex);
         byte[] bytes =
         [
             .. Enumerable.Repeat((byte)0xcc,
@@ -71,7 +71,7 @@ public sealed class Int64ConverterTests
     public void ReadsContiguousAndEverySegmentBoundary(long value,
         string hex)
     {
-        byte[] bytes = TestWire.Bytes(hex);
+        var bytes = TestWire.Bytes(hex);
         Assert.Equal(value,
             Int64Converter.Read(bytes.AsSpan()));
         Assert.Equal(value,
@@ -79,8 +79,8 @@ public sealed class Int64ConverterTests
         Assert.Equal(value,
             Int64Converter.ReadNullable((ReadOnlyMemory<byte>?)bytes));
         Assert.Equal(value,
-            Int64Converter.ReadNullable((ReadOnlySequence<byte>?)new ReadOnlySequence<byte>(bytes)));
-        for (int split = 0; split <= bytes.Length; split++)
+            Int64Converter.ReadNullable(new ReadOnlySequence<byte>(bytes)));
+        for (var split = 0; split <= bytes.Length; split++)
         {
             var input = TestWire.Chunks(ReadOnlyMemory<byte>.Empty,
                 bytes.AsMemory(0,
@@ -106,18 +106,18 @@ public sealed class Int64ConverterTests
                 16)
         ];
         Assert.Equal(0,
-            Int64Converter.GetByteCount((long?)null));
+            Int64Converter.GetByteCount(null));
         Assert.Equal(0,
-            Int64Converter.Write((long?)null,
+            Int64Converter.Write(null,
                 bytes));
         Assert.Equal(0,
-            Int64Converter.Write((long?)null,
+            Int64Converter.Write(null,
                 Span<byte>.Empty));
         Assert.All(bytes,
             b => Assert.Equal((byte)0xcc,
                 b));
         var writer = new RecordingWriter();
-        Int64Converter.Write((long?)null,
+        Int64Converter.Write(null,
             writer);
         Assert.Equal(0,
             writer.Reservations);
@@ -130,12 +130,11 @@ public sealed class Int64ConverterTests
         Assert.Null(Int64Converter.ReadNullable((ReadOnlySequence<byte>?)null));
         Assert.Throws<ArgumentNullException>(() => Int64Converter.Write(1L,
             (IBufferWriter<byte>)null!));
-        Assert.Throws<ArgumentNullException>(() => Int64Converter.Write((long?)null,
+        Assert.Throws<ArgumentNullException>(() => Int64Converter.Write(null,
             (IBufferWriter<byte>)null!));
     }
 
-    [Theory]
-    [InlineData(0), InlineData(1), InlineData(2), InlineData(3), InlineData(4), InlineData(5), InlineData(6), InlineData(7)]
+    [Theory, InlineData(0), InlineData(1), InlineData(2), InlineData(3), InlineData(4), InlineData(5), InlineData(6), InlineData(7)]
     public void InsufficientCapacityPrecedesMutationAndAdvance(int capacity)
     {
         byte[] bytes =
@@ -161,26 +160,24 @@ public sealed class Int64ConverterTests
                 b));
     }
 
-    [Theory]
-    [InlineData(0), InlineData(1), InlineData(2), InlineData(3), InlineData(4), InlineData(5), InlineData(6), InlineData(7)]
-    [InlineData(9), InlineData(16)]
+    [Theory, InlineData(0), InlineData(1), InlineData(2), InlineData(3), InlineData(4), InlineData(5), InlineData(6), InlineData(7), InlineData(9), InlineData(16)]
     public void EmptyTruncatedAndTrailingPayloadsAreInvalidIncludingNullableFields(int length)
     {
-        byte[] bytes = new byte[length];
+        var bytes = new byte[length];
         Assert.Throws<InvalidDataException>(() => Int64Converter.Read(bytes.AsSpan()));
         Assert.Throws<InvalidDataException>(() => Int64Converter.Read(new ReadOnlySequence<byte>(bytes)));
         Assert.Throws<InvalidDataException>(() => Int64Converter.Read(TestWire.ByteSegments(bytes)));
         Assert.Throws<InvalidDataException>(() => Int64Converter.ReadNullable((ReadOnlyMemory<byte>?)bytes));
-        Assert.Throws<InvalidDataException>(() => Int64Converter.ReadNullable((ReadOnlySequence<byte>?)TestWire.ByteSegments(bytes)));
+        Assert.Throws<InvalidDataException>(() => Int64Converter.ReadNullable(TestWire.ByteSegments(bytes)));
     }
 
     [Fact]
     public void PayloadMemorySliceAndReadResultDoNotDependOnBorrowedStorage()
     {
-        byte[] bytes = TestWire.Bytes("cccc 0102030405060708 dddd");
+        var bytes = TestWire.Bytes("cccc 0102030405060708 dddd");
         var payload = bytes.AsMemory(2,
             8);
-        long? result = Int64Converter.ReadNullable(payload);
+        var result = Int64Converter.ReadNullable(payload);
         Assert.Equal(0x0102030405060708L,
             result);
         bytes.AsSpan().Clear();
@@ -191,7 +188,7 @@ public sealed class Int64ConverterTests
     [Fact]
     public void CompleteBindAndDataRowBytesDistinguishNumberAndSqlNull()
     {
-        byte[] payload = new byte[8];
+        var payload = new byte[8];
         Int64Converter.Write(0x0102030405060708L,
             payload);
         var bind = FrontendMessage.Bind(parameters: new ReadOnlyMemory<byte>?[]
@@ -207,7 +204,7 @@ public sealed class Int64ConverterTests
             {
                 FormatCode.Binary
             });
-        byte[] packet = new byte[bind.GetByteCount()];
+        var packet = new byte[bind.GetByteCount()];
         bind.Write(packet);
         Assert.Equal(TestWire.Bytes("42 00000020 00 00 0001 0001 0002 00000008 0102030405060708 ffffffff 0001 0001"),
             packet);
@@ -243,19 +240,22 @@ public sealed class Int64ConverterTests
 
     private sealed class RecordingWriter(int capacity = 16) : IBufferWriter<byte>
     {
+        internal int SizeHint, Advanced, Reservations, Advances;
         internal byte[] Bytes { get; } =
         [
             .. Enumerable.Repeat((byte)0xcc,
                 capacity)
         ];
-        internal int SizeHint, Advanced, Reservations, Advances;
         public Span<byte> GetSpan(int sizeHint = 0)
         {
             SizeHint = sizeHint;
             Reservations++;
             return Bytes;
         }
-        public Memory<byte> GetMemory(int sizeHint = 0) => throw new NotSupportedException();
+        public Memory<byte> GetMemory(int sizeHint = 0)
+        {
+            throw new NotSupportedException();
+        }
         public void Advance(int count)
         {
             Advanced = count;

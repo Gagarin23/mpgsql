@@ -15,8 +15,14 @@ internal static class QueryRunMetadata
         foreach (string file in Directory.EnumerateFiles(Path.Combine(root, directory), "*", SearchOption.AllDirectories))
         {
             string relative = Path.GetRelativePath(root, file).Replace('\\', '/');
-            if (relative.Contains("/bin/", StringComparison.Ordinal) || relative.Contains("/obj/", StringComparison.Ordinal)) continue;
-            if (Path.GetExtension(file) is not (".cs" or ".csproj" or ".props" or ".targets")) continue;
+            if (relative.Contains("/bin/", StringComparison.Ordinal) || relative.Contains("/obj/", StringComparison.Ordinal))
+            {
+                continue;
+            }
+            if (Path.GetExtension(file) is not (".cs" or ".csproj" or ".props" or ".targets"))
+            {
+                continue;
+            }
             hashes[relative] = Hash(file);
         }
         var variables = new SortedDictionary<string, string?>(StringComparer.Ordinal);
@@ -50,7 +56,10 @@ internal static class QueryRunMetadata
     {
         foreach (string start in new[] {Environment.CurrentDirectory, AppContext.BaseDirectory})
             for (var directory = new DirectoryInfo(start); directory is not null; directory = directory.Parent)
-                if (File.Exists(Path.Combine(directory.FullName, "src", "Mpgsql", "Mpgsql.csproj"))) return directory.FullName;
+                if (File.Exists(Path.Combine(directory.FullName, "src", "Mpgsql", "Mpgsql.csproj")))
+                {
+                    return directory.FullName;
+                }
         throw new DirectoryNotFoundException("Run the query load runner from the Mpgsql repository.");
     }
     private static string Hash(string file)
@@ -71,7 +80,10 @@ internal static class QueryRunMetadata
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start git.");
         string output = process.StandardOutput.ReadToEnd();
         string error = process.StandardError.ReadToEnd();
-        if (!process.WaitForExit(10000) || process.ExitCode != 0) throw new InvalidOperationException("Git metadata failed: " + error);
+        if (!process.WaitForExit(10000) || process.ExitCode != 0)
+        {
+            throw new InvalidOperationException("Git metadata failed: " + error);
+        }
         return output.Trim();
     }
 }

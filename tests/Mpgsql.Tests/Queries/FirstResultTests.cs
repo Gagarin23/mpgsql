@@ -1,12 +1,11 @@
+using Mpgsql.Protocol;
 using static Mpgsql.Tests.Queries.ScriptedSession;
 
 namespace Mpgsql.Tests.Queries;
 
 public sealed class FirstResultTests
 {
-    [Theory]
-    [InlineData(1)]
-    [InlineData(int.MaxValue)]
+    [Theory, InlineData(1), InlineData(int.MaxValue)]
     public async Task PendingFirstResultKeepsFieldsRowsAndQueryIndices(int fragment)
     {
         await using var wire = new ScriptedSession();
@@ -77,7 +76,7 @@ public sealed class FirstResultTests
         var error = await Assert.ThrowsAsync<MpgsqlServerException>(() => pending.WaitAsync(TestTimeout,
             TestContext.Current.CancellationToken));
         Assert.Equal(0, error.QueryIndex);
-        Assert.Equal(Mpgsql.Protocol.TransactionStatus.Idle, error.TransactionStatus);
+        Assert.Equal(TransactionStatus.Idle, error.TransactionStatus);
         Assert.True(batch.ConsumerDisposed);
         Assert.Equal(0, wire.Session.BufferedRowBytes);
         await FollowingQueryAsync(wire);
@@ -115,7 +114,7 @@ public sealed class FirstResultTests
         Assert.False(pending.IsCompleted);
         Assert.False(wire.HasOutput());
         await batch.SendSyncAsync();
-        Assert.Equal(new[] { 'S' }, Tags(await wire.ReadOutputAsync()));
+        Assert.Equal(new[] {'S'}, Tags(await wire.ReadOutputAsync()));
         await wire.WriteAsync(Ready());
         await using var reader = await pending.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         Assert.Equal(-1, reader.QueryIndex);

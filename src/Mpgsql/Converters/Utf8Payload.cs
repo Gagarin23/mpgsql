@@ -13,7 +13,9 @@ internal static class Utf8Payload
     }
 
     internal static int Write(string value, Span<byte> destination)
-        => WireEncoding.Utf8.GetBytes(value, destination);
+    {
+        return WireEncoding.Utf8.GetBytes(value, destination);
+    }
 
     internal static ReadOnlySpan<byte> ReadUtf8(ReadOnlySpan<byte> payload, bool jsonb)
     {
@@ -34,7 +36,7 @@ internal static class Utf8Payload
         if (jsonb)
         {
             var reader = new SequenceReader<byte>(payload);
-            if (!reader.TryRead(out byte version) || version != 1)
+            if (!reader.TryRead(out var version) || version != 1)
             {
                 throw new InvalidDataException("Unsupported or missing jsonb version.");
             }
@@ -61,22 +63,25 @@ internal static class Utf8Payload
         {
             return Read(payload.FirstSpan);
         }
-        int count = CountCharacters(payload);
+        var count = CountCharacters(payload);
         // One result string; no Decoder object, temporary char array or flattened byte payload.
         return string.Create(count, payload, static (output, input) => Decode(input, output));
     }
 
     private static int WholeScalarPrefix(ReadOnlySpan<byte> bytes)
     {
-        int last = bytes.Length - 1;
+        var last = bytes.Length - 1;
         if (last < 0)
         {
             return 0;
         }
-        int start = last;
-        while (start > 0 && (bytes[start] & 0xc0) == 0x80 && last - start < 3) start--;
-        byte lead = bytes[start];
-        int needed = lead < 0x80 ? 1 :
+        var start = last;
+        while (start > 0 && (bytes[start] & 0xc0) == 0x80 && last - start < 3)
+        {
+            start--;
+        }
+        var lead = bytes[start];
+        var needed = lead < 0x80 ? 1 :
             lead is >= 0xc2 and <= 0xdf ? 2 :
             lead is >= 0xe0 and <= 0xef ? 3 :
             lead is >= 0xf0 and <= 0xf4 ? 4 : 1;
@@ -87,13 +92,13 @@ internal static class Utf8Payload
     {
         var reader = new SequenceReader<byte>(input);
         Span<byte> scratch = stackalloc byte[4];
-        int count = 0;
+        var count = 0;
         try
         {
             while (reader.Remaining != 0)
             {
                 var bytes = reader.UnreadSpan;
-                int prefix = WholeScalarPrefix(bytes);
+                var prefix = WholeScalarPrefix(bytes);
                 if (prefix != 0)
                 {
                     bytes = bytes[..prefix];
@@ -101,9 +106,9 @@ internal static class Utf8Payload
                     reader.Advance(prefix);
                     continue;
                 }
-                int length = (int)Math.Min(4, reader.Remaining);
+                var length = (int)Math.Min(4, reader.Remaining);
                 reader.TryCopyTo(scratch[..length]);
-                if (Rune.DecodeFromUtf8(scratch[..length], out var scalar, out int consumed) != OperationStatus.Done)
+                if (Rune.DecodeFromUtf8(scratch[..length], out var scalar, out var consumed) != OperationStatus.Done)
                 {
                     throw new InvalidDataException("Invalid PostgreSQL UTF-8 string.");
                 }
@@ -122,19 +127,19 @@ internal static class Utf8Payload
     {
         var reader = new SequenceReader<byte>(input);
         Span<byte> scratch = stackalloc byte[4];
-        int written = 0;
+        var written = 0;
         while (reader.Remaining != 0)
         {
-            int prefix = WholeScalarPrefix(reader.UnreadSpan);
+            var prefix = WholeScalarPrefix(reader.UnreadSpan);
             if (prefix != 0)
             {
                 written += WireEncoding.Utf8.GetChars(reader.UnreadSpan[..prefix], output[written..]);
                 reader.Advance(prefix);
                 continue;
             }
-            int length = (int)Math.Min(4, reader.Remaining);
+            var length = (int)Math.Min(4, reader.Remaining);
             reader.TryCopyTo(scratch[..length]);
-            if (Rune.DecodeFromUtf8(scratch[..length], out var scalar, out int consumed) != OperationStatus.Done)
+            if (Rune.DecodeFromUtf8(scratch[..length], out var scalar, out var consumed) != OperationStatus.Done)
             {
                 throw new InvalidDataException("Invalid PostgreSQL UTF-8 string.");
             }
@@ -146,7 +151,7 @@ internal static class Utf8Payload
     internal static int WriteUtf8(ReadOnlySpan<byte> value, Span<byte> destination,
         bool jsonb)
     {
-        int size = checked(value.Length + (jsonb ? 1 : 0));
+        var size = checked(value.Length + (jsonb ? 1 : 0));
         BinaryPayload.RequireCapacity(size, destination.Length);
         destination = destination[..size];
         BinaryPayload.RequireSeparate(value, destination);

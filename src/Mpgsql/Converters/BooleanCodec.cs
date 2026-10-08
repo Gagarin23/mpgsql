@@ -1,7 +1,5 @@
 using System.Buffers;
-using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
-using Mpgsql.Types;
 
 namespace Mpgsql.Converters;
 
@@ -32,6 +30,9 @@ internal readonly struct BooleanCodec : IBinaryCodec<bool>
         }
         return value;
     }
-    public static bool Read(ReadOnlySequence<byte> payload) => BinaryPayload.ReadSmall<bool, BooleanCodec>(payload, 1);
+    public static bool Read(ReadOnlySequence<byte> payload)
+    {
+        return BinaryPayload.ReadSmall<bool, BooleanCodec>(payload, 1);
+    }
 
 }

@@ -36,7 +36,7 @@ using Npgsql.Internal.Postgres;
 
 namespace Mpgsql.Benchmarks.NpgsqlBaseline.Copied;
 
-readonly partial struct PgArrayConverter
+internal readonly partial struct PgArrayConverter
 (
     IElementOperations elemOps,
     bool elemTypeDbNullable,
@@ -53,18 +53,18 @@ readonly partial struct PgArrayConverter
 
     public bool ElemTypeDbNullable { get; } = elemTypeDbNullable;
 
-    bool IsDbNull(object values,
+    private bool IsDbNull(object values,
         Indices indices)
     {
         object? state = null;
-        return elemOps.GetSizeOrDbNull(new(DataFormat.Binary,
+        return elemOps.GetSizeOrDbNull(new SizeContext(DataFormat.Binary,
                 bufferRequirements.Write),
             values,
             indices,
             ref state) is null;
     }
 
-    Size GetElemsSize(object values,
+    private Size GetElemsSize(object values,
         (Size, object?)[] elemStates,
         out bool anyElementState,
         DataFormat format,
@@ -93,13 +93,13 @@ readonly partial struct PgArrayConverter
             totalSize = totalSize.Combine(size ?? 0);
         }
         // We can immediately continue if we didn't reach the end of the last dimension.
-        while (++lastIndex < lastLength || (indices.Count > 1 && CarryIndices(lengths!,
-                   indices)));
+        while (++lastIndex < lastLength || indices.Count > 1 && CarryIndices(lengths!,
+                   indices));
 
         return totalSize;
     }
 
-    Size GetFixedElemsSize(Size elemSize,
+    private Size GetFixedElemsSize(Size elemSize,
         object values,
         int count,
         Indices indices,
@@ -119,20 +119,23 @@ readonly partial struct PgArrayConverter
                 }
             }
             // We can immediately continue if we didn't reach the end of the last dimension.
-            while (++lastIndex < lastLength || (indices.Count > 1 && CarryIndices(lengths!,
-                       indices)));
+            while (++lastIndex < lastLength || indices.Count > 1 && CarryIndices(lengths!,
+                       indices));
         }
 
         return (count - nulls) * elemSize.Value;
     }
 
-    int GetFormatSize(int count,
+    private int GetFormatSize(int count,
         int dimensions)
-        => sizeof(int) + // Dimensions
-           sizeof(int) + // Flags
-           sizeof(int) + // Element OID
-           dimensions * (sizeof(int) + sizeof(int)) + // Dimensions * (array length and lower bound)
-           sizeof(int) * count; // Element length integers
+    {
+        return sizeof(int) + // Dimensions
+               sizeof(int) + // Flags
+               sizeof(int) + // Element OID
+               dimensions * (sizeof(int) + sizeof(int)) + // Dimensions * (array length and lower bound)
+               sizeof(int) * count;
+        // Element length integers
+    }
 
     public Size GetSize(SizeContext context,
         object values,
@@ -179,7 +182,7 @@ readonly partial struct PgArrayConverter
             writeState = new WriteState
             {
                 Count = count, Indices = indices, Lengths = lengths,
-                ArrayPool = arrayPool, Data = new(data,
+                ArrayPool = arrayPool, Data = new ArraySegment<(Size Size, object? WriteState)>(data,
                     0,
                     count),
                 AnyWriteState = elemStateDisposable
@@ -189,7 +192,7 @@ readonly partial struct PgArrayConverter
         return formatSize.Combine(elemsSize);
     }
 
-    object ReadDimsAndCreateCollection(PgReader reader,
+    private object ReadDimsAndCreateCollection(PgReader reader,
         int dimensions,
         out int lastDimLength)
     {
@@ -312,13 +315,13 @@ readonly partial struct PgArrayConverter
             }
         }
         // We can immediately continue if we didn't reach the end of the last dimension.
-        while (++indices.GetItem(indices.Count - 1) < lastDimLength || (dimLengths is not null && CarryIndices(dimLengths,
-                   indices)));
+        while (++indices.GetItem(indices.Count - 1) < lastDimLength || dimLengths is not null && CarryIndices(dimLengths,
+                   indices));
 
         return collection;
     }
 
-    static bool CarryIndices(int[] lengths,
+    private static bool CarryIndices(int[] lengths,
         Indices indices)
     {
         Debug.Assert(lengths.Length > 1);
@@ -422,8 +425,8 @@ readonly partial struct PgArrayConverter
             }
         }
         // We can immediately continue if we didn't reach the end of the last dimension.
-        while (++indices.GetItem(indices.Count - 1) < lastLength || (state.Lengths is not null && CarryIndices(state.Lengths,
-                   indices)));
+        while (++indices.GetItem(indices.Count - 1) < lastLength || state.Lengths is not null && CarryIndices(state.Lengths,
+                   indices));
     }
 
 

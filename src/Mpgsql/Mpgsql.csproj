@@ -21,14 +21,16 @@
 
     <ItemGroup>
         <!-- The client reuses wire/codec internals without widening the public API. -->
-        <InternalsVisibleTo Include="Mpgsql.Client" />
-        <InternalsVisibleTo Include="Mpgsql.Tests" />
-        <InternalsVisibleTo Include="Mpgsql.Benchmarks" />
-        <InternalsVisibleTo Include="Mpgsql.IntegrationTests" />
+        <InternalsVisibleTo Include="Mpgsql.Client"/>
+        <InternalsVisibleTo Include="Mpgsql.Sessions"/>
+        <InternalsVisibleTo Include="Mpgsql.Tests"/>
+        <InternalsVisibleTo Include="Mpgsql.Benchmarks"/>
+        <InternalsVisibleTo Include="Mpgsql.IntegrationTests"/>
     </ItemGroup>
 
     <ItemGroup>
-        <None Update="README.md" Pack="true" PackagePath="/" />
+        <None Update="README.md" Pack="true" PackagePath="/"/>
+        <None Remove="Converters\NumericCodec.Simd.cs~" />
     </ItemGroup>
 
 </Project>

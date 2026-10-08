@@ -6,7 +6,7 @@ internal static class BinaryScalar<T, TCodec> where TCodec : struct, IBinaryCode
 {
     internal static int Write(T value, Span<byte> destination)
     {
-        int size = TCodec.Measure(value);
+        var size = TCodec.Measure(value);
         BinaryPayload.RequireCapacity(size, destination.Length);
         destination = destination[..size];
         TCodec.CheckOverlap(value, destination);
@@ -17,7 +17,7 @@ internal static class BinaryScalar<T, TCodec> where TCodec : struct, IBinaryCode
     internal static void Write(T value, IBufferWriter<byte> destination)
     {
         ArgumentNullException.ThrowIfNull(destination);
-        int size = TCodec.Measure(value);
+        var size = TCodec.Measure(value);
         if (size == 0)
         {
             return;

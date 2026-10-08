@@ -1,20 +1,28 @@
 using System.Buffers;
 using Mpgsql.Internal;
+using Mpgsql.Multiplexing.Internal;
 using Mpgsql.Protocol;
+using QueryExecution = Mpgsql.Multiplexing.Internal.QueryExecution;
 using static Mpgsql.Tests.Queries.ScriptedSession;
 
 namespace Mpgsql.Tests.Queries;
 
 public sealed class BatchOptimizationTests
 {
-    private static MpgsqlDataSource Source(ScriptedSession wire) => new(
-        _ => ValueTask.FromResult(wire.Session), (_, _) => ValueTask.CompletedTask,
-        new() { MaxConnections = 1, MaxInFlightPerConnection = 2 });
+    private static MpgsqlMultiplexingDataSource Source(ScriptedSession wire)
+    {
+        return new MpgsqlMultiplexingDataSource(
+            _ => ValueTask.FromResult(wire.Session),
+            new MpgsqlMultiplexingOptions {MaxConnections = 1, MaxInFlightPerConnection = 2});
+    }
 
     private static async Task<byte[]> ThroughSync(ScriptedSession wire)
     {
         var bytes = new List<byte>();
-        while (!Tags([.. bytes]).Contains('S')) bytes.AddRange(await wire.ReadOutputAsync());
+        while (!Tags([.. bytes]).Contains('S'))
+        {
+            bytes.AddRange(await wire.ReadOutputAsync());
+        }
         return [.. bytes];
     }
 
@@ -22,20 +30,20 @@ public sealed class BatchOptimizationTests
     public async Task AllCommandsAreValidatedBeforeAnyFrameIsPublished()
     {
         await using var wire = new ScriptedSession();
-        await using var source = Source(wire);
+        await using var source = new MpgsqlDataSource(_ => ValueTask.FromResult(wire.Session), (_, _) => ValueTask.CompletedTask);
         await using var connection = await source.OpenConnectionAsync(TestContext.Current.CancellationToken);
         await using var batch = connection.CreateBatch();
-        batch.Commands.Add(batch.CreateCommand("select 1"));
-        var invalid = batch.CreateCommand("select $1");
-        invalid.Parameters.Add(default);
-        batch.Commands.Add(invalid);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => batch.ExecuteReaderAsync(
+        batch.BatchCommands.Add(new MpgsqlBatchCommand("select 1"));
+        var invalid = new MpgsqlBatchCommand("select $1");
+        invalid.Parameters.Add(new MpgsqlParameter());
+        batch.BatchCommands.Add(invalid);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => batch.ExecuteReaderValueTaskAsync(cancellationToken:
             TestContext.Current.CancellationToken).AsTask());
         Assert.False(wire.HasOutput());
         await using var next = connection.CreateCommand("select 8::bigint");
         var result = next.ExecuteScalarAsync<long>(TestContext.Current.CancellationToken).AsTask();
         Assert.Equal("PBDES", new string(Tags(await ThroughSync(wire))));
-        await wire.WriteAsync(Join(Query(8), Ready()), fragment: 1);
+        await wire.WriteAsync(Join(Query(8), Ready()), 1);
         Assert.Equal(8, (await result.WaitAsync(TestTimeout, TestContext.Current.CancellationToken)).Value);
         Assert.True(wire.Session.IsHealthy);
         Assert.Equal(0, wire.Session.BufferedRowBytes);
@@ -45,45 +53,41 @@ public sealed class BatchOptimizationTests
     public async Task ParameterCollectionKeepsOrderingNullEmptyAndFrozenMutators()
     {
         await using var wire = new ScriptedSession();
-        await using var source = Source(wire);
+        await using var source = new MpgsqlDataSource(_ => ValueTask.FromResult(wire.Session), (_, _) => ValueTask.CompletedTask);
         await using var connection = await source.OpenConnectionAsync(TestContext.Current.CancellationToken);
         await using var command = connection.CreateCommand("select $1, $2, $3");
         var parameters = command.Parameters;
-        parameters.Add(MpgsqlParameter.Int64(99));
-        using var enumerator = parameters.GetEnumerator();
-        parameters.Add(MpgsqlParameter.Int64(11));
-        Assert.Throws<InvalidOperationException>(() => enumerator.MoveNext());
-        parameters.Insert(1, MpgsqlParameter.Int64(null));
-        parameters.RemoveAt(0);
-        parameters[0] = MpgsqlParameter.Int64(11);
-        parameters[1] = MpgsqlParameter.Int64(null);
+        var value = MpgsqlParameter.Int64(11);
+        var nil = MpgsqlParameter.Int64(null);
+        parameters.Add(value);
+        parameters.Add(nil);
         parameters.Add(MpgsqlParameter.Int64Array(ReadOnlyMemory<long>.Empty));
         Assert.Equal(3, parameters.Count);
-        Assert.Equal(1, parameters.IndexOf(MpgsqlParameter.Int64(null)));
-        Assert.Contains(MpgsqlParameter.Int64(11), parameters);
-        Assert.False(parameters.Remove(MpgsqlParameter.Int64(42)));
+        Assert.Equal(1, parameters.IndexOf(nil));
+        Assert.True(parameters.Contains(value));
         var copied = new MpgsqlParameter[5];
         parameters.CopyTo(copied, 1);
-        Assert.Equal(parameters.ToArray(), copied.AsSpan(1, 3).ToArray());
+        Assert.Same(value, copied[1]);
+        Assert.Same(nil, copied[2]);
 
-        var opening = command.ExecuteReaderAsync(TestContext.Current.CancellationToken).AsTask();
+        var opening = command.ExecuteReaderValueTaskAsync(cancellationToken: TestContext.Current.CancellationToken).AsTask();
         Assert.Throws<InvalidOperationException>(() => parameters.Clear());
         Assert.Throws<InvalidOperationException>(() => parameters.RemoveAt(0));
         Assert.Throws<InvalidOperationException>(() => parameters[0] = MpgsqlParameter.Int64(7));
         var expected = new ArrayBufferWriter<byte>();
-        FrontendMessage.Parse(command.CommandText, parameterTypes: new uint[] { 20, 20, 1016 }).Write(expected);
+        FrontendMessage.Parse(command.CommandText, parameterTypes: new uint[] {20, 20, 1016}).Write(expected);
         FrontendMessage.Bind(parameters: new ReadOnlyMemory<byte>?[]
-            { Int64(11), null, new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20 } },
-            parameterFormats: new[] { FormatCode.Binary }, resultFormats: new[] { FormatCode.Binary }).Write(expected);
+                {Int64(11), null, new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20}},
+            parameterFormats: new[] {FormatCode.Binary}, resultFormats: new[] {FormatCode.Binary}).Write(expected);
         FrontendMessage.Describe(StatementOrPortal.Portal).Write(expected);
         FrontendMessage.Execute().Write(expected);
         FrontendMessage.Sync().Write(expected);
         Assert.Equal(expected.WrittenSpan.ToArray(), await ThroughSync(wire));
         await wire.WriteAsync(Join(Query(11), Ready()));
         await using var reader = await opening.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
-        Assert.True(await reader.ReadAsync());
+        Assert.True(await reader.ReadAsync(TestContext.Current.CancellationToken));
         Assert.Equal(11, reader.GetInt64(0));
-        Assert.False(await reader.NextResultAsync());
+        Assert.False(await reader.NextResultAsync(TestContext.Current.CancellationToken));
         await command.DisposeAsync();
         Assert.Empty(parameters);
     }
@@ -91,18 +95,18 @@ public sealed class BatchOptimizationTests
     [Fact]
     public async Task PublicBatchDisposeWaitsForEveryEncoderBeforeClearingParameters()
     {
-        using var input = new BlockingInputMemory(blockEncoding: true);
+        using var input = new BlockingInputMemory(true);
         await using var wire = new ScriptedSession();
-        await using var source = Source(wire);
+        await using var source = new MpgsqlDataSource(_ => ValueTask.FromResult(wire.Session), (_, _) => ValueTask.CompletedTask);
         await using var connection = await source.OpenConnectionAsync(TestContext.Current.CancellationToken);
         await using var batch = connection.CreateBatch();
-        var first = batch.CreateCommand("select $1::bigint[]");
-        first.Parameters.Add(MpgsqlParameter.Int64Array(input.Memory));
-        batch.Commands.Add(first);
-        var second = batch.CreateCommand("select $1::bigint");
-        second.Parameters.Add(MpgsqlParameter.Int64(22));
-        batch.Commands.Add(second);
-        var opening = batch.ExecuteReaderAsync(TestContext.Current.CancellationToken).AsTask();
+        var first = new MpgsqlBatchCommand("select $1::bigint[]");
+        first.Parameters.Add(MpgsqlParameterValue.Int64Array(input.Memory));
+        batch.BatchCommands.Add(first);
+        var second = new MpgsqlBatchCommand("select $1::bigint");
+        second.Parameters.Add(MpgsqlParameterValue.Int64(22));
+        batch.BatchCommands.Add(second);
+        var opening = batch.ExecuteReaderValueTaskAsync(cancellationToken: TestContext.Current.CancellationToken).AsTask();
         await input.Entered.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         Task disposing;
         try
@@ -115,7 +119,7 @@ public sealed class BatchOptimizationTests
         }
         finally { input.Resume(); }
         Assert.Equal("PBDEPBDES", new string(Tags(await ThroughSync(wire))));
-        await wire.WriteAsync(Join(Query(11), Query(22), Ready()), fragment: 3);
+        await wire.WriteAsync(Join(Query(11), Query(22), Ready()), 3);
         await disposing.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         await Assert.ThrowsAsync<ObjectDisposedException>(() => opening.WaitAsync(TestTimeout,
             TestContext.Current.CancellationToken));
@@ -130,16 +134,18 @@ public sealed class BatchOptimizationTests
     [Fact]
     public async Task GroupCancellationWaitsForEncodingButNotBlockedSyncDelivery()
     {
-        using var encoding = new BlockingInputMemory(blockEncoding: true);
+        using var encoding = new BlockingInputMemory(true);
         using var queued = new BlockingInputMemory();
-        await using var wire = new ScriptedSession(blockWrites: true);
+        await using var wire = new ScriptedSession(true);
         await using var source = Source(wire);
-        var pooled = new PooledSession(wire.Session) { Active = 1 };
+        var pooled = new PooledSession(wire.Session) {Active = 1};
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        var execution = new QueryExecution(source, pooled, null,
-            [new("select $1::bigint[]", new[] { MpgsqlParameter.Int64Array(encoding.Memory) }),
-             new("select $1::bigint[]", new[] { MpgsqlParameter.Int64Array(queued.Memory) })], request.Token);
-        var opening = execution.OpenReaderAsync(waitForInputRelease: true).AsTask();
+        var execution = new QueryExecution(source, pooled,
+        [
+            new QueryDefinition("select $1::bigint[]", new[] {MpgsqlParameterValue.Int64Array(encoding.Memory)}),
+            new QueryDefinition("select $1::bigint[]", new[] {MpgsqlParameterValue.Int64Array(queued.Memory)})
+        ], request.Token);
+        var opening = execution.OpenReaderAsync(true).AsTask();
         await encoding.Entered.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         try
         {
@@ -155,10 +161,10 @@ public sealed class BatchOptimizationTests
         queued.Revoke();
         var held = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
         Assert.Equal("S", new string(Tags(held.Buffer.ToArray())));
-        Assert.False(execution.FinishAsync(discard: true).IsCompleted);
+        Assert.False(execution.FinishAsync(true).IsCompleted);
         wire.Outgoing.Reader.AdvanceTo(held.Buffer.End);
         await wire.WriteAsync(Ready());
-        await execution.FinishAsync(discard: true).AsTask().WaitAsync(TestTimeout,
+        await execution.FinishAsync(true).AsTask().WaitAsync(TestTimeout,
             TestContext.Current.CancellationToken);
         Assert.Equal(0, queued.Reads);
         Assert.Equal(0, pooled.Active);
@@ -171,9 +177,9 @@ public sealed class BatchOptimizationTests
     {
         await using var wire = new ScriptedSession();
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        MpgsqlParameter[] parameters = [MpgsqlParameter.Int64(7)];
-        var encoding = new OutboundWork(batch, [new("select $1", parameters), new("select $1", parameters)]);
-        var queued = new OutboundWork(batch, [new("select $1", parameters)]);
+        MpgsqlParameterValue[] parameters = [MpgsqlParameterValue.Int64(7)];
+        var encoding = new OutboundWork(batch, [new QueryDefinition("select $1", parameters), new QueryDefinition("select $1", parameters)]);
+        var queued = new OutboundWork(batch, [new QueryDefinition("select $1", parameters)]);
         Assert.True(encoding.TryStart());
         var failure = new IOException("failed transport");
         encoding.FailQueued(failure); // must not release an encoder's input

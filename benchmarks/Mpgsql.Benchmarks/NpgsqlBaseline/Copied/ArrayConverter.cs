@@ -33,11 +33,11 @@ using Npgsql.Internal;
 
 namespace Mpgsql.Benchmarks.NpgsqlBaseline.Copied;
 
-abstract class ArrayConverter<T> : PgStreamingConverter<T> where T : notnull
+internal abstract class ArrayConverter<T> : PgStreamingConverter<T> where T : notnull
 {
-    readonly PgArrayConverter _pgArrayConverter;
+    private readonly PgArrayConverter _pgArrayConverter;
 
-    private protected ArrayConverter(int? expectedDimensions,
+    protected private ArrayConverter(int? expectedDimensions,
         PgConverterResolution elemResolution,
         int pgLowerBound = 1)
     {
@@ -47,7 +47,7 @@ abstract class ArrayConverter<T> : PgStreamingConverter<T> where T : notnull
             throw new NotSupportedException("Element converter has to support the binary format to be compatible.");
         }
 
-        _pgArrayConverter = new((IElementOperations)this,
+        _pgArrayConverter = new PgArrayConverter((IElementOperations)this,
             elemResolution.Converter.IsDbNullable,
             expectedDimensions,
             bufferRequirements,
@@ -55,43 +55,54 @@ abstract class ArrayConverter<T> : PgStreamingConverter<T> where T : notnull
             pgLowerBound);
     }
 
-    public override T Read(PgReader reader) => (T)_pgArrayConverter.Read(async: false,
-        reader).Result;
+    public override T Read(PgReader reader)
+    {
+        return (T)_pgArrayConverter.Read(false,
+            reader).Result;
+    }
 
     // Adapted: AsyncHelpers is internal to Npgsql; retain the completed fast path.
     public override ValueTask<T> ReadAsync(PgReader reader,
         CancellationToken cancellationToken = default)
     {
-        var task = _pgArrayConverter.Read(async: true,
+        var task = _pgArrayConverter.Read(true,
             reader,
             cancellationToken);
-        return task.IsCompletedSuccessfully ? new((T)task.Result) : AwaitResult(task);
+        return task.IsCompletedSuccessfully ? new ValueTask<T>((T)task.Result) : AwaitResult(task);
 
         static async ValueTask<T> AwaitResult(ValueTask<object> task)
-            => (T)await task.ConfigureAwait(false);
+        {
+            return (T)await task.ConfigureAwait(false);
+        }
     }
 
     public override Size GetSize(SizeContext context,
         T values,
         ref object? writeState)
-        => _pgArrayConverter.GetSize(context,
+    {
+        return _pgArrayConverter.GetSize(context,
             values,
             ref writeState);
+    }
 
     public override void Write(PgWriter writer,
         T values)
-        => _pgArrayConverter.Write(async: false,
+    {
+        _pgArrayConverter.Write(false,
             writer,
             values,
             CancellationToken.None).GetAwaiter().GetResult();
+    }
 
     public override ValueTask WriteAsync(PgWriter writer,
         T values,
         CancellationToken cancellationToken = default)
-        => _pgArrayConverter.Write(async: true,
+    {
+        return _pgArrayConverter.Write(true,
             writer,
             values,
             cancellationToken);
+    }
 
     protected static int GetLengths(Array array,
         out int[]? lengths)
@@ -106,7 +117,9 @@ abstract class ArrayConverter<T> : PgStreamingConverter<T> where T : notnull
 
         lengths = new int[dimensions];
         for (var i = 0; i < lengths.Length; i++)
+        {
             lengths[i] = array.GetLength(i);
+        }
 
         // If we have a multidim array it may throw an overflow exception for large arrays (LongLength exists for these cases)
         // however anything over int.MaxValue wouldn't fit in a parameter anyway so easier to throw here than deal with a long.

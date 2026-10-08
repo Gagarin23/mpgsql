@@ -33,7 +33,7 @@ using Npgsql.Internal;
 
 namespace Mpgsql.Benchmarks.NpgsqlBaseline.Copied;
 
-interface IElementOperations
+internal interface IElementOperations
 {
     object CreateCollection(ReadOnlySpan<int> lengths);
     int GetCollectionCount(object collection,

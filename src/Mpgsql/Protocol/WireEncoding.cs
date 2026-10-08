@@ -7,7 +7,7 @@ namespace Mpgsql.Protocol;
 internal static class WireEncoding
 {
     // The codec requires client_encoding=UTF8. Never replace malformed input silently.
-    internal static readonly UTF8Encoding Utf8 = new(false, true);
+    internal static readonly UTF8Encoding Utf8 = new UTF8Encoding(false, true);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static int CStringLength(string value)

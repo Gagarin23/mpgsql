@@ -449,7 +449,10 @@ internal static class BinaryCopyChecks
     private static void Finish(TestConnection connection,
         BinaryCopyOperation operation)
     {
-        while (!operation.IsCompleted) operation.Accept(connection.Receive());
+        while (!operation.IsCompleted)
+        {
+            operation.Accept(connection.Receive());
+        }
         Check(operation.TransactionStatus == TransactionStatus.Idle,
             "COPY ReadyForQuery status");
     }

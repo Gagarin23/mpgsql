@@ -19,7 +19,7 @@ internal static class Int64Checks
             ReadOnlyMemory<byte>? parameter = null;
             if (value.HasValue)
             {
-                byte[] payload = new byte[Int64Converter.GetByteCount(value)];
+                var payload = new byte[Int64Converter.GetByteCount(value)];
                 Int64Converter.Write(value,
                     payload);
                 parameter = payload;

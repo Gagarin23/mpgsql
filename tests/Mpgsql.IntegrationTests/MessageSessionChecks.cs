@@ -27,10 +27,10 @@ internal static class MessageSessionChecks
     private static async Task ConcurrentPipeline(MpgsqlMessageSession session)
     {
         await using var batch = session.CreateBatch();
-        Task consumer = Task.Run(async () =>
+        var consumer = Task.Run(async () =>
         {
             await using var reader = await batch.ReadResultsAsync();
-            for (int i = 0; i < 128; i++)
+            for (var i = 0; i < 128; i++)
             {
                 Check(reader.QueryIndex == i,
                     "Pipeline result index");
@@ -38,11 +38,11 @@ internal static class MessageSessionChecks
                     "Pipeline bigint value");
                 Check(!await reader.ReadAsync(),
                     "Pipeline row count");
-                Check(await reader.NextResultAsync() == (i < 127),
+                Check(await reader.NextResultAsync() == i < 127,
                     "Pipeline result count");
             }
         });
-        Task producer = Task.Run(async () =>
+        var producer = Task.Run(async () =>
         {
             Task[] pending =
             [
@@ -51,7 +51,7 @@ internal static class MessageSessionChecks
                     batch.SendQueryAsync("select $1",
                         new[]
                         {
-                            MpgsqlParameter.Int64(i)
+                            MpgsqlParameterValue.Int64(i)
                         }).AsTask())
             ];
             await batch.SendSyncAsync();
@@ -71,11 +71,11 @@ internal static class MessageSessionChecks
         await batch.SendQueryAsync("select $1, $2, $3, $4, $5",
             new[]
             {
-                MpgsqlParameter.Int64(null),
-                MpgsqlParameter.Int64Array(null),
-                MpgsqlParameter.Int64Array(ReadOnlyMemory<long>.Empty),
-                MpgsqlParameter.NullableInt64Array(nullable),
-                MpgsqlParameter.Int64(42)
+                MpgsqlParameterValue.Int64(null),
+                MpgsqlParameterValue.Int64Array(null),
+                MpgsqlParameterValue.Int64Array(ReadOnlyMemory<long>.Empty),
+                MpgsqlParameterValue.NullableInt64Array(nullable),
+                MpgsqlParameterValue.Int64(42)
             });
         await batch.SendQueryAsync(" ");
         await batch.SendSyncAsync();
@@ -106,10 +106,10 @@ internal static class MessageSessionChecks
     {
         await using var batch = session.CreateBatch();
         await batch.SendQueryAsync("select i::bigint, array_fill($1, ARRAY[8192]) from generate_series(1, 4) i",
-            new[] {MpgsqlParameter.Int64(77)});
+            new[] {MpgsqlParameterValue.Int64(77)});
         await batch.SendSyncAsync();
         await using var reader = await batch.ReadResultsAsync();
-        int rows = 0;
+        var rows = 0;
         while (await reader.ReadAsync())
         {
             Check(reader.GetInt64(0) == ++rows,
@@ -125,7 +125,7 @@ internal static class MessageSessionChecks
 
     private static async Task ErrorRecovery(MpgsqlMessageSession session)
     {
-        foreach (bool parse in new[] {true, false})
+        foreach (var parse in new[] {true, false})
         {
             await using var failed = session.CreateBatch();
             await failed.SendQueryAsync(parse
@@ -135,7 +135,7 @@ internal static class MessageSessionChecks
                     ? default
                     : new[]
                     {
-                        MpgsqlParameter.Int64(0)
+                        MpgsqlParameterValue.Int64(0)
                     });
             await failed.SendQueryAsync("select 999::bigint");
             await failed.SendSyncAsync();

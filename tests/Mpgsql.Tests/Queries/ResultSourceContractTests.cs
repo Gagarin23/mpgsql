@@ -5,11 +5,10 @@ namespace Mpgsql.Tests.Queries;
 
 public sealed class ResultSourceContractTests
 {
-    [ThreadStatic] private static bool _publishing;
+    [ThreadStatic]
+    private static bool _publishing;
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task RegistrationBeforeOrAfterCompletionPreservesContextAndSingleDelivery(bool completeFirst)
     {
         var token = TestContext.Current.CancellationToken;
@@ -18,15 +17,18 @@ public sealed class ResultSourceContractTests
             var buffer = new ResultEventBuffer();
             var context = new AsyncLocal<string?>();
             var scheduling = new RecordingContext();
-            for (int index = 0; index < 128; index++)
+            for (var index = 0; index < 128; index++)
             {
                 var waiting = buffer.WaitToReadAsync();
                 Assert.False(waiting.IsCompleted);
                 var awaiter = waiting.GetAwaiter();
                 var observed = new TaskCompletionSource<(bool Available, string? Context, bool Inline)>(
                     TaskCreationOptions.RunContinuationsAsynchronously);
-                int delivered = 0;
-                if (completeFirst) Publish(buffer, index);
+                var delivered = 0;
+                if (completeFirst)
+                {
+                    Publish(buffer, index);
+                }
                 context.Value = $"registered-{index}";
                 var previous = SynchronizationContext.Current;
                 SynchronizationContext.SetSynchronizationContext(scheduling);
@@ -46,7 +48,10 @@ public sealed class ResultSourceContractTests
                 }
                 finally { SynchronizationContext.SetSynchronizationContext(previous); }
                 context.Value = $"caller-{index}";
-                if (!completeFirst) Publish(buffer, index);
+                if (!completeFirst)
+                {
+                    Publish(buffer, index);
+                }
                 var result = await observed.Task.WaitAsync(TestTimeout, token).ConfigureAwait(false);
                 Assert.True(result.Available);
                 Assert.Equal($"registered-{index}", result.Context);
@@ -71,7 +76,7 @@ public sealed class ResultSourceContractTests
         var first = buffer.WaitToReadAsync();
         Assert.Throws<InvalidOperationException>(() => first.GetAwaiter().GetResult());
         Assert.Throws<InvalidOperationException>(() => buffer.WaitToReadAsync());
-        Assert.True(buffer.TryWrite(new(11, default)));
+        Assert.True(buffer.TryWrite(new ResultEvent(11, default)));
         Assert.True(await first);
         Assert.True(buffer.TryRead(out var one));
         Assert.Equal(11, one.QueryIndex);
@@ -83,7 +88,7 @@ public sealed class ResultSourceContractTests
         Assert.Throws<InvalidOperationException>(() => first.GetAwaiter().UnsafeOnCompleted(() => { }));
         Assert.Throws<InvalidOperationException>(() => next.GetAwaiter().GetResult());
         Assert.Throws<InvalidOperationException>(() => buffer.WaitToReadAsync());
-        Assert.True(buffer.TryWrite(new(22, default)));
+        Assert.True(buffer.TryWrite(new ResultEvent(22, default)));
         Assert.True(await next);
         Assert.True(buffer.TryRead(out var two));
         Assert.Equal(22, two.QueryIndex);
@@ -96,7 +101,7 @@ public sealed class ResultSourceContractTests
     private static void Publish(ResultEventBuffer buffer, int index)
     {
         _publishing = true;
-        try { Assert.True(buffer.TryWrite(new(index, default))); }
+        try { Assert.True(buffer.TryWrite(new ResultEvent(index, default))); }
         finally { _publishing = false; }
     }
 

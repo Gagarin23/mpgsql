@@ -31,9 +31,9 @@ OR MODIFICATIONS.
 
 namespace Mpgsql.Benchmarks.NpgsqlBaseline.Copied;
 
-readonly partial struct PgArrayConverter
+internal readonly partial struct PgArrayConverter
 {
-    sealed class WriteState : MultiWriteState
+    private sealed class WriteState : MultiWriteState
     {
         public required int Count { get; init; }
         public required Indices Indices { get; init; }

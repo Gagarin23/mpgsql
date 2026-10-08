@@ -23,9 +23,13 @@ internal readonly partial struct NumericCodec
         BinaryPrimitives.WriteUInt16BigEndian(bytes[6..], scale);
         var output = MemoryMarshal.Cast<byte, ushort>(bytes.Slice(8, digits.Length * 2));
         if (BitConverter.IsLittleEndian)
+        {
             BinaryPrimitives.ReverseEndianness(digits, output);
+        }
         else
+        {
             digits.CopyTo(output);
+        }
         return 8 + digits.Length * 2;
     }
 
@@ -41,7 +45,9 @@ internal readonly partial struct NumericCodec
             var digits = Vector128.Shuffle(Vector128.LoadUnsafe(ref input, (nuint)(i * 2)), reverse).AsUInt16();
             // Validate base-10000 digits in the decoding pass, before storing this block.
             if (Vector128.GreaterThanAny(digits, maximum))
+            {
                 throw new InvalidDataException("Invalid base-10000 numeric digit.");
+            }
             digits.StoreUnsafe(ref output, (nuint)i);
         }
         return i;

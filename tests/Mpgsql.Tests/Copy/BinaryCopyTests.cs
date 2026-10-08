@@ -16,15 +16,15 @@ public class BinaryCopyTests
         var output = new ArrayBufferWriter<byte>();
         var writer = new BinaryCopyWriter(output,
             4);
-        Assert.Throws<InvalidOperationException>(() => writer.WriteInt64((long?)null));
+        Assert.Throws<InvalidOperationException>(() => writer.WriteInt64(null));
         writer.StartRow();
         writer.WriteInt64((long?)long.MinValue);
-        writer.WriteInt64((long?)null);
+        writer.WriteInt64(null);
         writer.WriteInt64((long?)0);
         writer.WriteInt64((long?)long.MaxValue);
         Assert.Equal(1ul,
             writer.Complete());
-        Assert.Throws<InvalidOperationException>(() => writer.WriteInt64((long?)null));
+        Assert.Throws<InvalidOperationException>(() => writer.WriteInt64(null));
         Assert.Equal(TestWire.Bytes(Header + " 0004 00000008 8000000000000000 ffffffff" + " 00000008 0000000000000000 00000008 7fffffffffffffff ffff"),
             output.WrittenSpan.ToArray());
         var input = TestWire.ByteSegments([.. output.WrittenSpan]);
@@ -63,8 +63,8 @@ public class BinaryCopyTests
         Assert.Equal(1ul,
             writer.Complete());
         output.Flush();
-        byte[] payload = TestWire.Bytes(Header + " 0003 00000008 0102030405060708 ffffffff 00000000 ffff");
-        byte[] expected = new byte[5 + payload.Length];
+        var payload = TestWire.Bytes(Header + " 0003 00000008 0102030405060708 ffffffff 00000000 ffff");
+        var expected = new byte[5 + payload.Length];
         expected[0] = (byte)'d';
         BinaryPrimitives.WriteInt32BigEndian(expected.AsSpan(1),
             payload.Length + 4);
@@ -101,7 +101,7 @@ public class BinaryCopyTests
         var writer = new BinaryCopyWriter(output,
             1);
         writer.StartRow();
-        writer.WriteLongArray(new long[] {-1, long.MinValue});
+        writer.WriteLongArray(new[] {-1, long.MinValue});
         writer.Complete();
         Assert.Equal(TestWire.Bytes(Header + " 0001 0000002c 00000001 00000000 00000014 00000002 00000001" + " 00000008 ffffffffffffffff 00000008 8000000000000000 ffff"),
             output.WrittenSpan.ToArray());
@@ -113,7 +113,7 @@ public class BinaryCopyTests
             reader.TryReadRow(ref input,
                 fields,
                 out var row));
-        Assert.Equal(new long[]
+        Assert.Equal(new[]
             {
                 -1,
                 long.MinValue
@@ -124,7 +124,7 @@ public class BinaryCopyTests
         Assert.Equal(2,
             row.ReadLongArray(0,
                 destination));
-        Assert.Equal(new long[]
+        Assert.Equal(new[]
             {
                 -1,
                 long.MinValue
@@ -178,11 +178,7 @@ public class BinaryCopyTests
                 out _));
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(4)]
-    [InlineData(4096)]
+    [Theory, InlineData(0), InlineData(1), InlineData(4), InlineData(4096)]
     public void BigintBatchMatchesScalarRows(int count)
     {
         long[] values =
@@ -193,7 +189,7 @@ public class BinaryCopyTests
         var scalar = new ArrayBufferWriter<byte>();
         var scalarWriter = new BinaryCopyWriter(scalar,
             1);
-        foreach (long value in values)
+        foreach (var value in values)
         {
             scalarWriter.StartRow();
             scalarWriter.WriteInt64(value);
@@ -225,8 +221,8 @@ public class BinaryCopyTests
     [Fact]
     public void EveryTruncatedHeaderLeavesInputUnchanged()
     {
-        byte[] header = TestWire.Bytes("5047434f50590aff0d0a00 00000001 00000003 aabbcc");
-        for (int length = 0; length < header.Length; length++)
+        var header = TestWire.Bytes("5047434f50590aff0d0a00 00000001 00000003 aabbcc");
+        for (var length = 0; length < header.Length; length++)
         {
             var reader = new BinaryCopyReader(1);
             var input = TestWire.ByteSegments(header[..length]);
@@ -243,8 +239,8 @@ public class BinaryCopyTests
     [Fact]
     public void EveryTruncatedRowLeavesInputAndFieldStorageUnchanged()
     {
-        byte[] bytes = TestWire.Bytes("0002 00000008 0102030405060708 00000003 aabbcc");
-        for (int length = 0; length < bytes.Length; length++)
+        var bytes = TestWire.Bytes("0002 00000008 0102030405060708 00000003 aabbcc");
+        for (var length = 0; length < bytes.Length; length++)
         {
             var reader = ReadyReader(2);
             var input = TestWire.ByteSegments(bytes[..length]);
@@ -274,13 +270,11 @@ public class BinaryCopyTests
         }
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public void SingleColumnPathIsAtomicAndMatchesSegmentedParsing(bool fragmented)
     {
-        byte[] bytes = TestWire.Bytes("0001 00000008 8000000000000000");
-        for (int length = 0; length <= bytes.Length; length++)
+        var bytes = TestWire.Bytes("0001 00000008 8000000000000000");
+        for (var length = 0; length <= bytes.Length; length++)
         {
             var reader = ReadyReader(1);
             var input = fragmented
@@ -335,38 +329,27 @@ public class BinaryCopyTests
                 out _));
     }
 
-    [Theory]
-    [InlineData("5047434f50590aff0d0a01 00000000 00000000")]
-    [InlineData("5047434f50590aff0d0a00 00000000 ffffffff")]
-    [InlineData("5047434f50590aff0d0a00 00000000 00100001")]
+    [Theory, InlineData("5047434f50590aff0d0a01 00000000 00000000"), InlineData("5047434f50590aff0d0a00 00000000 ffffffff"), InlineData("5047434f50590aff0d0a00 00000000 00100001")]
     public void RejectsInvalidHeader(string hex)
     {
         var input = TestWire.ByteSegments(TestWire.Bytes(hex));
         Assert.Throws<InvalidDataException>(() => new BinaryCopyReader(1).TryReadHeader(ref input));
     }
 
-    [Theory]
-    [InlineData("00010000")]
-    [InlineData("80000000")]
-    [InlineData("40000000")]
+    [Theory, InlineData("00010000"), InlineData("80000000"), InlineData("40000000")]
     public void RejectsCriticalFlagsIncludingOids(string flags)
     {
         var input = TestWire.ByteSegments(TestWire.Bytes("5047434f50590aff0d0a00 " + flags + " 00000000"));
         Assert.Throws<NotSupportedException>(() => new BinaryCopyReader(1).TryReadHeader(ref input));
     }
 
-    [Theory]
-    [InlineData("fffe")]
-    [InlineData("0002")]
-    [InlineData("0001 fffffffe")]
-    [InlineData("0001 04000001")]
-    [InlineData("ffff 00")]
+    [Theory, InlineData("fffe"), InlineData("0002"), InlineData("0001 fffffffe"), InlineData("0001 04000001"), InlineData("ffff 00")]
     public void RejectsInvalidTupleWithoutConsumingInput(string hex)
     {
-        foreach (bool fragmented in new[] {false, true})
+        foreach (var fragmented in new[] {false, true})
         {
             var reader = ReadyReader(1);
-            byte[] bytes = TestWire.Bytes(hex);
+            var bytes = TestWire.Bytes(hex);
             var input = fragmented ? TestWire.ByteSegments(bytes) : new ReadOnlySequence<byte>(bytes);
             var original = input;
             Assert.Throws<InvalidDataException>(() => reader.TryReadRow(ref input,
@@ -409,7 +392,7 @@ public class BinaryCopyTests
         Assert.Throws<InvalidOperationException>(() => writer.WriteNull());
         writer.StartRow();
         writer.WriteInt64(1);
-        int written = output.WrittenCount;
+        var written = output.WrittenCount;
         Assert.Throws<InvalidOperationException>(() => writer.StartRow());
         Assert.Throws<InvalidOperationException>(() => writer.Complete());
         Assert.Throws<InvalidOperationException>(() => writer.WriteInt64Rows([1]));
@@ -441,10 +424,7 @@ public class BinaryCopyTests
             out _));
     }
 
-    [Theory]
-    [InlineData(19)]
-    [InlineData(31)]
-    [InlineData(8192)]
+    [Theory, InlineData(19), InlineData(31), InlineData(8192)]
     public void FramesOnlyFilledPooledBytesAndPreservesTheBinaryStream(int bufferSize)
     {
         using var stream = new MemoryStream();
@@ -521,34 +501,20 @@ public class BinaryCopyTests
             stream.Length);
     }
 
-    private sealed class PartialFailureStream : MemoryStream
-    {
-        public override void Write(ReadOnlySpan<byte> buffer)
-        {
-            base.Write(buffer[..2]);
-            throw new IOException("Intentional partial transport failure.");
-        }
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(512)]
-    [InlineData(4096)]
+    [Theory, InlineData(0), InlineData(1), InlineData(512), InlineData(4096)]
     public void FinalFrameAndCopyDoneAreSentInOneWrite(int count)
     {
         using var stream = new CountingStream();
-        using var output = new CopyDataWriter(stream,
-            8192);
+        using var output = new CopyDataWriter(stream);
         var writer = new BinaryCopyWriter(output,
             1);
-        for (int i = 0; i < count; i++)
+        for (var i = 0; i < count; i++)
         {
             writer.StartRow();
             writer.WriteInt64(i);
         }
         writer.Complete();
-        int writes = stream.Writes;
+        var writes = stream.Writes;
         output.WriteCopyDone();
         Assert.Equal(writes + 1,
             stream.Writes);
@@ -593,6 +559,23 @@ public class BinaryCopyTests
             stream.ToArray());
     }
 
+    private static BinaryCopyReader ReadyReader(int columns)
+    {
+        var reader = new BinaryCopyReader(columns);
+        var header = new ReadOnlySequence<byte>(TestWire.Bytes(Header));
+        Assert.True(reader.TryReadHeader(ref header));
+        return reader;
+    }
+
+    private sealed class PartialFailureStream : MemoryStream
+    {
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            base.Write(buffer[..2]);
+            throw new IOException("Intentional partial transport failure.");
+        }
+    }
+
     private sealed class CountingStream : MemoryStream
     {
         public int Writes { get; private set; }
@@ -601,13 +584,5 @@ public class BinaryCopyTests
             Writes++;
             base.Write(buffer);
         }
-    }
-
-    private static BinaryCopyReader ReadyReader(int columns)
-    {
-        var reader = new BinaryCopyReader(columns);
-        var header = new ReadOnlySequence<byte>(TestWire.Bytes(Header));
-        Assert.True(reader.TryReadHeader(ref header));
-        return reader;
     }
 }

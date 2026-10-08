@@ -1,9 +1,8 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Runtime.InteropServices;
-using Mpgsql.Types;
-
 using Mpgsql.Converters;
+using Mpgsql.Types;
 
 namespace Mpgsql.Benchmarks;
 
@@ -19,7 +18,7 @@ internal readonly struct ScalarNumericCodecBaseline : IBinaryCodec<PgNumeric>
     public static int Measure(PgNumeric value)
     {
         if (value.Digits.Length > ushort.MaxValue || value.Scale > 16383 || !ValidSign(value.Sign) ||
-            (!value.IsFinite && !value.Digits.IsEmpty))
+            !value.IsFinite && !value.Digits.IsEmpty)
         {
             throw new ArgumentException("Invalid PostgreSQL numeric header.", nameof(value));
         }
@@ -27,10 +26,14 @@ internal readonly struct ScalarNumericCodecBaseline : IBinaryCodec<PgNumeric>
     }
 
     public static void CheckOverlap(PgNumeric value, Span<byte> destination)
-        => BinaryPayload.RequireSeparate(MemoryMarshal.AsBytes(value.Digits.Span), destination);
+    {
+        BinaryPayload.RequireSeparate(MemoryMarshal.AsBytes(value.Digits.Span), destination);
+    }
 
     public static int Write(PgNumeric value, Span<byte> destination)
-        => WriteParts(value.Weight, value.Scale, value.Sign, value.Digits.Span, destination);
+    {
+        return WriteParts(value.Weight, value.Scale, value.Sign, value.Digits.Span, destination);
+    }
 
     internal static int WriteParts(short weight, ushort scale,
         PgNumericSign sign, ReadOnlySpan<ushort> digits,
@@ -41,8 +44,8 @@ internal readonly struct ScalarNumericCodecBaseline : IBinaryCodec<PgNumeric>
         BinaryPrimitives.WriteInt16BigEndian(bytes[2..], weight);
         BinaryPrimitives.WriteUInt16BigEndian(bytes[4..], (ushort)sign);
         BinaryPrimitives.WriteUInt16BigEndian(bytes[6..], scale);
-        int offset = 8;
-        foreach (ushort digit in digits)
+        var offset = 8;
+        foreach (var digit in digits)
         {
             BinaryPrimitives.WriteUInt16BigEndian(bytes[offset..], digit);
             offset += 2;
@@ -50,8 +53,11 @@ internal readonly struct ScalarNumericCodecBaseline : IBinaryCodec<PgNumeric>
         return offset;
     }
 
-    private static bool ValidSign(PgNumericSign sign) => sign is PgNumericSign.Positive or PgNumericSign.Negative or
-        PgNumericSign.NaN or PgNumericSign.PositiveInfinity or PgNumericSign.NegativeInfinity;
+    private static bool ValidSign(PgNumericSign sign)
+    {
+        return sign is PgNumericSign.Positive or PgNumericSign.Negative or
+            PgNumericSign.NaN or PgNumericSign.PositiveInfinity or PgNumericSign.NegativeInfinity;
+    }
 
     internal static int ReadHeader(ReadOnlySpan<byte> payload, out short weight,
         out ushort scale, out PgNumericSign sign)
@@ -87,7 +93,7 @@ internal readonly struct ScalarNumericCodecBaseline : IBinaryCodec<PgNumeric>
         PgNumericSign sign, long remaining)
     {
         if (remaining != 2L * count || scale > 16383 || !ValidSign(sign) ||
-            (sign is not (PgNumericSign.Positive or PgNumericSign.Negative) && count != 0))
+            sign is not (PgNumericSign.Positive or PgNumericSign.Negative) && count != 0)
         {
             throw new InvalidDataException("Invalid numeric header or length.");
         }
@@ -95,7 +101,7 @@ internal readonly struct ScalarNumericCodecBaseline : IBinaryCodec<PgNumeric>
 
     private static void ReadDigits(ReadOnlySpan<byte> records, Span<ushort> destination)
     {
-        foreach (ref ushort item in destination)
+        foreach (ref var item in destination)
         {
             item = BinaryPrimitives.ReadUInt16BigEndian(records);
             if (item > 9999)
@@ -108,7 +114,7 @@ internal readonly struct ScalarNumericCodecBaseline : IBinaryCodec<PgNumeric>
 
     private static void ReadDigits(ref SequenceReader<byte> reader, Span<ushort> destination)
     {
-        foreach (ref ushort item in destination)
+        foreach (ref var item in destination)
         {
             if (!reader.TryReadBigEndian(out short digit) || unchecked((ushort)digit) > 9999)
             {
@@ -120,10 +126,10 @@ internal readonly struct ScalarNumericCodecBaseline : IBinaryCodec<PgNumeric>
 
     public static PgNumeric Read(ReadOnlySpan<byte> payload)
     {
-        int count = ReadHeader(payload, out short weight, out ushort scale, out var sign);
+        var count = ReadHeader(payload, out var weight, out var scale, out var sign);
         var digits = count == 0 ? Array.Empty<ushort>() : GC.AllocateUninitializedArray<ushort>(count);
         ReadDigits(payload[8..], digits);
-        return new(weight, scale, sign, digits);
+        return new PgNumeric(weight, scale, sign, digits);
     }
 
     public static PgNumeric Read(ReadOnlySequence<byte> payload)
@@ -133,20 +139,20 @@ internal readonly struct ScalarNumericCodecBaseline : IBinaryCodec<PgNumeric>
             return Read(payload.FirstSpan);
         }
         var reader = new SequenceReader<byte>(payload);
-        int count = ReadHeader(ref reader, out short weight, out ushort scale, out var sign);
+        var count = ReadHeader(ref reader, out var weight, out var scale, out var sign);
         var digits = count == 0 ? Array.Empty<ushort>() : GC.AllocateUninitializedArray<ushort>(count);
         ReadDigits(ref reader, digits);
-        return new(weight, scale, sign, digits);
+        return new PgNumeric(weight, scale, sign, digits);
     }
 
     internal static PgNumeric Read(ReadOnlySpan<byte> payload, Memory<ushort> destination)
     {
-        int count = ReadHeader(payload, out short weight, out ushort scale, out var sign);
+        var count = ReadHeader(payload, out var weight, out var scale, out var sign);
         BinaryPayload.RequireCapacity(count, destination.Length);
         destination = destination[..count];
         BinaryPayload.RequireSeparate(payload, MemoryMarshal.AsBytes(destination.Span));
         ReadDigits(payload[8..], destination.Span);
-        return new(weight, scale, sign, destination);
+        return new PgNumeric(weight, scale, sign, destination);
     }
 
     internal static PgNumeric Read(ReadOnlySequence<byte> payload, Memory<ushort> destination)
@@ -156,13 +162,12 @@ internal readonly struct ScalarNumericCodecBaseline : IBinaryCodec<PgNumeric>
             return Read(payload.FirstSpan, destination);
         }
         var reader = new SequenceReader<byte>(payload);
-        int count = ReadHeader(ref reader, out short weight, out ushort scale, out var sign);
+        var count = ReadHeader(ref reader, out var weight, out var scale, out var sign);
         BinaryPayload.RequireCapacity(count, destination.Length);
         destination = destination[..count];
         BinaryPayload.RequireSeparate(payload, destination.Span);
         ReadDigits(ref reader, destination.Span);
-        return new(weight, scale, sign, destination);
+        return new PgNumeric(weight, scale, sign, destination);
     }
 
 }
-

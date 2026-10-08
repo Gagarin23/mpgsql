@@ -27,7 +27,7 @@ public sealed class ReceiveBurstTests
         Assert.False(next.IsCompleted);
         await batch.SendSyncAsync();
         Assert.Equal("S", new string(Tags(await wire.ReadOutputAsync())));
-        await wire.WriteAsync(Join(Query(12), Ready()), fragment: 7);
+        await wire.WriteAsync(Join(Query(12), Ready()), 7);
         Assert.True(await next.WaitAsync(TestTimeout, token));
         Assert.Equal(1, reader.QueryIndex);
         Assert.True(await reader.ReadAsync());
@@ -38,11 +38,7 @@ public sealed class ReceiveBurstTests
         Assert.True(wire.Session.IsIdleAndHealthy);
     }
 
-    [Theory]
-    [InlineData(false, int.MaxValue)]
-    [InlineData(true, int.MaxValue)]
-    [InlineData(false, 1)]
-    [InlineData(true, 1)]
+    [Theory, InlineData(false, int.MaxValue), InlineData(true, int.MaxValue), InlineData(false, 1), InlineData(true, 1)]
     public async Task CommandEndsInOneBatchDoNotHideRowsNeededToReleaseCapacity(bool discard, int fragment)
     {
         var token = TestContext.Current.CancellationToken;
@@ -58,7 +54,10 @@ public sealed class ReceiveBurstTests
         await using var reader = await opening.WaitAsync(TestTimeout, token);
         Assert.True(await reader.ReadAsync());
         Assert.Equal(11, reader.GetInt64(0));
-        if (discard) await reader.DisposeAsync().AsTask().WaitAsync(TestTimeout, token);
+        if (discard)
+        {
+            await reader.DisposeAsync().AsTask().WaitAsync(TestTimeout, token);
+        }
         else
         {
             Assert.False(await reader.ReadAsync().AsTask().WaitAsync(TestTimeout, token));
@@ -89,10 +88,7 @@ public sealed class ReceiveBurstTests
         Assert.True(wire.Session.IsIdleAndHealthy);
     }
 
-    [Theory]
-    [InlineData(int.MaxValue)]
-    [InlineData(1)]
-    [InlineData(7)]
+    [Theory, InlineData(int.MaxValue), InlineData(1), InlineData(7)]
     public async Task PartialResponsesWakeReaderWithoutRequiringSyncOrAnotherRead(int fragment)
     {
         await using var wire = new ScriptedSession();
@@ -118,9 +114,7 @@ public sealed class ReceiveBurstTests
         Assert.True(wire.Session.IsHealthy);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public async Task FullBudgetWakesReaderAndNextGroupSurvivesConsumptionOrEarlyDispose(bool discard)
     {
         await using var wire = new ScriptedSession();
@@ -140,7 +134,10 @@ public sealed class ReceiveBurstTests
         Assert.True(await reader.ReadAsync());
         Assert.Equal(11, reader.GetInt64(0));
         Assert.Equal(14, wire.Session.BufferedRowBytes);
-        if (discard) await reader.DisposeAsync();
+        if (discard)
+        {
+            await reader.DisposeAsync();
+        }
         else
         {
             Assert.True(await reader.ReadAsync().AsTask().WaitAsync(TestTimeout, TestContext.Current.CancellationToken));

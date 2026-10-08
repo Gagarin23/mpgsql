@@ -9,13 +9,13 @@ public sealed class CancellationTests
     public async Task CancellationDropsQueuedSendButPreservesExplicitSync()
     {
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        await using var wire = new ScriptedSession(blockWrites: true);
+        await using var wire = new ScriptedSession(true);
         var batch = wire.Session.CreateBatch(request.Token);
         var reading = batch.ReadResultsAsync().AsTask();
         var published = batch.SendQueryAsync("select $1",
             new[]
             {
-                MpgsqlParameter.Int64(11)
+                MpgsqlParameterValue.Int64(11)
             }).AsTask();
         var held = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
         Assert.False(published.IsCompleted); // output backpressure, parameters already encoded
@@ -23,7 +23,7 @@ public sealed class CancellationTests
         var queued = batch.SendQueryAsync("select $1",
             new[]
             {
-                MpgsqlParameter.Int64Array(array)
+                MpgsqlParameterValue.Int64Array(array)
             }).AsTask();
         var sync = batch.SendSyncAsync().AsTask();
         request.Cancel();
@@ -67,21 +67,21 @@ public sealed class CancellationTests
         request.Cancel();
         await cancelled.DisposeAsync(); // does not wait for server
         await wire.WriteAsync(Begin(1016),
-            fragment: 1);
-        long before = wire.Session.CopiedRowBytes;
+            1);
+        var before = wire.Session.CopiedRowBytes;
         // Deliberately not a valid bigint[] payload: cancellation must not run its converter.
         await wire.WriteAsync(Row(new byte[128 * 1024]),
-            fragment: 29);
+            29);
         await wire.WriteAsync(Join(Command(),
                 Ready()),
-            fragment: 3);
+            3);
         await cancelled.Completion.WaitAsync(TestTimeout,
             TestContext.Current.CancellationToken);
         Assert.Equal(before,
             wire.Session.CopiedRowBytes);
         await wire.WriteAsync(Join(Query(7),
                 Ready()),
-            fragment: 3);
+            3);
         await using var reader = await survivor.ReadResultsAsync();
         Assert.True(await reader.ReadAsync());
         Assert.Equal(7,
@@ -96,7 +96,7 @@ public sealed class CancellationTests
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await using var wire = new ScriptedSession();
         var cancelled = new MpgsqlQueryBatch[32];
-        for (int i = 0; i < cancelled.Length; i++)
+        for (var i = 0; i < cancelled.Length; i++)
         {
             cancelled[i] = wire.Session.CreateBatch(request.Token);
             await cancelled[i].SendQueryAsync("select 1::bigint");
@@ -107,11 +107,13 @@ public sealed class CancellationTests
         await survivor.SendSyncAsync();
         request.Cancel();
         foreach (var batch in cancelled) await batch.DisposeAsync();
-        long before = wire.Session.CopiedRowBytes;
-        for (int i = 0; i < cancelled.Length; i++)
+        var before = wire.Session.CopiedRowBytes;
+        for (var i = 0; i < cancelled.Length; i++)
+        {
             await wire.WriteAsync(Join(Query(i),
                     Ready()),
-                fragment: 1);
+                1);
+        }
         await Task.WhenAll(cancelled.Select(batch => batch.Completion)).WaitAsync(TestTimeout,
             TestContext.Current.CancellationToken);
         Assert.Equal(before,
@@ -151,8 +153,8 @@ public sealed class CancellationTests
     public async Task LifetimeCancellationStopsAllGroupsAndBlockedOutput()
     {
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        await using var wire = new ScriptedSession(blockWrites: true,
-            lifetime: lifetime.Token);
+        await using var wire = new ScriptedSession(true,
+            lifetime.Token);
         var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         var send = batch.SendQueryAsync("select 1::bigint").AsTask();
         var sync = batch.SendSyncAsync().AsTask();

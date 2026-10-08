@@ -17,9 +17,7 @@ public sealed class BackendMetadataCacheTests
         return message;
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [Theory, InlineData(false), InlineData(true)]
     public void CachedMetadataOwnsItsWireAndDecodedStorage(bool segmented)
     {
         var cache = new BackendMetadataCache();
@@ -43,14 +41,14 @@ public sealed class BackendMetadataCacheTests
         Assert.Equal("SELECT 7", tag);
     }
 
-    [Theory]
-    [InlineData(7)] // name
-    [InlineData(10)] // table OID
-    [InlineData(14)] // attribute number
-    [InlineData(16)] // type OID
-    [InlineData(20)] // type size
-    [InlineData(22)] // type modifier
-    [InlineData(27)] // binary/text format
+    [Theory, InlineData(7), InlineData(10), InlineData(14), InlineData(16), InlineData(20), InlineData(22), InlineData(27)]
+    // name
+    // table OID
+    // attribute number
+    // type OID
+    // type size
+    // type modifier
+     // binary/text format
     public void EveryDescriptionFieldParticipatesInMatching(int offset)
     {
         var cache = new BackendMetadataCache();
@@ -77,7 +75,7 @@ public sealed class BackendMetadataCacheTests
         Assert.Equal(5000, cache.RowDescription(large).Span[0].Name.Length);
         Assert.False(cache.RowDescription(large).Equals(cache.RowDescription(large)));
         Assert.True(small.Equals(cache.RowDescription(Decode(Description(20), false))));
-        string hugeTag = "SELECT " + new string('1', 2048);
+        var hugeTag = "SELECT " + new string('1', 2048);
         var command = Decode(Command(hugeTag), true);
         Assert.Equal(hugeTag, cache.CommandTag(command));
         Assert.NotSame(cache.CommandTag(command), cache.CommandTag(command));

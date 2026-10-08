@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta content="width=device-width,initial-scale=1" name="viewport">
+<title>Mpgsql — архитектура ADO.NET и мультиплексора</title>
+<style>
+    :root {
+        color-scheme: light dark;
+        font: 16px/1.6 system-ui;
+        background: #10241e;
+        color: #eaf5ee
+    }
+
+    body {
+        max-width: 1080px;
+        margin: auto;
+        padding: 32px
+    }
+
+    h1 {
+        font-size: 32px;
+        line-height: 1.2
+    }
+
+    a {
+        color: #9de2c8
+    }
+
+    button {
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+        border: 1px solid #658678;
+        border-radius: 12px;
+        background: #203c30;
+        padding: 20px;
+        text-align: left;
+        width: 100%
+    }
+
+    button[aria-pressed=true] {
+        outline: 2px solid #a2ebd0
+    }
+
+    strong {
+        display: block;
+        font-size: 20px
+    }
+
+    .diagram {
+        display: grid;
+        grid-template-columns:1fr 1fr;
+        gap: 20px;
+        margin: 32px 0
+    }
+
+    .shared {
+        grid-column: 1/-1;
+        width: 60%;
+        justify-self: center
+    }
+
+    .arrow {
+        text-align: center;
+        font-size: 28px;
+        grid-column: 1/-1;
+        color: #9de2c8
+    }
+
+    .panel {
+        border: 1px solid #658678;
+        border-radius: 12px;
+        padding: 24px;
+        background: #173027
+    }
+
+    .small {
+        font-size: 14px;
+        color: #bdcec4
+    }
+
+    pre {
+        white-space: pre-wrap;
+        background: #0b1a14;
+        padding: 16px;
+        border-radius: 8px
+    }
+
+    nav {
+        display: flex;
+        gap: 22px;
+        flex-wrap: wrap
+    }
+
+    footer {
+        margin-top: 32px;
+        font-size: 14px
+    }
+
+    @media (max-width: 640px) {
+        .diagram {
+            grid-template-columns:1fr
+        }
+
+        .shared {
+            width: auto;
+            grid-column: 1
+        }
+
+        .arrow {
+            grid-column: 1
+        }
+    }
+</style>
+<nav><a href="upper-api.md">Верхний API</a><a href="extended-query-protocol.md">Extended Query</a><a
+        href="architecture-core.html">Нижний пакет</a></nav>
+<h1>Mpgsql: четыре проекта</h1>
+<p>ADO.NET и мультиплексор используют общий протокольный движок. Выберите слой, чтобы увидеть его ответственность и
+    границы владения.</p>
+<div class="diagram">
+    <button aria-pressed="true" data-layer="client"><strong>Mpgsql.Client</strong>DbConnection · DbCommand ·
+        DbDataReader<br><span class="small">Эксклюзивный пул, транзакции, DbBatch</span></button>
+    <button aria-pressed="false" data-layer="mux"><strong>Mpgsql.Multiplexing</strong>Независимые запросы · backpressure<br><span
+            class="small">In-flight slots, автоматические Sync-группы</span></button>
+    <div class="arrow">↘ &nbsp; ↙</div>
+    <button aria-pressed="false" class="shared" data-layer="sessions"><strong>Mpgsql.Sessions</strong>TCP/TLS ·
+        authentication · CancelRequest<br><span
+                class="small">Явный pipeline, prepared handles, буферы результатов</span></button>
+    <div class="arrow">↓</div>
+    <button aria-pressed="false" class="shared" data-layer="core"><strong>Mpgsql</strong>Независимый
+        NuGet-пакет<br><span class="small">Protocol · converters · PostgreSQL types · binary COPY</span></button>
+</div>
+<article aria-live="polite" class="panel" id="details"></article>
+<footer>Client и Multiplexing не зависят друг от друга. Sessions зависит от Mpgsql. Все три верхних проекта непакуемые;
+    пространства имён сохраняют префикс Mpgsql.
+</footer>
+<script>
+    const layers = {
+        client: {
+            name: 'ADO.NET и эксклюзивное владение',
+            body: 'Одно выполнение или reader удерживает физическую сессию до ReadyForQuery и завершения CancelRequest. Команды и batch можно менять и запускать повторно после завершения. Prepare и транзакции привязаны к открытому соединению. В пул возвращается только здоровая idle-сессия; автоматического reset SQL нет.',
+            links: [['MpgsqlConnection', '../src/Mpgsql.Client/MpgsqlConnection.cs'], ['MpgsqlCommand', '../src/Mpgsql.Client/MpgsqlCommand.cs'], ['MpgsqlDataReader', '../src/Mpgsql.Client/MpgsqlDataReader.cs'], ['QueryExecution', '../src/Mpgsql.Client/Internal/QueryExecution.cs']]
+        },
+        mux: {
+            name: 'Независимые запросы и общий Sync',
+            body: 'Планировщик распределяет запросы и ограничивает число in-flight операций. Opt-in SyncGroupSize объединяет физическую границу: SQL-ошибка относится к провалившемуся запросу и пропущенным соседям. Отмена логическая; общий транспорт продолжает Sync и восстановление. Пользовательские callbacks не выполняются в сетевом reader loop.',
+            links: [['MpgsqlMultiplexingDataSource', '../src/Mpgsql.Multiplexing/MpgsqlMultiplexingDataSource.cs'], ['PipelineSyncScheduler', '../src/Mpgsql.Multiplexing/Internal/PipelineSyncScheduler.cs']]
+        },
+        sessions: {
+            name: 'Общий протокольный движок',
+            body: 'Самостоятельный protocol-3.0 startup с TLS и trust/cleartext/MD5/SCRAM-SHA-256. Raw API сохраняет явный SendSyncAsync и несколько закрытых pipeline-групп в полёте. ErrorResponse восстанавливается только через Sync/ReadyForQuery. Reader держит borrowed row bytes; связь с владельцем выполнения используется при завершении, без дополнительного диспетчера на каждой строке.',
+            links: [['MpgsqlMessageSession', '../src/Mpgsql.Sessions/MpgsqlMessageSession.cs'], ['MpgsqlQueryBatch', '../src/Mpgsql.Sessions/MpgsqlQueryBatch.cs'], ['MpgsqlResultReader', '../src/Mpgsql.Sessions/MpgsqlResultReader.cs'], ['SocketTransport', '../src/Mpgsql.Sessions/Internal/SocketTransport.cs']]
+        },
+        core: {
+            name: 'Нижний пакет без транспорта и верхнего API',
+            body: 'Полные wire-кодеки, PostgreSQL-типы и преобразование scalar/array/binary COPY payload. Пакет не зависит от Sessions, Client, Multiplexing или System.IO.Pipelines. Конвертеры сохраняют jsonb как Memory<byte> и массивы как ReadOnlyMemory; внешняя длина/NULL принадлежат framing протокола.',
+            links: [['Проект Mpgsql', '../src/Mpgsql/Mpgsql.csproj'], ['Подробная схема', 'architecture-core.html']]
+        }
+    };
+
+    function select(key) {
+        const value = layers[key];
+        document.querySelectorAll('button[data-layer]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.layer === key)));
+        const panel = document.getElementById('details');
+        panel.replaceChildren();
+        const title = document.createElement('h2');
+        title.textContent = value.name;
+        const paragraph = document.createElement('p');
+        paragraph.textContent = value.body;
+        panel.append(title, paragraph);
+        const nav = document.createElement('nav');
+        value.links.forEach(([label, path]) => {
+            const link = document.createElement('a');
+            link.textContent = label;
+            link.href = path;
+            nav.append(link)
+        });
+        panel.append(nav)
+    }
+
+    document.querySelectorAll('button[data-layer]').forEach(button => button.addEventListener('click', () => select(button.dataset.layer)));
+    select('client');
+</script>
+</html>

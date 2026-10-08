@@ -1,6 +1,5 @@
 using System.Buffers;
 using System.Buffers.Binary;
-
 using Mpgsql.Converters;
 
 namespace Mpgsql.Benchmarks;
@@ -11,7 +10,7 @@ internal static class ScalarNumericArrayBaseline<T, TCodec> where TCodec : struc
 {
     internal static int Measure(ReadOnlySpan<T> source)
     {
-        int elementBytes = 0;
+        var elementBytes = 0;
         if (TCodec.FixedSize != 0)
         {
             elementBytes = checked(source.Length * TCodec.FixedSize);
@@ -27,7 +26,7 @@ internal static class ScalarNumericArrayBaseline<T, TCodec> where TCodec : struc
     internal static int Write(ReadOnlyMemory<T> value, Span<byte> destination)
     {
         var source = value.Span;
-        int size = Measure(source);
+        var size = Measure(source);
         BinaryPayload.RequireCapacity(size, destination.Length);
         destination = destination[..size];
         CheckOverlap(source, destination);
@@ -39,7 +38,7 @@ internal static class ScalarNumericArrayBaseline<T, TCodec> where TCodec : struc
     {
         ArgumentNullException.ThrowIfNull(destination);
         var source = value.Span;
-        int size = Measure(source);
+        var size = Measure(source);
         var bytes = destination.GetSpan(size)[..size];
         CheckOverlap(source, bytes);
         WriteCore(source, bytes);
@@ -66,12 +65,12 @@ internal static class ScalarNumericArrayBaseline<T, TCodec> where TCodec : struc
     private static int WriteCore(ReadOnlySpan<T> source, Span<byte> bytes)
     {
         ArrayPayload.WriteHeader(bytes, source.Length, false, TCodec.Oid);
-        int offset = source.IsEmpty ? ArrayPayload.EmptyHeaderSize : ArrayPayload.HeaderSize;
+        var offset = source.IsEmpty ? ArrayPayload.EmptyHeaderSize : ArrayPayload.HeaderSize;
         foreach (var item in source)
         {
-            int lengthOffset = offset;
+            var lengthOffset = offset;
             offset += 4;
-            int length = TCodec.Write(item, bytes[offset..]);
+            var length = TCodec.Write(item, bytes[offset..]);
             BinaryPrimitives.WriteInt32BigEndian(bytes[lengthOffset..], length);
             offset += length;
         }
@@ -80,7 +79,7 @@ internal static class ScalarNumericArrayBaseline<T, TCodec> where TCodec : struc
 
     internal static ReadOnlyMemory<T> Read(ReadOnlySpan<byte> payload)
     {
-        int count = ArrayPayload.ReadHeader(payload, TCodec.Oid, TCodec.FixedSize, out int headerSize);
+        var count = ArrayPayload.ReadHeader(payload, TCodec.Oid, TCodec.FixedSize, out var headerSize);
         if (count == 0)
         {
             return ReadOnlyMemory<T>.Empty;
@@ -92,7 +91,7 @@ internal static class ScalarNumericArrayBaseline<T, TCodec> where TCodec : struc
 
     internal static int Read(ReadOnlySpan<byte> payload, Span<T> destination)
     {
-        int count = ArrayPayload.ReadHeader(payload, TCodec.Oid, TCodec.FixedSize, out int headerSize);
+        var count = ArrayPayload.ReadHeader(payload, TCodec.Oid, TCodec.FixedSize, out var headerSize);
         BinaryPayload.RequireCapacity(count, destination.Length);
         destination = destination[..count];
         BinaryPayload.RequireSeparate(payload, BinaryPayload.StorageBytes(destination));
@@ -109,7 +108,7 @@ internal static class ScalarNumericArrayBaseline<T, TCodec> where TCodec : struc
         }
         foreach (ref var item in destination)
         {
-            int length = ArrayPayload.ReadLength(records);
+            var length = ArrayPayload.ReadLength(records);
             if (length == -1)
             {
                 throw new NotSupportedException("Use the nullable array converter for NULL elements.");
@@ -125,11 +124,11 @@ internal static class ScalarNumericArrayBaseline<T, TCodec> where TCodec : struc
 
     private static void ReadFixedRecords(ReadOnlySpan<byte> records, Span<T> destination)
     {
-        int recordSize = 4 + TCodec.FixedSize;
-        int offset = 0;
+        var recordSize = 4 + TCodec.FixedSize;
+        var offset = 0;
         foreach (ref var item in destination)
         {
-            int length = BinaryPrimitives.ReadInt32BigEndian(records[offset..]);
+            var length = BinaryPrimitives.ReadInt32BigEndian(records[offset..]);
             if (length != TCodec.FixedSize)
             {
                 ThrowFixedLength(length);
@@ -155,7 +154,7 @@ internal static class ScalarNumericArrayBaseline<T, TCodec> where TCodec : struc
             return Read(payload.FirstSpan);
         }
         var reader = new SequenceReader<byte>(payload);
-        int count = ArrayPayload.ReadHeader(ref reader, TCodec.Oid, TCodec.FixedSize);
+        var count = ArrayPayload.ReadHeader(ref reader, TCodec.Oid, TCodec.FixedSize);
         if (count == 0)
         {
             return ReadOnlyMemory<T>.Empty;
@@ -172,7 +171,7 @@ internal static class ScalarNumericArrayBaseline<T, TCodec> where TCodec : struc
             return Read(payload.FirstSpan, destination);
         }
         var reader = new SequenceReader<byte>(payload);
-        int count = ArrayPayload.ReadHeader(ref reader, TCodec.Oid, TCodec.FixedSize);
+        var count = ArrayPayload.ReadHeader(ref reader, TCodec.Oid, TCodec.FixedSize);
         BinaryPayload.RequireCapacity(count, destination.Length);
         destination = destination[..count];
         BinaryPayload.RequireSeparate(payload, destination);
@@ -189,7 +188,7 @@ internal static class ScalarNumericArrayBaseline<T, TCodec> where TCodec : struc
         }
         foreach (ref var item in destination)
         {
-            int length = ArrayPayload.ReadLength(ref reader);
+            var length = ArrayPayload.ReadLength(ref reader);
             if (length == -1)
             {
                 throw new NotSupportedException("Use the nullable array converter for NULL elements.");
@@ -207,17 +206,17 @@ internal static class ScalarNumericArrayBaseline<T, TCodec> where TCodec : struc
 
     private static void ReadFixedRecords(ref SequenceReader<byte> reader, Span<T> destination)
     {
-        int recordSize = 4 + TCodec.FixedSize;
-        int written = 0;
+        var recordSize = 4 + TCodec.FixedSize;
+        var written = 0;
         Span<byte> scratch = stackalloc byte[20];
         while (written < destination.Length)
         {
             // Whole records in a segment use the contiguous loop. Only a split small
             // scalar uses scratch, so there is no sequence slice/scan for every element.
-            int count = Math.Min(reader.UnreadSpan.Length / recordSize, destination.Length - written);
+            var count = Math.Min(reader.UnreadSpan.Length / recordSize, destination.Length - written);
             if (count != 0)
             {
-                int byteCount = count * recordSize;
+                var byteCount = count * recordSize;
                 ReadFixedRecords(reader.UnreadSpan[..byteCount], destination.Slice(written, count));
                 reader.Advance(byteCount);
                 written += count;

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>Mpgsql</RootNamespace>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../Mpgsql/Mpgsql.csproj"/>
+        <InternalsVisibleTo Include="Mpgsql.Client"/>
+        <InternalsVisibleTo Include="Mpgsql.Multiplexing"/>
+        <InternalsVisibleTo Include="Mpgsql.Tests"/>
+        <InternalsVisibleTo Include="Mpgsql.Benchmarks"/>
+        <InternalsVisibleTo Include="Mpgsql.IntegrationTests"/>
+    </ItemGroup>
+    <ItemGroup>
+      <None Remove="Internal\MessageOperationKind.cs~" />
+    </ItemGroup>
+</Project>
