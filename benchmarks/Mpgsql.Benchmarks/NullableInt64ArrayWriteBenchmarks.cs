@@ -35,7 +35,7 @@ public class NullableInt64ArrayWriteBenchmarks
         NpgsqlOriginal();
         byte[] expected = [.. _harness.Output.WrittenSpan];
         // Npgsql 10.0.3 always writes flags=0, even for actual NULL elements.
-        // PostgreSQL accepts that; Mpgsql writes the canonical flag used by array_send.
+        // PostgreSQL accepts that; Mpgsql.Protocol writes the canonical flag used by array_send.
         BinaryPrimitives.WriteInt32BigEndian
         (
             expected.AsSpan(4),
@@ -60,7 +60,7 @@ public class NullableInt64ArrayWriteBenchmarks
                 .AsSpan()
                 .SequenceEqual(_values))
         {
-            throw new InvalidOperationException("Npgsql could not read nullable Mpgsql output.");
+            throw new InvalidOperationException("Npgsql could not read nullable Mpgsql.Protocol output.");
         }
         CheckReusableAllocations();
     }

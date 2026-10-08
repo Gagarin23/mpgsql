@@ -69,7 +69,7 @@ public sealed class MpgsqlConnectionStringBuilder : DbConnectionStringBuilder
 
     public string ApplicationName
     {
-        get => Text("Application Name", "Mpgsql");
+        get => Text("Application Name", "Mpgsql.Protocol");
         set => this["Application Name"] = value;
     }
 

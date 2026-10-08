@@ -1,36 +1,40 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <RootNamespace>Mpgsql</RootNamespace>
+        <AssemblyName>Mpgsql</AssemblyName>
         <IsPackable>true</IsPackable>
         <PackageId>Mpgsql</PackageId>
         <Version>0.1.0-alpha.1</Version>
-        <Title>Mpgsql: Minimalistic postgresql driver</Title>
-        <Description>Minimalistic PostgreSQL driver for .NET: protocol 3.0 message codecs, binary type converters, and binary COPY primitives.</Description>
+        <Title>Mpgsql: Minimalistic PostgreSQL driver</Title>
+        <Description>Asynchronous ADO.NET provider for PostgreSQL with native TCP/TLS authentication, an exclusive connection pool, typed parameters and readers, reusable commands and batches, local transactions, and prepared statements.</Description>
         <Authors>Mpgsql contributors</Authors>
-        <PackageTags>postgresql;postgres;protocol;binary;copy;dotnet</PackageTags>
+        <PackageTags>postgresql;postgres;ado.net;database;driver;dotnet</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageProjectUrl>https://github.com/Gagarin23/mpgsql</PackageProjectUrl>
         <RepositoryUrl>https://github.com/Gagarin23/mpgsql</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <NoWarn>$(NoWarn);CS1591</NoWarn>
+        <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);IncludeSessionBuildOutput</TargetsForTfmSpecificBuildOutput>
     </PropertyGroup>
-
     <ItemGroup>
-        <!-- The client reuses wire/codec internals without widening the public API. -->
-        <InternalsVisibleTo Include="Mpgsql.Client"/>
-        <InternalsVisibleTo Include="Mpgsql.Sessions"/>
+        <!-- Sessions ships inside this package; only Protocol is a NuGet dependency. -->
+        <ProjectReference Include="../Mpgsql.Sessions/Mpgsql.Sessions.csproj" PrivateAssets="all"/>
+        <ProjectReference Include="../Mpgsql.Protocol/Mpgsql.Protocol.csproj" />
         <InternalsVisibleTo Include="Mpgsql.Tests"/>
         <InternalsVisibleTo Include="Mpgsql.Benchmarks"/>
         <InternalsVisibleTo Include="Mpgsql.IntegrationTests"/>
     </ItemGroup>
-
     <ItemGroup>
         <None Update="README.md" Pack="true" PackagePath="/"/>
-        <None Remove="Converters\NumericCodec.Simd.cs~"/>
     </ItemGroup>
-
+    <Target Name="IncludeSessionBuildOutput">
+        <ItemGroup>
+            <BuildOutputInPackage Include="$(TargetDir)Mpgsql.Sessions.dll"/>
+            <BuildOutputInPackage Include="$(TargetDir)Mpgsql.Sessions.xml" Condition="Exists('$(TargetDir)Mpgsql.Sessions.xml')"/>
+        </ItemGroup>
+    </Target>
 </Project>

@@ -1,17 +1,19 @@
 # Asynchronous ADO.NET and request multiplexing
 
-The assemblies retain the `Mpgsql` namespace. `Mpgsql` is the independently packable
+The assemblies retain the `Mpgsql` namespace. `Mpgsql.Protocol` is the independently packable
 protocol/converter/type/binary COPY library. `Mpgsql.Sessions` owns TCP/TLS,
 authentication, CancelRequest, explicit pipelines and result buffers.
-`Mpgsql.Client` and `Mpgsql.Multiplexing` each reference Sessions; neither references
-the other. All upper assemblies target .NET 10 and are non-packable.
+`Mpgsql` and `Mpgsql.Multiplexing` each reference Sessions; neither references
+the other. All assemblies target .NET 10. The `Mpgsql` NuGet package includes
+`Mpgsql.Sessions.dll` and depends on `Mpgsql.Protocol`; Sessions and Multiplexing
+remain non-packable projects.
 
 ```mermaid
 flowchart TB
-    Client["Mpgsql.Client: Db* API, exclusive pool"] --> Sessions
+    Client["Mpgsql NuGet: Db* API, exclusive pool"] --> Sessions
     Multiplexing["Mpgsql.Multiplexing: independent requests, shared Sync"] --> Sessions
     Sessions["Mpgsql.Sessions: TCP/TLS/auth, explicit pipeline, readers"] --> Core
-    Core["Mpgsql NuGet: protocol, converters, types, binary COPY"]
+    Core["Mpgsql.Protocol NuGet: protocol, converters, types, binary COPY"]
 ```
 
 ## Connecting and reusable commands

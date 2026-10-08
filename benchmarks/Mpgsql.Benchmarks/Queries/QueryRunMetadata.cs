@@ -14,9 +14,9 @@ internal static class QueryRunMetadata
         var hashes = new SortedDictionary<string, string>(StringComparer.Ordinal);
         foreach (var directory in new[]
                  {
-                     "src/Mpgsql",
-                     "src/Mpgsql.Client",
-                     "benchmarks/Mpgsql.Benchmarks"
+                     "src/Mpgsql.Protocol",
+                     "src/Mpgsql.Protocol.Client",
+                     "benchmarks/Mpgsql.Protocol.Benchmarks"
                  })
         foreach (var file in Directory.EnumerateFiles(Path.Combine(root, directory), "*", SearchOption.AllDirectories))
         {
@@ -66,9 +66,9 @@ internal static class QueryRunMetadata
             SourceHashesSha256 = hashes,
             AssembliesSha256 = new Dictionary<string, string>
             {
-                ["Mpgsql"] = Hash(typeof(TypeOid).Assembly.Location),
-                ["Mpgsql.Client"] = Hash(typeof(MpgsqlDataSource).Assembly.Location),
-                ["Mpgsql.Benchmarks"] = Hash(typeof(QueryPacketBenchmarks).Assembly.Location),
+                ["Mpgsql.Protocol"] = Hash(typeof(TypeOid).Assembly.Location),
+                ["Mpgsql.Protocol.Client"] = Hash(typeof(MpgsqlDataSource).Assembly.Location),
+                ["Mpgsql.Protocol.Benchmarks"] = Hash(typeof(QueryPacketBenchmarks).Assembly.Location),
                 ["Npgsql"] = Hash(typeof(NpgsqlDataSource).Assembly.Location)
             },
             NpgsqlVersion = typeof(NpgsqlDataSource)
@@ -93,13 +93,13 @@ internal static class QueryRunMetadata
                  directory is not null;
                  directory = directory.Parent)
             {
-                if (File.Exists(Path.Combine(directory.FullName, "src", "Mpgsql", "Mpgsql.csproj")))
+                if (File.Exists(Path.Combine(directory.FullName, "src", "Mpgsql.Protocol", "Mpgsql.Protocol.csproj")))
                 {
                     return directory.FullName;
                 }
             }
         }
-        throw new DirectoryNotFoundException("Run the query load runner from the Mpgsql repository.");
+        throw new DirectoryNotFoundException("Run the query load runner from the Mpgsql.Protocol repository.");
     }
     private static string Hash(string file)
     {

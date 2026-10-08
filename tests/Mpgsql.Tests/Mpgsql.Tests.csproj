@@ -10,8 +10,8 @@
     <ItemGroup>
         <ProjectReference Include="../../src/Mpgsql.Multiplexing/Mpgsql.Multiplexing.csproj"/>
         <ProjectReference Include="../../src/Mpgsql.Sessions/Mpgsql.Sessions.csproj"/>
-        <ProjectReference Include="../../src/Mpgsql/Mpgsql.csproj"/>
-        <ProjectReference Include="../../src/Mpgsql.Client/Mpgsql.Client.csproj"/>
+        <ProjectReference Include="..\..\src\Mpgsql.Protocol\Mpgsql.Protocol.csproj" />
+        <ProjectReference Include="..\..\src\Mpgsql\Mpgsql.csproj" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1"/>
         <PackageReference Include="xunit.v3" Version="3.0.1"/>
         <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4">

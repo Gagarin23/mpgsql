@@ -4,7 +4,7 @@ using Mpgsql.Benchmarks.Queries;
 
 namespace Mpgsql.Benchmarks;
 
-// Only Mpgsql enforces InFlight. Native Npgsql remains unconstrained by this setting.
+// Only Mpgsql.Protocol enforces InFlight. Native Npgsql remains unconstrained by this setting.
 // These cases diagnose admission policy; they do not replace the fixed-window baseline.
 [MemoryDiagnoser, JsonExporterAttribute.Full, Config(typeof(QueryBenchmarkConfig)), InvocationCount(1)]
 public class TcpPipelineWindowBenchmarks

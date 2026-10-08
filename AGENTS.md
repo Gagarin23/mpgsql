@@ -13,15 +13,15 @@ without a concrete use in the driver.
 
 ## Repository layout
 
-- `src/Mpgsql/` contains protocol, converters, PostgreSQL types, and binary COPY;
-  it targets `net10.0` and produces the `Mpgsql` NuGet package.
+- `src/Mpgsql.Protocol/` contains protocol, converters, PostgreSQL types, and binary COPY;
+  it targets `net10.0` and produces the independent `Mpgsql.Protocol` NuGet package.
 - `src/Mpgsql.Sessions/` contains transport, authentication, cancellation, explicit
-  pipelines, query encoding, prepared handles and result buffers; it references `Mpgsql`.
-- `src/Mpgsql.Client/` contains asynchronous ADO.NET and exclusively leased session
-  pools; it references `Mpgsql.Sessions`.
+  pipelines, query encoding, prepared handles and result buffers; it references `Mpgsql.Protocol`.
+- `src/Mpgsql/` contains asynchronous ADO.NET and exclusively leased session
+  pools; its `Mpgsql` NuGet package includes `Mpgsql.Sessions.dll` and depends on `Mpgsql.Protocol`.
 - `src/Mpgsql.Multiplexing/` schedules independent requests and shared Sync groups;
-  it references `Mpgsql.Sessions` and has no dependency on `Mpgsql.Client`.
-- All three upper projects are non-packable. Preserve existing `Mpgsql` namespaces.
+  it references `Mpgsql.Sessions` and has no dependency on the ADO.NET `Mpgsql` assembly.
+- Sessions and Multiplexing are non-packable. Preserve existing `Mpgsql` namespaces.
 - `src/Mpgsql.slnx` is the solution entry point.
 - `docs/ideas.md` holds goals and unresolved product decisions.
 - `docs/extended-query-protocol.md` is the living description of Extended Query
@@ -33,7 +33,7 @@ without a concrete use in the driver.
   low-level control. Add factory methods for common messages without removing
   that capability.
 - In `Sessions`, retain multiple sealed pipeline groups in flight and explicit
-  producer-controlled Sync. In `Client`, one ADO.NET operation or reader exclusively
+  producer-controlled Sync. In the `Mpgsql` provider, one ADO.NET operation or reader exclusively
   owns its connection until protocol and cancellation recovery finish. Automatic
   multiplexing and shared Sync scheduling belong only to `Multiplexing`.
 - High performance is a mandatory, primary requirement of this project.

@@ -13,7 +13,7 @@ public sealed class LayerBoundaryTests
         var assembly = typeof(FrontendMessageWriter).Assembly;
         Assert.Equal
         (
-            "Mpgsql", assembly.GetName()
+            "Mpgsql.Protocol", assembly.GetName()
                 .Name
         );
         Assert.All
@@ -32,7 +32,7 @@ public sealed class LayerBoundaryTests
             .GetReferencedAssemblies()
             .Select(reference => reference.Name)
             .ToArray();
-        Assert.DoesNotContain("Mpgsql.Client", references);
+        Assert.DoesNotContain("Mpgsql", references);
         Assert.DoesNotContain("Mpgsql.Sessions", references);
         Assert.DoesNotContain("Mpgsql.Multiplexing", references);
         Assert.DoesNotContain("System.IO.Pipelines", references);
@@ -53,7 +53,7 @@ public sealed class LayerBoundaryTests
         var assembly = typeof(MpgsqlDataSource).Assembly;
         Assert.Equal
         (
-            "Mpgsql.Client", assembly.GetName()
+            "Mpgsql", assembly.GetName()
                 .Name
         );
         Assert.NotSame(typeof(FrontendMessageWriter).Assembly, assembly);
@@ -72,7 +72,7 @@ public sealed class LayerBoundaryTests
         );
         Assert.Contains
         (
-            "Mpgsql", assembly
+            "Mpgsql.Protocol", assembly
                 .GetReferencedAssemblies()
                 .Select(reference => reference.Name)
         );
@@ -106,7 +106,7 @@ public sealed class LayerBoundaryTests
         );
         Assert.DoesNotContain
         (
-            "Mpgsql.Client", sessions
+            "Mpgsql", sessions
                 .GetReferencedAssemblies()
                 .Select(reference => reference.Name)
         );
@@ -124,7 +124,7 @@ public sealed class LayerBoundaryTests
         );
         Assert.DoesNotContain
         (
-            "Mpgsql.Client", multiplexing
+            "Mpgsql", multiplexing
                 .GetReferencedAssemblies()
                 .Select(reference => reference.Name)
         );

@@ -233,7 +233,7 @@ internal sealed class SocketTransport(TcpClient client, Stream stream, MpgsqlSes
                     }
                     if (Parameters.TryGetValue("client_encoding", out var encoding) && encoding != "UTF8")
                     {
-                        throw new NotSupportedException("Mpgsql requires UTF8 client encoding.");
+                        throw new NotSupportedException("Mpgsql.Protocol requires UTF8 client encoding.");
                     }
                     return;
                 default: throw new InvalidDataException($"Unexpected startup message {message.Kind}.");

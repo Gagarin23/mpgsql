@@ -173,14 +173,14 @@ internal sealed class TcpMpgsqlFixture : IAsyncDisposable
         {
             if (_transports.Count != Transports.Length)
             {
-                throw new InvalidOperationException("A prewarmed Mpgsql transport was replaced.");
+                throw new InvalidOperationException("A prewarmed Mpgsql.Protocol transport was replaced.");
             }
         }
         foreach (var transport in Transports)
         {
             if (!transport.Session.IsHealthy || transport.Session.BufferedRowBytes != 0)
             {
-                throw new InvalidOperationException("Mpgsql TCP transport retains rows or is unhealthy.");
+                throw new InvalidOperationException("Mpgsql.Protocol TCP transport retains rows or is unhealthy.");
             }
         }
     }

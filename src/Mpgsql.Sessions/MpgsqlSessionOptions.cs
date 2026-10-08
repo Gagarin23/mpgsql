@@ -16,7 +16,7 @@ public sealed record MpgsqlSessionOptions
     public required string Username { get; init; }
     public string? Password { get; init; }
     public string? Database { get; init; }
-    public string ApplicationName { get; init; } = "Mpgsql";
+    public string ApplicationName { get; init; } = "Mpgsql.Protocol";
     public MpgsqlSslMode SslMode { get; init; } = MpgsqlSslMode.VerifyFull;
     public string? RootCertificate { get; init; }
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(15);

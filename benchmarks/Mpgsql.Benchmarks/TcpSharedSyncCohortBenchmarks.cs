@@ -7,7 +7,7 @@ using NpgsqlTypes;
 namespace Mpgsql.Benchmarks;
 
 // Complete cohorts have identical SQL/parameters/transcripts and exactly one common Sync.
-// Mpgsql routes to separate DataSource readers; Npgsql exposes one native Batch reader.
+// Mpgsql.Protocol routes to separate DataSource readers; Npgsql exposes one native Batch reader.
 [MemoryDiagnoser, JsonExporterAttribute.Full, Config(typeof(QueryBenchmarkConfig)), IterationTime(150)]
 public class TcpSharedSyncCohortBenchmarks
 {
@@ -147,6 +147,6 @@ public class TcpSharedSyncCohortBenchmarks
             }
             finally { await benchmark.Cleanup(); }
         }
-        Console.WriteLine("PASS shared cohorts: N=8/16, Mpgsql DataSource / native Npgsql Batch, exact common boundaries");
+        Console.WriteLine("PASS shared cohorts: N=8/16, Mpgsql.Protocol DataSource / native Npgsql Batch, exact common boundaries");
     }
 }

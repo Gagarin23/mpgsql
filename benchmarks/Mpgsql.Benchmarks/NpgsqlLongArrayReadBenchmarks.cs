@@ -15,7 +15,7 @@ public class NpgsqlLongArrayReadBenchmarks
     public int Count { get; set; }
 
     // 0: all bytes already buffered, no input copy. 8192: Npgsql refills its
-    // reader buffer from MemoryStream; Mpgsql reads an existing segmented sequence.
+    // reader buffer from MemoryStream; Mpgsql.Protocol reads an existing segmented sequence.
     [Params(0, 8192)]
     public int ReaderBufferSize { get; set; }
 
@@ -66,7 +66,7 @@ public class NpgsqlLongArrayReadBenchmarks
         }
     }
 
-    // All paths return owned storage. Reusing Mpgsql's output is measured separately
+    // All paths return owned storage. Reusing Mpgsql.Protocol's output is measured separately
     // by LongArrayReadBenchmarks and is intentionally not used as this baseline.
     [Benchmark(Baseline = true)]
     public long[] NpgsqlOriginal()

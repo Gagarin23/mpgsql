@@ -90,7 +90,7 @@ public class NpgsqlLongArrayWriteBenchmarks
                 .AsSpan()
                 .SequenceEqual(_harness.Output.WrittenSpan))
         {
-            throw new InvalidOperationException("Mpgsql bytes differ from the original Npgsql converter.");
+            throw new InvalidOperationException("Mpgsql.Protocol bytes differ from the original Npgsql converter.");
         }
         // Empty arrays are valid with either ndims=0 (12 bytes) or ndims=1, count=0 (20 bytes).
         using var crossRead = new NpgsqlArrayHarness
@@ -107,7 +107,7 @@ public class NpgsqlLongArrayWriteBenchmarks
                 .AsSpan()
                 .SequenceEqual(_values))
         {
-            throw new InvalidOperationException("Npgsql could not decode Mpgsql output.");
+            throw new InvalidOperationException("Npgsql could not decode Mpgsql.Protocol output.");
         }
     }
 

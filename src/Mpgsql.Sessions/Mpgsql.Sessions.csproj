@@ -5,10 +5,12 @@
         <Nullable>enable</Nullable>
         <RootNamespace>Mpgsql</RootNamespace>
         <IsPackable>false</IsPackable>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);CS1591</NoWarn>
     </PropertyGroup>
     <ItemGroup>
-        <ProjectReference Include="../Mpgsql/Mpgsql.csproj"/>
-        <InternalsVisibleTo Include="Mpgsql.Client"/>
+        <ProjectReference Include="..\Mpgsql.Protocol\Mpgsql.Protocol.csproj" />
+        <InternalsVisibleTo Include="Mpgsql"/>
         <InternalsVisibleTo Include="Mpgsql.Multiplexing"/>
         <InternalsVisibleTo Include="Mpgsql.Tests"/>
         <InternalsVisibleTo Include="Mpgsql.Benchmarks"/>

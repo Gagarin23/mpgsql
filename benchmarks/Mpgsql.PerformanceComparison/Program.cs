@@ -10,7 +10,7 @@ using System.Text.Json;
 
 if (args.Length is not (3 or 4))
 {
-    throw new ArgumentException("Usage: <baseline Mpgsql.Benchmarks.dll> <candidate Mpgsql.Benchmarks.dll> <output.json> [--concurrent|--bytea-diagnostic]");
+    throw new ArgumentException("Usage: <baseline Mpgsql.Protocol.Benchmarks.dll> <candidate Mpgsql.Protocol.Benchmarks.dll> <output.json> [--concurrent|--bytea-diagnostic]");
 }
 using var comparisonProcess = Process.GetCurrentProcess();
 if (OperatingSystem.IsWindows())
@@ -248,7 +248,7 @@ internal sealed class BenchmarkRun : IAsyncDisposable
         {
             return await CreateLegacyAsync(context, scenario);
         }
-        var type = context.Benchmarks.GetType("Mpgsql.Benchmarks." + name, true)!;
+        var type = context.Benchmarks.GetType("Mpgsql.Protocol.Benchmarks." + name, true)!;
         var instance = Activator.CreateInstance(type)!;
         type
             .GetProperty("Case")
@@ -262,7 +262,7 @@ internal sealed class BenchmarkRun : IAsyncDisposable
     private static async Task<BenchmarkRun> CreateLegacyAsync(VersionContext context, string scenario)
     {
         const BindingFlags members = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-        var type = context.Benchmarks.GetType("Mpgsql.Benchmarks.TcpReaderComparisonBenchmarks", true)!;
+        var type = context.Benchmarks.GetType("Mpgsql.Protocol.Benchmarks.TcpReaderComparisonBenchmarks", true)!;
         var instance = Activator.CreateInstance(type)!;
         type.GetProperty("Case")!.SetValue(instance, scenario);
         await (Task)type.GetMethod("SetupMpgsql")!.Invoke(instance, null)!;
@@ -325,7 +325,7 @@ internal sealed class BenchmarkRun : IAsyncDisposable
             .GetMethod("ExecuteReaderAsync")!;
         var reader = execute
             .ReturnType.GetGenericArguments()[0];
-        var consumer = context.Benchmarks.GetType("Mpgsql.Benchmarks.Comparison.TcpQueryOperations", true)!
+        var consumer = context.Benchmarks.GetType("Mpgsql.Protocol.Benchmarks.Comparison.TcpQueryOperations", true)!
             .GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
             .Single
             (m => m.Name == "ConsumeAsync" && m

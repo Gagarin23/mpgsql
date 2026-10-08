@@ -19,7 +19,7 @@ public sealed class TlsCertificateTests
     public void CustomRootEnforcesServerAuthenticationPurpose(bool serverPurpose)
     {
         using var key = RSA.Create(2048);
-        var rootRequest = new CertificateRequest("CN=Mpgsql test root", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        var rootRequest = new CertificateRequest("CN=Mpgsql.Protocol test root", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         rootRequest.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
         rootRequest.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.KeyCertSign, true));
         using var root = rootRequest.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(1));

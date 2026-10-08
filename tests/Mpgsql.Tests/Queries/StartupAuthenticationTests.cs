@@ -26,7 +26,7 @@ public sealed class StartupAuthenticationTests
     }
     private static byte[] Startup()
     {
-        var body = Encoding.UTF8.GetBytes("user\0test\0database\0test\0client_encoding\0UTF8\0application_name\0Mpgsql\0\0");
+        var body = Encoding.UTF8.GetBytes("user\0test\0database\0test\0client_encoding\0UTF8\0application_name\0Mpgsql.Protocol\0\0");
         var bytes = new byte[body.Length + 8];
         BinaryPrimitives.WriteInt32BigEndian(bytes, bytes.Length);
         BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(4), 196608);

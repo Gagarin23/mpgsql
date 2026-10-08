@@ -14,7 +14,7 @@ internal static class TlsHandshakeChecks
     internal static async Task RunAsync()
     {
         using var key = RSA.Create(2048);
-        var request = new CertificateRequest("CN=Mpgsql test CA", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        var request = new CertificateRequest("CN=Mpgsql.Protocol test CA", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         request.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
         request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.KeyCertSign, true));
         using var root = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(1));

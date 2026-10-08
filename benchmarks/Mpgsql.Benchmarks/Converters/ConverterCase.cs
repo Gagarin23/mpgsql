@@ -55,15 +55,15 @@ internal sealed class ConverterCase<TM, TN> : ConverterCase
             var mRead = _read(_input);
             _output.Reset();
             _write(mRead, _output);
-            Check(input, _output.WrittenSpan, name + " Mpgsql roundtrip", array);
+            Check(input, _output.WrittenSpan, name + " Mpgsql.Protocol roundtrip", array);
             var nRead = _upstream.Read();
             _upstream.Write(nRead);
             Check(input, _upstream.Output.WrittenSpan, name + " Npgsql cross-read", array);
-            // Conversely, Mpgsql must decode the payload written by Npgsql.
+            // Conversely, Mpgsql.Protocol must decode the payload written by Npgsql.
             var nBytes = _upstream.Output.WrittenSpan.ToArray();
             _output.Reset();
             _write(_read(new ReadOnlySequence<byte>(nBytes)), _output);
-            Check(input, _output.WrittenSpan, name + " Mpgsql cross-read", array);
+            Check(input, _output.WrittenSpan, name + " Mpgsql.Protocol cross-read", array);
             foreach (var segmentSize in new[]
                      {
                          1,

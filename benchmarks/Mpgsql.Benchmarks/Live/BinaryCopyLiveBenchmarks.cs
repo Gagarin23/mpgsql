@@ -158,7 +158,7 @@ internal static class BinaryCopyLiveBenchmarks
                 "Export",
                 [
                     ("Npgsql", ExportNative, () => { }, () => { }),
-                    ("Mpgsql", ExportMpgsql, () => { }, () => { })
+                    ("Mpgsql.Protocol", ExportMpgsql, () => { }, () => { })
                 ]
             );
 
@@ -339,7 +339,7 @@ internal static class BinaryCopyLiveBenchmarks
                 copy.EndData();
                 if (copy.RowsRead != (ulong)rows || !packets.IsDrained)
                 {
-                    throw new InvalidDataException("Mpgsql export boundary differs.");
+                    throw new InvalidDataException("Mpgsql.Protocol export boundary differs.");
                 }
                 return sum;
             }
@@ -396,7 +396,7 @@ internal static class BinaryCopyLiveBenchmarks
                                 CultureInfo.InvariantCulture
                             ) != value)
                         {
-                            throw new InvalidDataException("Mpgsql table checksum differs.");
+                            throw new InvalidDataException("Mpgsql.Protocol table checksum differs.");
                         }
                     }
                 }
@@ -508,7 +508,7 @@ internal static class BinaryCopyLiveBenchmarks
                     Iterations = iterations,
                     Warmups,
                     Notes =
-                        "Connection-local temporary tables. Connections/authentication/table setup/TRUNCATE/checksum SQL excluded. COPY SQL to ReadyForQuery included. Six warmups, rotated method order. Plaintext synchronous TCP. Array reads return owned storage. Allocations measured on calling thread. Mpgsql socket/auth helpers are benchmark-only.",
+                        "Connection-local temporary tables. Connections/authentication/table setup/TRUNCATE/checksum SQL excluded. COPY SQL to ReadyForQuery included. Six warmups, rotated method order. Plaintext synchronous TCP. Array reads return owned storage. Allocations measured on calling thread. Mpgsql.Protocol socket/auth helpers are benchmark-only.",
                     Results = results
                 },
                 new JsonSerializerOptions

@@ -32,8 +32,8 @@ internal static class TcpComparisonVerification
                 {
                     await CheckReader(reader, scenario, m.Buffers[0]);
                 }
-                Check(await TcpQueryOperations.MpgsqlAsync(m, scenario) == scenario.Expected(0), "Mpgsql DataSource repeated " + scenario.Name);
-                Check(await TcpQueryOperations.RawAsync(m.Transports[0], catalog, scenario, m.Buffers[0]) == scenario.Expected(0), "Mpgsql raw " + scenario.Name);
+                Check(await TcpQueryOperations.MpgsqlAsync(m, scenario) == scenario.Expected(0), "Mpgsql.Protocol DataSource repeated " + scenario.Name);
+                Check(await TcpQueryOperations.RawAsync(m.Transports[0], catalog, scenario, m.Buffers[0]) == scenario.Expected(0), "Mpgsql.Protocol raw " + scenario.Name);
                 m.CheckIdle();
             }
             try
@@ -41,8 +41,8 @@ internal static class TcpComparisonVerification
                 await TcpQueryOperations.MpgsqlAsync(m, QueryScenario.Failing);
                 throw new InvalidOperationException("SQL error missing.");
             }
-            catch (MpgsqlServerException error) { Check(error.SqlState == "22012", "Mpgsql SQLSTATE"); }
-            Check(await TcpQueryOperations.MpgsqlAsync(m, QueryScenario.One) == 1, "Mpgsql recovery probe");
+            catch (MpgsqlServerException error) { Check(error.SqlState == "22012", "Mpgsql.Protocol SQLSTATE"); }
+            Check(await TcpQueryOperations.MpgsqlAsync(m, QueryScenario.One) == 1, "Mpgsql.Protocol recovery probe");
             m.CheckIdle();
         }
         foreach (var mux in new[]
@@ -241,7 +241,7 @@ internal static class TcpComparisonVerification
         byte[] buffer
     )
     {
-        Check(reader.QueryIndex == 0 && reader.Columns.Length == (scenario.NoData ? 0 : scenario.Columns), "Mpgsql description/index");
+        Check(reader.QueryIndex == 0 && reader.Columns.Length == (scenario.NoData ? 0 : scenario.Columns), "Mpgsql.Protocol description/index");
         for (var i = 0;
              i < reader.Columns.Length;
              i++)
@@ -249,7 +249,7 @@ internal static class TcpComparisonVerification
             Check
             (
                 reader.Columns.Span[i].DataTypeOid == (scenario.ByteaBytes != 0 && i == 1 ? 17U : 20U)
-                && reader.Columns.Span[i].Format == FormatCode.Binary, "Mpgsql OID/format"
+                && reader.Columns.Span[i].Format == FormatCode.Binary, "Mpgsql.Protocol OID/format"
             );
         }
         var row = 0;
@@ -260,7 +260,7 @@ internal static class TcpComparisonVerification
                  column < (scenario.ByteaBytes == 0 ? scenario.Columns : 1);
                  column++)
             {
-                Check(reader.GetInt64(column) == (scenario.Null ? null : 1L + (long)row * (scenario.ByteaBytes == 0 ? scenario.Columns : 1) + column), "Mpgsql value/NULL");
+                Check(reader.GetInt64(column) == (scenario.Null ? null : 1L + (long)row * (scenario.ByteaBytes == 0 ? scenario.Columns : 1) + column), "Mpgsql.Protocol value/NULL");
             }
             sum += TcpQueryOperations.Row(reader, scenario, buffer);
             if (scenario.ByteaBytes != 0)
@@ -269,12 +269,12 @@ internal static class TcpComparisonVerification
                 (
                     buffer
                         .AsSpan()
-                        .SequenceEqual(scenario.Blob), "Mpgsql full bytea"
+                        .SequenceEqual(scenario.Blob), "Mpgsql.Protocol full bytea"
                 );
             }
             row++;
         }
-        Check(row == scenario.Rows && sum == scenario.Expected(0) && !await reader.NextResultAsync(), "Mpgsql rows/final result");
+        Check(row == scenario.Rows && sum == scenario.Expected(0) && !await reader.NextResultAsync(), "Mpgsql.Protocol rows/final result");
     }
     private static async Task CheckReader(
         NpgsqlDataReader reader, QueryScenario scenario,
@@ -343,12 +343,12 @@ internal static class TcpComparisonVerification
                  i < 16;
                  i++)
             {
-                Check(reader.QueryIndex == i && await reader.ReadAsync() && reader.GetInt64(0) == i + 1 && !await reader.ReadAsync(), "Mpgsql batch QueryIndex/value");
-                Check(await reader.NextResultAsync() == i < 15, "Mpgsql batch result boundary");
+                Check(reader.QueryIndex == i && await reader.ReadAsync() && reader.GetInt64(0) == i + 1 && !await reader.ReadAsync(), "Mpgsql.Protocol batch QueryIndex/value");
+                Check(await reader.NextResultAsync() == i < 15, "Mpgsql.Protocol batch result boundary");
             }
             await batch.Completion;
             var after = m.Peer.Counters();
-            Check(after.Queries - before.Queries == 16 && after.Syncs - before.Syncs == 1 && batch.TransactionStatus == TransactionStatus.Idle, "Mpgsql shared Sync/Ready");
+            Check(after.Queries - before.Queries == 16 && after.Syncs - before.Syncs == 1 && batch.TransactionStatus == TransactionStatus.Idle, "Mpgsql.Protocol shared Sync/Ready");
         }
         var b = new TcpBatchComparisonBenchmarks();
         try

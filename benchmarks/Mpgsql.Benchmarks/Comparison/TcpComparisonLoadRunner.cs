@@ -234,8 +234,8 @@ internal static class TcpComparisonLoadRunner
                 options.SyncGroupTimeoutMs,
                 SyncBoundary = options.SyncGroupSize == 1
                     ? "Independent per-request boundaries for both drivers."
-                    : "Mpgsql explicitly shares transaction/error boundaries; Npgsql native references retain independent requests. These semantics differ.",
-                CommandLifetime = "Npgsql command and typed parameters reused per worker; Mpgsql one-shot logical batches; caller command construction excluded.",
+                    : "Mpgsql.Protocol explicitly shares transaction/error boundaries; Npgsql native references retain independent requests. These semantics differ.",
+                CommandLifetime = "Npgsql command and typed parameters reused per worker; Mpgsql.Protocol one-shot logical batches; caller command construction excluded.",
                 ByteaConsumption = "Full copy into reusable per-worker destination for both drivers.",
                 NpgsqlTypeLoading = false,
                 NpgsqlNoResetOnClose = true,
@@ -260,17 +260,17 @@ internal static class TcpComparisonLoadRunner
         );
         var md = new StringBuilder
         (
-            "# Mpgsql / Npgsql TCP comparison load\n\n" +
-            "Shared synthetic PostgreSQL protocol 3.0 peer on loopback TCP. Whole-process allocations include driver, peer and timed runner. All physical connections prewarmed. Fixed sequential workers: closed loop, no fixed arrival rate or coordinated-omission correction. Native Npgsql pool and multiplexed pool are separate series. Npgsql commands/typed parameters reused, auto-prepare disabled, type loading disabled, NoResetOnClose=true. Bytea copied fully into reusable destination for both drivers. Npgsql has no public equivalent for the Mpgsql in-flight limit or row budget; those limits apply only to Mpgsql.\n\n"
+            "# Mpgsql.Protocol / Npgsql TCP comparison load\n\n" +
+            "Shared synthetic PostgreSQL protocol 3.0 peer on loopback TCP. Whole-process allocations include driver, peer and timed runner. All physical connections prewarmed. Fixed sequential workers: closed loop, no fixed arrival rate or coordinated-omission correction. Native Npgsql pool and multiplexed pool are separate series. Npgsql commands/typed parameters reused, auto-prepare disabled, type loading disabled, NoResetOnClose=true. Bytea copied fully into reusable destination for both drivers. Npgsql has no public equivalent for the Mpgsql.Protocol in-flight limit or row budget; those limits apply only to Mpgsql.Protocol.\n\n"
             +
-            "Npgsql FlushAsync/copy/buffer counters are unavailable and left blank. Mpgsql observed buffered bytes measure sampled per-connection payload reservations, not physical memory or an exact peak. Slow timings include Task.Delay and OS scheduling.\n\n"
+            "Npgsql FlushAsync/copy/buffer counters are unavailable and left blank. Mpgsql.Protocol observed buffered bytes measure sampled per-connection payload reservations, not physical memory or an exact peak. Slow timings include Task.Delay and OS scheduling.\n\n"
         );
         md.AppendLine(completed ? $"All {results.Count} series completed.\n" : "Partial run.\n");
         if (options.SyncGroupSize > 1)
         {
             md.AppendLine
             (
-                $"Mpgsql opt-in shared Sync: N={options.SyncGroupSize}, X={options.SyncGroupTimeoutMs} ms from first admission per transport. Npgsql native references keep independent transaction/error boundaries. This is a policy experiment with different semantics, not the original like-for-like baseline.\n"
+                $"Mpgsql.Protocol opt-in shared Sync: N={options.SyncGroupSize}, X={options.SyncGroupTimeoutMs} ms from first admission per transport. Npgsql native references keep independent transaction/error boundaries. This is a policy experiment with different semantics, not the original like-for-like baseline.\n"
             );
         }
         md.AppendLine
