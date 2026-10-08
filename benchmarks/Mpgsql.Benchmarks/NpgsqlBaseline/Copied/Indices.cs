@@ -42,9 +42,20 @@ internal struct Indices
     {
         return dimensions switch
         {
-            0 => new Indices {Count = dimensions, One = -1},
-            1 => new Indices {Count = dimensions},
-            _ => new Indices {Count = dimensions, Many = new int[dimensions]}
+            0 => new Indices
+            {
+                Count = dimensions,
+                One = -1
+            },
+            1 => new Indices
+            {
+                Count = dimensions
+            },
+            _ => new Indices
+            {
+                Count = dimensions,
+                Many = new int[dimensions]
+            }
         };
     }
 }

@@ -5,7 +5,10 @@ namespace Mpgsql.Benchmarks.Comparison;
 // Optional diagnostic dependency, loaded only by the explicit profiling runner.
 internal sealed class BatchProfilerControl
 {
-    private readonly Action _start, _stop, _begin, _finish;
+    private readonly Action _start,
+        _stop,
+        _begin,
+        _finish;
 
     internal BatchProfilerControl(string kind, string? apiPath)
     {
@@ -86,7 +89,11 @@ internal sealed class BatchProfilerControl
     internal static void VerifyApi(string path)
     {
         var assembly = LoadApi(path);
-        foreach (var name in new[] {"MeasureProfiler", "MemoryProfiler"})
+        foreach (var name in new[]
+                 {
+                     "MeasureProfiler",
+                     "MemoryProfiler"
+                 })
         {
             var type = assembly.GetType("JetBrains.Profiler.Api." + name, true)!;
             var features = type.GetMethod("GetFeatures", Type.EmptyTypes)!.Invoke(null, null)!;

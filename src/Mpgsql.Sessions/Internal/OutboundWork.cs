@@ -12,8 +12,10 @@ internal sealed class OutboundWork : TaskCompletionSource
 
     private volatile State _state;
 
-    internal OutboundWork(MpgsqlQueryBatch batch, QueryDefinition[] queries,
-        bool sync = false)
+    internal OutboundWork(
+        MpgsqlQueryBatch batch, QueryDefinition[] queries,
+        bool sync = false
+    )
         : base(TaskCreationOptions.RunContinuationsAsynchronously)
     {
         Batch = ResponseBatch = batch;
@@ -42,8 +44,10 @@ internal sealed class OutboundWork : TaskCompletionSource
         (Sql, Parameters, Size, Statement) = (query.Sql, query.Parameters, query.EncodedSize, query.PreparedStatement);
     }
 
-    internal OutboundWork(MpgsqlQueryBatch batch, MpgsqlQueryBatch responseBatch,
-        QueryDefinition query)
+    internal OutboundWork(
+        MpgsqlQueryBatch batch, MpgsqlQueryBatch responseBatch,
+        QueryDefinition query
+    )
         : base(TaskCreationOptions.RunContinuationsAsynchronously)
     {
         Batch = batch;
@@ -56,7 +60,8 @@ internal sealed class OutboundWork : TaskCompletionSource
         MpgsqlQueryBatch batch,
         string? sql = null,
         ReadOnlyMemory<MpgsqlParameterValue> parameters = default,
-        int size = 0)
+        int size = 0
+    )
         : base(TaskCreationOptions.RunContinuationsAsynchronously)
     {
         ResponseBatch = batch;
@@ -64,11 +69,13 @@ internal sealed class OutboundWork : TaskCompletionSource
             sql is null ? MessageOperationKind.Sync : MessageOperationKind.Query, sql, parameters, size);
     }
 
-    internal OutboundWork(MpgsqlQueryBatch batch,
+    internal OutboundWork(
+        MpgsqlQueryBatch batch,
         MessageOperationKind kind,
         MpgsqlPreparedStatement statement,
         int size,
-        ReadOnlyMemory<MpgsqlParameterValue> parameters = default)
+        ReadOnlyMemory<MpgsqlParameterValue> parameters = default
+    )
         : base(TaskCreationOptions.RunContinuationsAsynchronously)
     {
         ResponseBatch = batch;
@@ -219,9 +226,12 @@ internal sealed class OutboundWork : TaskCompletionSource
             return;
         }
         var state = _state;
-        if (state == State.Queued && Interlocked.CompareExchange(ref _state,
+        if (state == State.Queued && Interlocked.CompareExchange
+            (
+                ref _state,
                 HasSync ? State.Cancelled : State.Finished,
-                State.Queued) == State.Queued)
+                State.Queued
+            ) == State.Queued)
         {
             ReleaseInputs();
             FailUnpublishedPreparation(new OperationCanceledException(Batch.RequestToken));
@@ -268,9 +278,12 @@ internal sealed class OutboundWork : TaskCompletionSource
     internal void FailQueued(Exception error)
     {
         var state = _state;
-        if ((state == State.Queued || state == State.Cancelled) && Interlocked.CompareExchange(ref _state,
+        if ((state == State.Queued || state == State.Cancelled) && Interlocked.CompareExchange
+            (
+                ref _state,
                 State.Finished,
-                state) == state)
+                state
+            ) == state)
         {
             ReleaseInputs();
             FailUnpublishedPreparation(error);

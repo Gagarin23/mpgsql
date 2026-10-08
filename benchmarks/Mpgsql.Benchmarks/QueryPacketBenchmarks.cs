@@ -43,25 +43,46 @@ public class QueryPacketBenchmarks
     {
         var expected = new ArrayBufferWriter<byte>();
         uint[] oids = [.. _parameters.Select(x => x.PostgresTypeOid)];
-        FrontendMessage.Parse(_sql, parameterTypes: oids).Write(expected);
+        FrontendMessage
+            .Parse(_sql, parameterTypes: oids)
+            .Write(expected);
         ReadOnlyMemory<byte>?[] values = [.. _parameters.Select(Payload)];
-        FrontendMessage.Bind(parameters: values, parameterFormats: new[] {FormatCode.Binary},
-            resultFormats: new[] {FormatCode.Binary}).Write(expected);
-        FrontendMessage.Describe(StatementOrPortal.Portal).Write(expected);
-        FrontendMessage.Execute().Write(expected);
+        FrontendMessage
+            .Bind
+            (
+                parameters: values, parameterFormats: new[]
+                {
+                    FormatCode.Binary
+                },
+                resultFormats: new[]
+                {
+                    FormatCode.Binary
+                }
+            )
+            .Write(expected);
+        FrontendMessage
+            .Describe(StatementOrPortal.Portal)
+            .Write(expected);
+        FrontendMessage
+            .Execute()
+            .Write(expected);
         var written = Write();
         if (written != expected.WrittenCount || !expected.WrittenSpan.SequenceEqual(_output))
         {
             throw new InvalidOperationException($"Complete query bytes differ: {Case}.");
         }
-        var before = Enumerable.Repeat((byte)0xA5, _output.Length - 1).ToArray();
+        var before = Enumerable
+            .Repeat((byte)0xA5, _output.Length - 1)
+            .ToArray();
         try
         {
             QueryPacket.Write(_sql, _parameters, before);
             throw new InvalidOperationException("Capacity check was missed.");
         }
         catch (ArgumentException) { }
-        if (before.AsSpan().IndexOfAnyExcept((byte)0xA5) >= 0)
+        if (before
+                .AsSpan()
+                .IndexOfAnyExcept((byte)0xA5) >= 0)
         {
             throw new InvalidOperationException("Capacity failure mutated destination.");
         }
@@ -104,8 +125,17 @@ public class QueryPacketBenchmarks
         {
             "NoParameters" => (sql, []),
             "Bigint1"      => ("select $1::bigint", [MpgsqlParameterValue.Int64(42)]),
-            "Bigint16" => ("select " + string.Join(',', Enumerable.Range(1, 16).Select(i => $"${i}::bigint")),
-                [.. Enumerable.Range(0, 16).Select(i => MpgsqlParameterValue.Int64(i))]),
+            "Bigint16" => ("select " + string.Join
+                (
+                    ',', Enumerable
+                        .Range(1, 16)
+                        .Select(i => $"${i}::bigint")
+                ),
+                [
+                    .. Enumerable
+                        .Range(0, 16)
+                        .Select(i => MpgsqlParameterValue.Int64(i))
+                ]),
             "Sql4096"       => (sql + " /*" + new string('x', 4096 - sql.Length - 5) + "*/", []),
             "Text64KiB"     => ("select $1::text", [MpgsqlParameterValue.Text(new string('x', 65536))]),
             "Jsonb64KiB"    => ("select $1::jsonb", [MpgsqlParameterValue.Jsonb(Encoding.UTF8.GetBytes("\"" + new string('x', 65534) + "\""))]),
@@ -116,7 +146,12 @@ public class QueryPacketBenchmarks
 
         static (string, MpgsqlParameterValue[]) Array(int count)
         {
-            long?[] values = [.. Enumerable.Range(0, count).Select(i => i % 4 == 0 ? (long?)null : i)];
+            long?[] values =
+            [
+                .. Enumerable
+                    .Range(0, count)
+                    .Select(i => i % 4 == 0 ? (long?)null : i)
+            ];
             return ("select $1::bigint[]", [MpgsqlParameterValue.NullableInt64Array(values)]);
         }
     }

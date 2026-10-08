@@ -19,11 +19,28 @@ internal sealed record QueryLoadProfile
     // Policy experiments are opt-in; keep the original baseline profiles unchanged.
     internal static readonly QueryLoadProfile[] WindowSweep =
     [
-        .. from mixed in new[] {false, true}
-        from connections in new[] {1, 4}
-        from window in new[] {8, 16, 32, 64}
-        select new QueryLoadProfile($"{(mixed ? "Mixed_" : "")}C64_P{connections}_W{window}",
-            64, connections, window, mixed)
+        .. from mixed in new[]
+        {
+            false,
+            true
+        }
+        from connections in new[]
+        {
+            1,
+            4
+        }
+        from window in new[]
+        {
+            8,
+            16,
+            32,
+            64
+        }
+        select new QueryLoadProfile
+        (
+            $"{(mixed ? "Mixed_" : "")}C64_P{connections}_W{window}",
+            64, connections, window, mixed
+        )
     ];
 
     internal long RowBudget => Mixed ? 65536 : 8 * 1024 * 1024;
@@ -36,7 +53,10 @@ internal sealed record QueryLoadProfile
 
     internal QueryCatalog CreateCatalog()
     {
-        return new QueryCatalog(Mixed ? [QueryScenario.One, QueryScenario.Slow] : [QueryScenario.One],
-            Callers, Mixed);
+        return new QueryCatalog
+        (
+            Mixed ? [QueryScenario.One, QueryScenario.Slow] : [QueryScenario.One],
+            Callers, Mixed
+        );
     }
 }

@@ -23,10 +23,14 @@ internal readonly struct JsonbCodec : IBinaryCodec<Memory<byte>>
     }
     public static Memory<byte> Read(ReadOnlySpan<byte> payload)
     {
-        return Utf8Payload.ReadUtf8(payload, true).ToArray();
+        return Utf8Payload
+            .ReadUtf8(payload, true)
+            .ToArray();
     }
     public static Memory<byte> Read(ReadOnlySequence<byte> payload)
     {
-        return Utf8Payload.ReadUtf8(payload, true).ToArray();
+        return Utf8Payload
+            .ReadUtf8(payload, true)
+            .ToArray();
     }
 }

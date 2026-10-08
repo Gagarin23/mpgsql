@@ -53,29 +53,42 @@ internal readonly partial struct PgArrayConverter
 
     public bool ElemTypeDbNullable { get; } = elemTypeDbNullable;
 
-    private bool IsDbNull(object values,
-        Indices indices)
+    private bool IsDbNull(
+        object values,
+        Indices indices
+    )
     {
         object? state = null;
-        return elemOps.GetSizeOrDbNull(new SizeContext(DataFormat.Binary,
-                bufferRequirements.Write),
+        return elemOps.GetSizeOrDbNull
+        (
+            new SizeContext
+            (
+                DataFormat.Binary,
+                bufferRequirements.Write
+            ),
             values,
             indices,
-            ref state) is null;
+            ref state
+        ) is null;
     }
 
-    private Size GetElemsSize(object values,
+    private Size GetElemsSize(
+        object values,
         (Size, object?)[] elemStates,
         out bool anyElementState,
         DataFormat format,
         int count,
         Indices indices,
-        int[]? lengths = null)
+        int[]? lengths = null
+    )
     {
         Debug.Assert(elemStates.Length >= count);
         var totalSize = Size.Zero;
-        var context = new SizeContext(format,
-            bufferRequirements.Write);
+        var context = new SizeContext
+        (
+            format,
+            bufferRequirements.Write
+        );
         anyElementState = false;
         var lastLength = lengths?[^1] ?? count;
         ref var lastIndex = ref indices.GetItem(indices.Count - 1);
@@ -84,26 +97,34 @@ internal readonly partial struct PgArrayConverter
         {
             ref var elemItem = ref elemStates[i++];
             var elemState = (object?)null;
-            var size = elemOps.GetSizeOrDbNull(context,
+            var size = elemOps.GetSizeOrDbNull
+            (
+                context,
                 values,
                 indices,
-                ref elemState);
+                ref elemState
+            );
             anyElementState = anyElementState || elemState is not null;
             elemItem = (size ?? -1, elemState);
             totalSize = totalSize.Combine(size ?? 0);
         }
         // We can immediately continue if we didn't reach the end of the last dimension.
-        while (++lastIndex < lastLength || indices.Count > 1 && CarryIndices(lengths!,
-                   indices));
+        while (++lastIndex < lastLength || indices.Count > 1 && CarryIndices
+               (
+                   lengths!,
+                   indices
+               ));
 
         return totalSize;
     }
 
-    private Size GetFixedElemsSize(Size elemSize,
+    private Size GetFixedElemsSize(
+        Size elemSize,
         object values,
         int count,
         Indices indices,
-        int[]? lengths = null)
+        int[]? lengths = null
+    )
     {
         var nulls = 0;
         var lastLength = lengths?[^1] ?? count;
@@ -112,22 +133,30 @@ internal readonly partial struct PgArrayConverter
         {
             do
             {
-                if (IsDbNull(values,
-                        indices))
+                if (IsDbNull
+                    (
+                        values,
+                        indices
+                    ))
                 {
                     nulls++;
                 }
             }
             // We can immediately continue if we didn't reach the end of the last dimension.
-            while (++lastIndex < lastLength || indices.Count > 1 && CarryIndices(lengths!,
-                       indices));
+            while (++lastIndex < lastLength || indices.Count > 1 && CarryIndices
+                   (
+                       lengths!,
+                       indices
+                   ));
         }
 
         return (count - nulls) * elemSize.Value;
     }
 
-    private int GetFormatSize(int count,
-        int dimensions)
+    private int GetFormatSize(
+        int count,
+        int dimensions
+    )
     {
         return sizeof(int) + // Dimensions
                sizeof(int) + // Flags
@@ -137,21 +166,35 @@ internal readonly partial struct PgArrayConverter
         // Element length integers
     }
 
-    public Size GetSize(SizeContext context,
+    public Size GetSize(
+        SizeContext context,
         object values,
-        ref object? writeState)
+        ref object? writeState
+    )
     {
-        var count = elemOps.GetCollectionCount(values,
-            out var lengths);
+        var count = elemOps.GetCollectionCount
+        (
+            values,
+            out var lengths
+        );
         var dimensions = lengths?.Length ?? 1;
         if (dimensions > MaxDimensions)
         {
-            throw new ArgumentException($"Postgres arrays can have at most {MaxDimensions} dimensions.",
-                nameof(values));
+            throw new ArgumentException
+            (
+                $"Postgres arrays can have at most {MaxDimensions} dimensions.",
+                nameof(values)
+            );
         }
 
-        var formatSize = Size.Create(GetFormatSize(count,
-            dimensions));
+        var formatSize = Size.Create
+        (
+            GetFormatSize
+            (
+                count,
+                dimensions
+            )
+        );
         if (count is 0)
         {
             return formatSize;
@@ -161,30 +204,50 @@ internal readonly partial struct PgArrayConverter
         var indices = Indices.Create(dimensions);
         if (bufferRequirements.Write is {Kind: SizeKind.Exact} req)
         {
-            elemsSize = GetFixedElemsSize(req,
+            elemsSize = GetFixedElemsSize
+            (
+                req,
                 values,
                 count,
                 indices,
-                lengths);
-            writeState = new WriteState {Count = count, Indices = indices, Lengths = lengths, ArrayPool = null, Data = default, AnyWriteState = false};
+                lengths
+            );
+            writeState = new WriteState
+            {
+                Count = count,
+                Indices = indices,
+                Lengths = lengths,
+                ArrayPool = null,
+                Data = default,
+                AnyWriteState = false
+            };
         }
         else
         {
             var arrayPool = ArrayPool<(Size, object?)>.Shared;
             var data = ArrayPool<(Size, object?)>.Shared.Rent(count);
-            elemsSize = GetElemsSize(values,
+            elemsSize = GetElemsSize
+            (
+                values,
                 data,
                 out var elemStateDisposable,
                 context.Format,
                 count,
                 indices,
-                lengths);
+                lengths
+            );
             writeState = new WriteState
             {
-                Count = count, Indices = indices, Lengths = lengths,
-                ArrayPool = arrayPool, Data = new ArraySegment<(Size Size, object? WriteState)>(data,
+                Count = count,
+                Indices = indices,
+                Lengths = lengths,
+                ArrayPool = arrayPool,
+                Data = new ArraySegment<(Size Size, object? WriteState)>
+                (
+                    data,
                     0,
-                    count),
+                    count
+                ),
                 AnyWriteState = elemStateDisposable
             };
         }
@@ -192,36 +255,53 @@ internal readonly partial struct PgArrayConverter
         return formatSize.Combine(elemsSize);
     }
 
-    private object ReadDimsAndCreateCollection(PgReader reader,
+    private object ReadDimsAndCreateCollection(
+        PgReader reader,
         int dimensions,
-        out int lastDimLength)
+        out int lastDimLength
+    )
     {
         Debug.Assert(!reader.ShouldBuffer((sizeof(int) + sizeof(int)) * dimensions));
 
         Span<int> dimLengths = stackalloc int[MaxDimensions];
         lastDimLength = 0;
-        for (var i = 0; i < dimensions; i++)
+        for (var i = 0;
+             i < dimensions;
+             i++)
         {
             lastDimLength = reader.ReadInt32();
             _ = reader.ReadInt32(); // Lower bound
             dimLengths[i] = lastDimLength;
         }
 
-        var collection = elemOps.CreateCollection(dimLengths.Slice(0,
-            dimensions));
+        var collection = elemOps.CreateCollection
+        (
+            dimLengths.Slice
+            (
+                0,
+                dimensions
+            )
+        );
         Debug.Assert(dimensions <= 1 || collection is Array a && a.Rank == dimensions);
         return collection;
     }
 
-    public async ValueTask<object> Read(bool async,
+    public async ValueTask<object> Read(
+        bool async,
         PgReader reader,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default
+    )
     {
         if (reader.ShouldBuffer(sizeof(int) + sizeof(int) + sizeof(uint)))
         {
-            await reader.Buffer(async,
-                sizeof(int) + sizeof(int) + sizeof(uint),
-                cancellationToken).ConfigureAwait(false);
+            await reader
+                .Buffer
+                (
+                    async,
+                    sizeof(int) + sizeof(int) + sizeof(uint),
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
         }
 
         var dimensions = reader.ReadInt32();
@@ -235,10 +315,12 @@ internal readonly partial struct PgArrayConverter
 
         if (dimensions is not 0 && expectedDimensions is not null && dimensions != expectedDimensions)
         {
-            throw new InvalidCastException(
+            throw new InvalidCastException
+            (
                 $"Cannot read an array value with {dimensions} dimension{(dimensions == 1 ? "" : "s")} into a "
                 + $"collection type with {expectedDimensions} dimension{(expectedDimensions == 1 ? "" : "s")}. "
-                + $"Call GetValue or a version of GetFieldValue<TElement[,,,]> with the commas being the expected amount of dimensions.");
+                + $"Call GetValue or a version of GetFieldValue<TElement[,,,]> with the commas being the expected amount of dimensions."
+            );
         }
 
         if (containsNulls && !ElemTypeDbNullable)
@@ -249,54 +331,82 @@ internal readonly partial struct PgArrayConverter
         // Make sure we can read length + lower bound N dimension times.
         if (reader.ShouldBuffer((sizeof(int) + sizeof(int)) * dimensions))
         {
-            await reader.Buffer(async,
-                (sizeof(int) + sizeof(int)) * dimensions,
-                cancellationToken).ConfigureAwait(false);
+            await reader
+                .Buffer
+                (
+                    async,
+                    (sizeof(int) + sizeof(int)) * dimensions,
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
         }
 
-        var collection = ReadDimsAndCreateCollection(reader,
+        var collection = ReadDimsAndCreateCollection
+        (
+            reader,
             dimensions,
-            out var lastDimLength);
+            out var lastDimLength
+        );
         if (dimensions is 0 || lastDimLength is 0)
         {
             return collection;
         }
 
-        _ = elemOps.GetCollectionCount(collection,
-            out var dimLengths);
+        _ = elemOps.GetCollectionCount
+        (
+            collection,
+            out var dimLengths
+        );
         var indices = Indices.Create(dimensions);
 
         do
         {
             if (reader.ShouldBuffer(sizeof(int)))
             {
-                await reader.Buffer(async,
-                    sizeof(int),
-                    cancellationToken).ConfigureAwait(false);
+                await reader
+                    .Buffer
+                    (
+                        async,
+                        sizeof(int),
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false);
             }
 
             var length = reader.ReadInt32();
             var isDbNull = length == -1;
             if (!isDbNull)
             {
-                var scope = await reader.BeginNestedRead(async,
-                    length,
-                    bufferRequirements.Read,
-                    cancellationToken).ConfigureAwait(false);
+                var scope = await reader
+                    .BeginNestedRead
+                    (
+                        async,
+                        length,
+                        bufferRequirements.Read,
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false);
                 try
                 {
-                    await elemOps.Read(async,
-                        reader,
-                        isDbNull,
-                        collection,
-                        indices,
-                        cancellationToken).ConfigureAwait(false);
+                    await elemOps
+                        .Read
+                        (
+                            async,
+                            reader,
+                            isDbNull,
+                            collection,
+                            indices,
+                            cancellationToken
+                        )
+                        .ConfigureAwait(false);
                 }
                 finally
                 {
                     if (async)
                     {
-                        await scope.DisposeAsync().ConfigureAwait(false);
+                        await scope
+                            .DisposeAsync()
+                            .ConfigureAwait(false);
                     }
                     else
                     {
@@ -306,36 +416,51 @@ internal readonly partial struct PgArrayConverter
             }
             else
             {
-                await elemOps.Read(async,
-                    reader,
-                    isDbNull,
-                    collection,
-                    indices,
-                    cancellationToken).ConfigureAwait(false);
+                await elemOps
+                    .Read
+                    (
+                        async,
+                        reader,
+                        isDbNull,
+                        collection,
+                        indices,
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false);
             }
         }
         // We can immediately continue if we didn't reach the end of the last dimension.
-        while (++indices.GetItem(indices.Count - 1) < lastDimLength || dimLengths is not null && CarryIndices(dimLengths,
-                   indices));
+        while (++indices.GetItem(indices.Count - 1) < lastDimLength || dimLengths is not null && CarryIndices
+               (
+                   dimLengths,
+                   indices
+               ));
 
         return collection;
     }
 
-    private static bool CarryIndices(int[] lengths,
-        Indices indices)
+    private static bool CarryIndices(
+        int[] lengths,
+        Indices indices
+    )
     {
         Debug.Assert(lengths.Length > 1);
         Debug.Assert(indices.Count > 1);
 
         // Find the first dimension from the end that isn't at or past its length, increment it and bring all previous dimensions to zero.
-        for (var dim = indices.Count - 1; dim >= 0; dim--)
+        for (var dim = indices.Count - 1;
+             dim >= 0;
+             dim--)
         {
             if (indices.GetItem(dim) >= lengths[dim] - 1)
             {
                 continue;
             }
 
-            indices.Many.AsSpan().Slice(dim + 1).Clear();
+            indices
+                .Many.AsSpan()
+                .Slice(dim + 1)
+                .Clear();
             indices.GetItem(dim)++;
             return true;
         }
@@ -344,10 +469,12 @@ internal readonly partial struct PgArrayConverter
         return false;
     }
 
-    public async ValueTask Write(bool async,
+    public async ValueTask Write(
+        bool async,
         PgWriter writer,
         object values,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         var (count, dims, state) = writer.Current.WriteState switch
         {
@@ -356,17 +483,30 @@ internal readonly partial struct PgArrayConverter
             _                     => throw new InvalidCastException($"Invalid write state, expected {typeof(WriteState).FullName}.")
         };
 
-        if (writer.ShouldFlush(GetFormatSize(count,
-                dims)))
+        if (writer.ShouldFlush
+            (
+                GetFormatSize
+                (
+                    count,
+                    dims
+                )
+            ))
         {
-            await writer.Flush(async,
-                cancellationToken).ConfigureAwait(false);
+            await writer
+                .Flush
+                (
+                    async,
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
         }
 
         writer.WriteInt32(dims); // Dimensions
         writer.WriteInt32(0); // Flags (not really used)
         writer.WriteAsOid(elemTypeId);
-        for (var dim = 0; dim < dims; dim++)
+        for (var dim = 0;
+             dim < dims;
+             dim++)
         {
             writer.WriteInt32(state?.Lengths?[dim] ?? count);
             writer.WriteInt32(pgLowerBound); // Lower bound
@@ -384,9 +524,12 @@ internal readonly partial struct PgArrayConverter
         var indices = state.Indices;
         if (indices.Many is not null)
         {
-            Array.Clear(indices.Many,
+            Array.Clear
+            (
+                indices.Many,
                 0,
-                indices.Many.Length);
+                indices.Many.Length
+            );
         }
         var lastLength = state.Lengths?[^1] ?? state.Count;
         var i = state.Data.Offset;
@@ -394,13 +537,21 @@ internal readonly partial struct PgArrayConverter
         {
             if (writer.ShouldFlush(sizeof(int)))
             {
-                await writer.Flush(async,
-                    cancellationToken).ConfigureAwait(false);
+                await writer
+                    .Flush
+                    (
+                        async,
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false);
             }
 
             var elem = elemData?[i++];
-            var size = elem?.Size ?? (elemTypeDbNullable && IsDbNull(values,
-                indices)
+            var size = elem?.Size ?? (elemTypeDbNullable && IsDbNull
+            (
+                values,
+                indices
+            )
                 ? -1
                 : bufferRequirements.Write);
             if (size.Kind is SizeKind.Unknown)
@@ -412,21 +563,34 @@ internal readonly partial struct PgArrayConverter
             writer.WriteInt32(length);
             if (length != -1)
             {
-                using var _ = await writer.BeginNestedWrite(async,
-                    bufferRequirements.Write,
-                    length,
-                    elem?.WriteState,
-                    cancellationToken).ConfigureAwait(false);
-                await elemOps.Write(async,
-                    writer,
-                    values,
-                    indices,
-                    cancellationToken).ConfigureAwait(false);
+                using var _ = await writer
+                    .BeginNestedWrite
+                    (
+                        async,
+                        bufferRequirements.Write,
+                        length,
+                        elem?.WriteState,
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false);
+                await elemOps
+                    .Write
+                    (
+                        async,
+                        writer,
+                        values,
+                        indices,
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false);
             }
         }
         // We can immediately continue if we didn't reach the end of the last dimension.
-        while (++indices.GetItem(indices.Count - 1) < lastLength || state.Lengths is not null && CarryIndices(state.Lengths,
-                   indices));
+        while (++indices.GetItem(indices.Count - 1) < lastLength || state.Lengths is not null && CarryIndices
+               (
+                   state.Lengths,
+                   indices
+               ));
     }
 
 

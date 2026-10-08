@@ -6,7 +6,10 @@ namespace Mpgsql;
 public sealed class MpgsqlTransaction : DbTransaction
 {
     private readonly MpgsqlConnection _connection;
-    private bool _ended, _ending;
+
+    private bool _ended,
+        _ending;
+
     internal MpgsqlTransaction(MpgsqlConnection connection, IsolationLevel isolation)
     {
         (_connection, IsolationLevel) = (connection, isolation);
@@ -86,7 +89,8 @@ public sealed class MpgsqlTransaction : DbTransaction
     {
         if (!_ended)
         {
-            await RollbackAsync().ConfigureAwait(false);
+            await RollbackAsync()
+                .ConfigureAwait(false);
         }
         GC.SuppressFinalize(this);
     }

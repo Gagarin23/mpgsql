@@ -10,28 +10,59 @@ public sealed class NumericDigitSimdTests
     [Theory, InlineData(0), InlineData(1), InlineData(7), InlineData(8), InlineData(9), InlineData(15), InlineData(16), InlineData(17), InlineData(256), InlineData(4096)]
     public void NumericDigitsKeepExactWireBytesWithReusableAndSegmentedStorage(int count)
     {
-        var digits = Enumerable.Range(0, count).Select(i => (ushort)(i * 7919 % 10000)).ToArray();
+        var digits = Enumerable
+            .Range(0, count)
+            .Select(i => (ushort)(i * 7919 % 10000))
+            .ToArray();
         var value = new PgNumeric(123, 37, PgNumericSign.Negative, digits);
         var expected = new byte[8 + 2 * count];
         BinaryPrimitives.WriteUInt16BigEndian(expected, (ushort)count);
         BinaryPrimitives.WriteInt16BigEndian(expected.AsSpan(2), 123);
         BinaryPrimitives.WriteUInt16BigEndian(expected.AsSpan(4), 0x4000);
         BinaryPrimitives.WriteUInt16BigEndian(expected.AsSpan(6), 37);
-        for (var i = 0; i < count; i++)
+        for (var i = 0;
+             i < count;
+             i++)
         {
             BinaryPrimitives.WriteUInt16BigEndian(expected.AsSpan(8 + 2 * i), digits[i]);
         }
-        var bytes = Enumerable.Repeat((byte)0xcc, expected.Length + 18).ToArray();
+        var bytes = Enumerable
+            .Repeat((byte)0xcc, expected.Length + 18)
+            .ToArray();
         Assert.Equal(expected.Length, NumericConverter.Write(value, bytes.AsSpan(1)));
-        Assert.Equal(expected, bytes.AsSpan(1, expected.Length).ToArray());
+        Assert.Equal
+        (
+            expected, bytes
+                .AsSpan(1, expected.Length)
+                .ToArray()
+        );
         Assert.Equal((byte)0xcc, bytes[0]);
         Assert.All(bytes[(1 + expected.Length)..], b => Assert.Equal((byte)0xcc, b));
         var output = new ushort[count + 1];
         output[^1] = 12345;
-        Assert.Equal(digits, NumericConverter.Read(bytes.AsSpan(1, expected.Length), output.AsMemory()).Digits.ToArray());
+        Assert.Equal
+        (
+            digits, NumericConverter
+                .Read(bytes.AsSpan(1, expected.Length), output.AsMemory())
+                .Digits.ToArray()
+        );
         Assert.Equal((ushort)12345, output[^1]);
-        Assert.Equal(digits, NumericConverter.Read(expected).Digits.ToArray());
-        var splits = count <= 17 ? Enumerable.Range(0, expected.Length + 1) : new[] {1, 7, 8, 9, 4095};
+        Assert.Equal
+        (
+            digits, NumericConverter
+                .Read(expected)
+                .Digits.ToArray()
+        );
+        var splits = count <= 17
+            ? Enumerable.Range(0, expected.Length + 1)
+            : new[]
+            {
+                1,
+                7,
+                8,
+                9,
+                4095
+            };
         foreach (var split in splits)
         {
             if (split > expected.Length)
@@ -39,13 +70,38 @@ public sealed class NumericDigitSimdTests
                 continue;
             }
             var sequence = TestWire.Chunks(expected.AsMemory(0, split), expected.AsMemory(split));
-            Assert.Equal(digits, NumericConverter.Read(sequence).Digits.ToArray());
-            Assert.Equal(digits, NumericConverter.Read(sequence, output.AsMemory()).Digits.ToArray());
+            Assert.Equal
+            (
+                digits, NumericConverter
+                    .Read(sequence)
+                    .Digits.ToArray()
+            );
+            Assert.Equal
+            (
+                digits, NumericConverter
+                    .Read(sequence, output.AsMemory())
+                    .Digits.ToArray()
+            );
         }
-        Assert.Equal(digits, NumericConverter.Read(TestWire.ByteSegments(expected), output.AsMemory()).Digits.ToArray());
+        Assert.Equal
+        (
+            digits, NumericConverter
+                .Read(TestWire.ByteSegments(expected), output.AsMemory())
+                .Digits.ToArray()
+        );
 
-        foreach (var i in Enumerable.Range(0, Math.Min(count, 17)).Append(count - 1).Where(i => i >= 0).Distinct())
-        foreach (var invalid in new ushort[] {10000, 32767, 32768, ushort.MaxValue})
+        foreach (var i in Enumerable
+                     .Range(0, Math.Min(count, 17))
+                     .Append(count - 1)
+                     .Where(i => i >= 0)
+                     .Distinct())
+        foreach (var invalid in new ushort[]
+                 {
+                     10000,
+                     32767,
+                     32768,
+                     ushort.MaxValue
+                 })
         {
             var bad = expected.ToArray();
             BinaryPrimitives.WriteUInt16BigEndian(bad.AsSpan(8 + i * 2), invalid);

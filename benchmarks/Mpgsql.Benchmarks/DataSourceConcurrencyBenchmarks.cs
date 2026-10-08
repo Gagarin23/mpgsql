@@ -14,8 +14,11 @@ public class DataSourceConcurrencyBenchmarks
     public async Task Setup()
     {
         _profile = QueryLoadProfile.Find(Profile);
-        _fixture = await QuerySourceFixture.CreateAsync(_profile.CreateCatalog(),
-            _profile.Connections, _profile.InFlight, _profile.RowBudget);
+        _fixture = await QuerySourceFixture.CreateAsync
+        (
+            _profile.CreateCatalog(),
+            _profile.Connections, _profile.InFlight, _profile.RowBudget
+        );
         await FixedWorkers();
         _fixture.CheckIdle();
     }
@@ -24,13 +27,20 @@ public class DataSourceConcurrencyBenchmarks
     public async Task<long> FixedWorkers()
     {
         var workers = new Task<long>[_profile.Callers];
-        for (var worker = 0; worker < workers.Length; worker++)
+        for (var worker = 0;
+             worker < workers.Length;
+             worker++)
         {
             workers[worker] = WorkAsync(worker);
         }
-        var checksums = await Task.WhenAll(workers).ConfigureAwait(false);
+        var checksums = await Task
+            .WhenAll(workers)
+            .ConfigureAwait(false);
         long checksum = 0;
-        foreach (var value in checksums) checksum += value;
+        foreach (var value in checksums)
+        {
+            checksum += value;
+        }
         return checksum;
     }
     private async Task<long> WorkAsync(int worker)
@@ -38,15 +48,21 @@ public class DataSourceConcurrencyBenchmarks
         var slow = _profile.Mixed && worker % 8 == 0;
         var scenario = slow ? QueryScenario.Slow : QueryScenario.One;
         long checksum = 0;
-        for (var i = worker; i < 256; i += _profile.Callers)
+        for (var i = worker;
+             i < 256;
+             i += _profile.Callers)
         {
             if (slow)
             {
-                checksum += await QueryOperations.SlowAsync(_fixture, worker).ConfigureAwait(false);
+                checksum += await QueryOperations
+                    .SlowAsync(_fixture, worker)
+                    .ConfigureAwait(false);
             }
             else
             {
-                checksum += await QueryOperations.DataSourceAsync(_fixture, scenario, worker).ConfigureAwait(false);
+                checksum += await QueryOperations
+                    .DataSourceAsync(_fixture, scenario, worker)
+                    .ConfigureAwait(false);
             }
         }
         return checksum;

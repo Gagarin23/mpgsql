@@ -10,13 +10,19 @@ public readonly struct ParseMessage : IFrontendMessage<ParseMessage>
     }
     public int Write(Span<byte> destination)
     {
-        return FrontendMessageWriter.Write(in this,
-            destination);
+        return FrontendMessageWriter.Write
+        (
+            in this,
+            destination
+        );
     }
     public void Write(IBufferWriter<byte> destination)
     {
-        FrontendMessageWriter.Write(in this,
-            destination);
+        FrontendMessageWriter.Write
+        (
+            in this,
+            destination
+        );
     }
 
     private readonly string _statement;
@@ -26,13 +32,18 @@ public readonly struct ParseMessage : IFrontendMessage<ParseMessage>
     public byte? Type => (byte)'P';
     public FrontendMessageKind Kind => FrontendMessageKind.Parse;
 
-    internal ParseMessage(string query,
+    internal ParseMessage(
+        string query,
         string statement,
-        ReadOnlyMemory<uint> parameterTypes)
+        ReadOnlyMemory<uint> parameterTypes
+    )
     {
         FrontendSize.Count(parameterTypes.Length);
-        _byteCount = FrontendSize.Packet(checked(WireEncoding.CStringLength(statement) +
-                                                 WireEncoding.CStringLength(query) + 2 + 4 * parameterTypes.Length));
+        _byteCount = FrontendSize.Packet
+        (
+            checked(WireEncoding.CStringLength(statement) +
+                    WireEncoding.CStringLength(query) + 2 + 4 * parameterTypes.Length)
+        );
         _statement = statement;
         _query = query;
         _parameterTypes = parameterTypes;
@@ -46,15 +57,19 @@ public readonly struct ParseMessage : IFrontendMessage<ParseMessage>
     {
         return FrontendSize.Initialized(message._byteCount);
     }
-    static void IFrontendMessage<ParseMessage>.WritePayload(in ParseMessage message,
-        Span<byte> destination)
+    static void IFrontendMessage<ParseMessage>.WritePayload(
+        in ParseMessage message,
+        Span<byte> destination
+    )
     {
         var writer = new WireWriter(destination);
         writer.CString(message._statement);
         writer.CString(message._query);
         writer.Count(message._parameterTypes.Length);
         foreach (var oid in message._parameterTypes.Span)
+        {
             writer.UInt32(oid);
+        }
     }
 }
 
@@ -67,13 +82,19 @@ public readonly struct BindMessage : IFrontendMessage<BindMessage>
     }
     public int Write(Span<byte> destination)
     {
-        return FrontendMessageWriter.Write(in this,
-            destination);
+        return FrontendMessageWriter.Write
+        (
+            in this,
+            destination
+        );
     }
     public void Write(IBufferWriter<byte> destination)
     {
-        FrontendMessageWriter.Write(in this,
-            destination);
+        FrontendMessageWriter.Write
+        (
+            in this,
+            destination
+        );
     }
 
     private readonly string _portal;
@@ -85,17 +106,25 @@ public readonly struct BindMessage : IFrontendMessage<BindMessage>
     public byte? Type => (byte)'B';
     public FrontendMessageKind Kind => FrontendMessageKind.Bind;
 
-    internal BindMessage(string portal,
+    internal BindMessage(
+        string portal,
         string statement,
         ReadOnlyMemory<ReadOnlyMemory<byte>?> parameters,
         ReadOnlyMemory<FormatCode> parameterFormats,
-        ReadOnlyMemory<FormatCode> resultFormats)
+        ReadOnlyMemory<FormatCode> resultFormats
+    )
     {
-        FrontendSize.ParameterFormats(parameterFormats.Length,
-            parameters.Length);
-        _byteCount = FrontendSize.Packet(checked(WireEncoding.CStringLength(portal) +
-                                                 WireEncoding.CStringLength(statement) + FrontendSize.Formats(parameterFormats.Span) +
-                                                 FrontendSize.Values(parameters.Span) + FrontendSize.Formats(resultFormats.Span)));
+        FrontendSize.ParameterFormats
+        (
+            parameterFormats.Length,
+            parameters.Length
+        );
+        _byteCount = FrontendSize.Packet
+        (
+            checked(WireEncoding.CStringLength(portal) +
+                    WireEncoding.CStringLength(statement) + FrontendSize.Formats(parameterFormats.Span) +
+                    FrontendSize.Values(parameters.Span) + FrontendSize.Formats(resultFormats.Span))
+        );
         _portal = portal;
         _statement = statement;
         _parameters = parameters;
@@ -111,8 +140,10 @@ public readonly struct BindMessage : IFrontendMessage<BindMessage>
     {
         return FrontendSize.Initialized(message._byteCount);
     }
-    static void IFrontendMessage<BindMessage>.WritePayload(in BindMessage message,
-        Span<byte> destination)
+    static void IFrontendMessage<BindMessage>.WritePayload(
+        in BindMessage message,
+        Span<byte> destination
+    )
     {
         var writer = new WireWriter(destination);
         writer.CString(message._portal);
@@ -131,13 +162,19 @@ public readonly struct FunctionCallMessage : IFrontendMessage<FunctionCallMessag
     }
     public int Write(Span<byte> destination)
     {
-        return FrontendMessageWriter.Write(in this,
-            destination);
+        return FrontendMessageWriter.Write
+        (
+            in this,
+            destination
+        );
     }
     public void Write(IBufferWriter<byte> destination)
     {
-        FrontendMessageWriter.Write(in this,
-            destination);
+        FrontendMessageWriter.Write
+        (
+            in this,
+            destination
+        );
     }
 
     private readonly uint _functionOid;
@@ -148,16 +185,24 @@ public readonly struct FunctionCallMessage : IFrontendMessage<FunctionCallMessag
     public byte? Type => (byte)'F';
     public FrontendMessageKind Kind => FrontendMessageKind.FunctionCall;
 
-    internal FunctionCallMessage(uint functionOid,
+    internal FunctionCallMessage(
+        uint functionOid,
         ReadOnlyMemory<ReadOnlyMemory<byte>?> arguments,
         ReadOnlyMemory<FormatCode> argumentFormats,
-        FormatCode resultFormat)
+        FormatCode resultFormat
+    )
     {
-        FrontendSize.ParameterFormats(argumentFormats.Length,
-            arguments.Length);
+        FrontendSize.ParameterFormats
+        (
+            argumentFormats.Length,
+            arguments.Length
+        );
         FrontendSize.Format(resultFormat);
-        _byteCount = FrontendSize.Packet(checked(4 + FrontendSize.Formats(argumentFormats.Span) +
-                                                 FrontendSize.Values(arguments.Span) + 2));
+        _byteCount = FrontendSize.Packet
+        (
+            checked(4 + FrontendSize.Formats(argumentFormats.Span) +
+                    FrontendSize.Values(arguments.Span) + 2)
+        );
         _functionOid = functionOid;
         _arguments = arguments;
         _argumentFormats = argumentFormats;
@@ -172,8 +217,10 @@ public readonly struct FunctionCallMessage : IFrontendMessage<FunctionCallMessag
     {
         return FrontendSize.Initialized(message._byteCount);
     }
-    static void IFrontendMessage<FunctionCallMessage>.WritePayload(in FunctionCallMessage message,
-        Span<byte> destination)
+    static void IFrontendMessage<FunctionCallMessage>.WritePayload(
+        in FunctionCallMessage message,
+        Span<byte> destination
+    )
     {
         var writer = new WireWriter(destination);
         writer.UInt32(message._functionOid);

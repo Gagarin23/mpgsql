@@ -49,7 +49,9 @@ internal class MultiWriteState : IDisposable
 
         if (AnyWriteState)
         {
-            for (var i = Data.Offset; i < array.Length; i++)
+            for (var i = Data.Offset;
+                 i < array.Length;
+                 i++)
             {
                 if (array[i].WriteState is IDisposable disposable)
                 {
@@ -57,9 +59,12 @@ internal class MultiWriteState : IDisposable
                 }
             }
 
-            Array.Clear(Data.Array,
+            Array.Clear
+            (
+                Data.Array,
                 Data.Offset,
-                Data.Count);
+                Data.Count
+            );
         }
 
         ArrayPool?.Return(Data.Array);

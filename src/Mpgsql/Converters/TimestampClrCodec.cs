@@ -19,10 +19,14 @@ internal readonly struct TimestampClrCodec : IBinaryCodec<DateTime>
     }
     public static DateTime Read(ReadOnlySpan<byte> payload)
     {
-        return TimestampCodec.Read(payload).ToDateTime();
+        return TimestampCodec
+            .Read(payload)
+            .ToDateTime();
     }
     public static DateTime Read(ReadOnlySequence<byte> payload)
     {
-        return TimestampCodec.Read(payload).ToDateTime();
+        return TimestampCodec
+            .Read(payload)
+            .ToDateTime();
     }
 }

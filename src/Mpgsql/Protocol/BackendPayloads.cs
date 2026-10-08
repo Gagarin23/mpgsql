@@ -61,8 +61,10 @@ public readonly struct DataRow
     private readonly ReadOnlySequence<byte> _values;
     public int Count { get; }
 
-    internal DataRow(int count,
-        ReadOnlySequence<byte> values)
+    internal DataRow(
+        int count,
+        ReadOnlySequence<byte> values
+    )
     {
         Count = count;
         _values = values;
@@ -70,8 +72,11 @@ public readonly struct DataRow
 
     public Enumerator GetEnumerator()
     {
-        return new Enumerator(Count,
-            _values);
+        return new Enumerator
+        (
+            Count,
+            _values
+        );
     }
 
     public ref struct Enumerator
@@ -80,8 +85,10 @@ public readonly struct DataRow
         private int _remaining;
         public ReadOnlySequence<byte>? Current { get; private set; }
 
-        internal Enumerator(int count,
-            ReadOnlySequence<byte> values)
+        internal Enumerator(
+            int count,
+            ReadOnlySequence<byte> values
+        )
         {
             _reader = new WireReader(values);
             _remaining = count;

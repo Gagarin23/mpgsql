@@ -9,9 +9,15 @@ public sealed class ConverterBenchmarkConfig : ManualConfig
 {
     public ConverterBenchmarkConfig()
     {
-        AddJob(Job.Default.WithWarmupCount(3).WithIterationCount(8)
-            .WithIterationTime(TimeInterval.FromMilliseconds(150))
-            .DontEnforcePowerPlan().WithId("Converters"));
+        AddJob
+        (
+            Job
+                .Default.WithWarmupCount(3)
+                .WithIterationCount(8)
+                .WithIterationTime(TimeInterval.FromMilliseconds(150))
+                .DontEnforcePowerPlan()
+                .WithId("Converters")
+        );
     }
 }
 
@@ -25,7 +31,9 @@ public class ConverterScalarBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _case = ConverterCatalog.Get(Case).Create(1, 0);
+        _case = ConverterCatalog
+            .Get(Case)
+            .Create(1, 0);
     }
     [GlobalCleanup]
     public void Cleanup()
@@ -67,7 +75,9 @@ public class ConverterArrayBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _case = ConverterCatalog.Get(Case).Create(Count, 0);
+        _case = ConverterCatalog
+            .Get(Case)
+            .Create(Count, 0);
     }
     [GlobalCleanup]
     public void Cleanup()
@@ -98,7 +108,13 @@ public class ConverterArrayBenchmarks
     internal static int[] ArrayCounts()
     {
         var setting = Environment.GetEnvironmentVariable("MPGSQL_BENCHMARK_ARRAY_COUNTS");
-        var counts = setting is null ? [256] : setting.Split(',').Select(int.Parse).Distinct().ToArray();
+        var counts = setting is null
+            ? [256]
+            : setting
+                .Split(',')
+                .Select(int.Parse)
+                .Distinct()
+                .ToArray();
         if (counts.Length == 0 || counts.Any(c => c < 0))
         {
             throw new ArgumentException("Invalid array benchmark counts.");
@@ -120,7 +136,9 @@ public class ConverterNullableArrayBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _case = ConverterCatalog.Get(Case).Create(Count, 8);
+        _case = ConverterCatalog
+            .Get(Case)
+            .Create(Count, 8);
     }
     [GlobalCleanup]
     public void Cleanup()

@@ -40,8 +40,11 @@ internal static class BinaryPayload
         {
             return default;
         }
-        return MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(source)),
-            checked(source.Length * Unsafe.SizeOf<T>()));
+        return MemoryMarshal.CreateReadOnlySpan
+        (
+            ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(source)),
+            checked(source.Length * Unsafe.SizeOf<T>())
+        );
     }
 
     internal static Span<byte> StorageBytes<T>(Span<T> destination)
@@ -50,8 +53,11 @@ internal static class BinaryPayload
         {
             return default;
         }
-        return MemoryMarshal.CreateSpan(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(destination)),
-            checked(destination.Length * Unsafe.SizeOf<T>()));
+        return MemoryMarshal.CreateSpan
+        (
+            ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(destination)),
+            checked(destination.Length * Unsafe.SizeOf<T>())
+        );
     }
 
     internal static void RequireSeparate<T>(ReadOnlySequence<byte> source, Span<T> destination)
@@ -61,7 +67,10 @@ internal static class BinaryPayload
         {
             return;
         }
-        foreach (var segment in source) RequireSeparate(segment.Span, output);
+        foreach (var segment in source)
+        {
+            RequireSeparate(segment.Span, output);
+        }
     }
 
     // For small split fixed fields only; never consolidates a variable-sized payload.
@@ -84,7 +93,9 @@ internal static class BinaryPayload
         ulong result = 0;
         foreach (var segment in payload)
         foreach (var part in segment.Span)
+        {
             result = result << 8 | part;
+        }
         return result;
     }
 }

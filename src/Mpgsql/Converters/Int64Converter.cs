@@ -28,47 +28,70 @@ public static class Int64Converter
 
     /// <summary>Writes eight bytes and returns the number written.</summary>
     /// <remarks>Insufficient capacity throws ArgumentException before changing the destination.</remarks>
-    public static int Write(long value,
-        Span<byte> destination)
+    public static int Write(
+        long value,
+        Span<byte> destination
+    )
     {
-        if (!BinaryPrimitives.TryWriteInt64BigEndian(destination,
-                value))
+        if (!BinaryPrimitives.TryWriteInt64BigEndian
+            (
+                destination,
+                value
+            ))
         {
-            throw new ArgumentException("The destination is too small for the bigint payload.",
-                nameof(destination));
+            throw new ArgumentException
+            (
+                "The destination is too small for the bigint payload.",
+                nameof(destination)
+            );
         }
         return ByteCount;
     }
 
     /// <summary>Writes a value, or leaves the destination unchanged and returns zero for NULL.</summary>
-    public static int Write(long? value,
-        Span<byte> destination)
+    public static int Write(
+        long? value,
+        Span<byte> destination
+    )
     {
         return value.HasValue
-            ? Write(value.GetValueOrDefault(),
-                destination)
+            ? Write
+            (
+                value.GetValueOrDefault(),
+                destination
+            )
             : 0;
     }
 
     /// <summary>Reserves and advances exactly eight payload bytes.</summary>
-    public static void Write(long value,
-        IBufferWriter<byte> destination)
+    public static void Write(
+        long value,
+        IBufferWriter<byte> destination
+    )
     {
         ArgumentNullException.ThrowIfNull(destination);
-        Write(value,
-            destination.GetSpan(ByteCount));
+        Write
+        (
+            value,
+            destination.GetSpan(ByteCount)
+        );
         destination.Advance(ByteCount);
     }
 
     /// <summary>Writes a value with one reservation; NULL neither reserves nor advances.</summary>
-    public static void Write(long? value,
-        IBufferWriter<byte> destination)
+    public static void Write(
+        long? value,
+        IBufferWriter<byte> destination
+    )
     {
         ArgumentNullException.ThrowIfNull(destination);
         if (value.HasValue)
         {
-            Write(value.GetValueOrDefault(),
-                destination);
+            Write
+            (
+                value.GetValueOrDefault(),
+                destination
+            );
         }
     }
 
@@ -98,7 +121,9 @@ public static class Int64Converter
         long result = 0;
         foreach (var segment in payload)
         foreach (var part in segment.Span)
+        {
             result = result << 8 | part;
+        }
         return result;
     }
 

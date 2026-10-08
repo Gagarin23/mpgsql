@@ -11,7 +11,12 @@ public sealed class MpgsqlCommand : DbCommand
 {
     private readonly Lock _gate = new Lock();
     private readonly MpgsqlDataSource? _source;
-    private bool _busy, _disposed, _design, _timeoutSet;
+
+    private bool _busy,
+        _disposed,
+        _design,
+        _timeoutSet;
+
     private MpgsqlConnection? _connection;
     private QueryExecution? _execution;
     private string _sql = "";
@@ -225,15 +230,18 @@ public sealed class MpgsqlCommand : DbCommand
     }
     protected override async Task<DbDataReader> ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
     {
-        return await ExecuteReaderValueTaskAsync(behavior, cancellationToken).ConfigureAwait(false);
+        return await ExecuteReaderValueTaskAsync(behavior, cancellationToken)
+            .ConfigureAwait(false);
     }
     public async new Task<MpgsqlDataReader> ExecuteReaderAsync(CancellationToken cancellationToken = default)
     {
-        return await ExecuteReaderValueTaskAsync(CommandBehavior.Default, cancellationToken).ConfigureAwait(false);
+        return await ExecuteReaderValueTaskAsync(CommandBehavior.Default, cancellationToken)
+            .ConfigureAwait(false);
     }
     public async new Task<MpgsqlDataReader> ExecuteReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken = default)
     {
-        return await ExecuteReaderValueTaskAsync(behavior, cancellationToken).ConfigureAwait(false);
+        return await ExecuteReaderValueTaskAsync(behavior, cancellationToken)
+            .ConfigureAwait(false);
     }
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     public async ValueTask<MpgsqlDataReader> ExecuteReaderValueTaskAsync(CommandBehavior behavior = CommandBehavior.Default, CancellationToken cancellationToken = default)
@@ -246,7 +254,10 @@ public sealed class MpgsqlCommand : DbCommand
         {
             CheckMutable();
             query = new QueryDefinition(_sql, Parameters.Snapshot(), PreparedStatement: _statement);
-            query = query with {EncodedSize = query.Measure()};
+            query = query with
+            {
+                EncodedSize = query.Measure()
+            };
             connection = _connection;
             if (connection is null && _source is null)
             {
@@ -259,7 +270,9 @@ public sealed class MpgsqlCommand : DbCommand
         {
             if (connection is null)
             {
-                connection = await _source!.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+                connection = await _source!
+                    .OpenConnectionAsync(cancellationToken)
+                    .ConfigureAwait(false);
             }
             lock (_gate)
             {
@@ -270,12 +283,27 @@ public sealed class MpgsqlCommand : DbCommand
                 ValidateTransaction(connection);
                 execution = _execution = connection.Start(query, null, cancellationToken, _timeout, Complete, _source is not null);
             }
-            var raw = await execution.OpenReaderAsync().ConfigureAwait(false);
+            var raw = await execution
+                .OpenReaderAsync()
+                .ConfigureAwait(false);
             var reader = new MpgsqlDataReader(raw, execution, connection, behavior);
-            try { reader.Initialize(await raw.ReadAsync().ConfigureAwait(false)); }
+            try
+            {
+                reader.Initialize
+                (
+                    await raw
+                        .ReadAsync()
+                        .ConfigureAwait(false)
+                );
+            }
             catch (Exception error)
             {
-                try { await execution.FinishAsync(true).ConfigureAwait(false); }
+                try
+                {
+                    await execution
+                        .FinishAsync(true)
+                        .ConfigureAwait(false);
+                }
                 catch { }
                 ExceptionDispatchInfo.Throw(execution.Map(error));
             }
@@ -287,7 +315,9 @@ public sealed class MpgsqlCommand : DbCommand
             {
                 if (_source is not null && connection is not null)
                 {
-                    await connection.DisposeAsync().ConfigureAwait(false);
+                    await connection
+                        .DisposeAsync()
+                        .ConfigureAwait(false);
                 }
                 Complete();
             }
@@ -315,20 +345,28 @@ public sealed class MpgsqlCommand : DbCommand
     }
     public override async Task<int> ExecuteNonQueryAsync(CancellationToken cancellationToken)
     {
-        return checked((int)await ExecuteNonQuery64Async(cancellationToken).ConfigureAwait(false));
+        return checked((int)await ExecuteNonQuery64Async(cancellationToken)
+            .ConfigureAwait(false));
     }
     public async ValueTask<long> ExecuteNonQuery64Async(CancellationToken cancellationToken = default)
     {
-        await using var reader = await ExecuteReaderValueTaskAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        await using var reader = await ExecuteReaderValueTaskAsync(cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
         do
         {
-            while (await reader.ReadValueTaskAsync().ConfigureAwait(false)) { }
-        } while (await reader.NextResultValueTaskAsync().ConfigureAwait(false));
+            while (await reader
+                       .ReadValueTaskAsync()
+                       .ConfigureAwait(false)) { }
+        }
+        while (await reader
+                   .NextResultValueTaskAsync()
+                   .ConfigureAwait(false));
         return reader.RecordsAffected64;
     }
     public override async Task<object?> ExecuteScalarAsync(CancellationToken cancellationToken)
     {
-        await using var reader = await ExecuteReaderValueTaskAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        await using var reader = await ExecuteReaderValueTaskAsync(cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
         object? result = null;
         var selected = false;
         do
@@ -336,18 +374,26 @@ public sealed class MpgsqlCommand : DbCommand
             if (!selected && reader.IsRowSet)
             {
                 selected = true;
-                if (await reader.ReadValueTaskAsync().ConfigureAwait(false) && reader.FieldCount != 0)
+                if (await reader
+                        .ReadValueTaskAsync()
+                        .ConfigureAwait(false) && reader.FieldCount != 0)
                 {
                     result = reader.GetValue(0);
                 }
             }
-            while (await reader.ReadValueTaskAsync().ConfigureAwait(false)) { }
-        } while (await reader.NextResultValueTaskAsync().ConfigureAwait(false));
+            while (await reader
+                       .ReadValueTaskAsync()
+                       .ConfigureAwait(false)) { }
+        }
+        while (await reader
+                   .NextResultValueTaskAsync()
+                   .ConfigureAwait(false));
         return result;
     }
     public async ValueTask<MpgsqlScalarResult<T>> ExecuteScalarAsync<T>(CancellationToken cancellationToken = default)
     {
-        await using var reader = await ExecuteReaderValueTaskAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        await using var reader = await ExecuteReaderValueTaskAsync(cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
         MpgsqlScalarResult<T> result = default;
         var selected = false;
         do
@@ -355,13 +401,20 @@ public sealed class MpgsqlCommand : DbCommand
             if (!selected && reader.IsRowSet)
             {
                 selected = true;
-                if (await reader.ReadValueTaskAsync().ConfigureAwait(false) && reader.FieldCount != 0)
+                if (await reader
+                        .ReadValueTaskAsync()
+                        .ConfigureAwait(false) && reader.FieldCount != 0)
                 {
                     result = reader.IsDBNull(0) ? new MpgsqlScalarResult<T>(true, default) : new MpgsqlScalarResult<T>(false, reader.GetFieldValue<T>(0));
                 }
             }
-            while (await reader.ReadValueTaskAsync().ConfigureAwait(false)) { }
-        } while (await reader.NextResultValueTaskAsync().ConfigureAwait(false));
+            while (await reader
+                       .ReadValueTaskAsync()
+                       .ConfigureAwait(false)) { }
+        }
+        while (await reader
+                   .NextResultValueTaskAsync()
+                   .ConfigureAwait(false));
         return result;
     }
     public override async Task PrepareAsync(CancellationToken cancellationToken = default)
@@ -384,7 +437,9 @@ public sealed class MpgsqlCommand : DbCommand
             var values = Parameters.Snapshot();
             new QueryDefinition(_sql, values).Measure();
             var oids = new uint[values.Length];
-            for (var i = 0; i < oids.Length; i++)
+            for (var i = 0;
+                 i < oids.Length;
+                 i++)
             {
                 oids[i] = values.Span[i].PostgresTypeOid;
             }
@@ -397,7 +452,9 @@ public sealed class MpgsqlCommand : DbCommand
             {
                 _execution = connection.StartAdministration([statement], false, cancellationToken, _timeout, static () => { });
             }
-            await _execution.FinishAsync(false, true).ConfigureAwait(false);
+            await _execution
+                .FinishAsync(false, true)
+                .ConfigureAwait(false);
         }
         finally
         {
@@ -438,7 +495,9 @@ public sealed class MpgsqlCommand : DbCommand
             {
                 _execution = connection.StartAdministration([statement], true, cancellationToken, _timeout, static () => { });
             }
-            await _execution.FinishAsync(false, true).ConfigureAwait(false);
+            await _execution
+                .FinishAsync(false, true)
+                .ConfigureAwait(false);
             statement.Dispose();
             lock (_gate)
             {
@@ -471,7 +530,12 @@ public sealed class MpgsqlCommand : DbCommand
     }
     private static async Task ObserveDisposeAsync(QueryExecution execution)
     {
-        try { await execution.FinishAsync(true).ConfigureAwait(false); }
+        try
+        {
+            await execution
+                .FinishAsync(true)
+                .ConfigureAwait(false);
+        }
         catch { }
     }
     public override async ValueTask DisposeAsync()
@@ -488,7 +552,9 @@ public sealed class MpgsqlCommand : DbCommand
         }
         if (execution is not null)
         {
-            await execution.FinishAsync(true).ConfigureAwait(false);
+            await execution
+                .FinishAsync(true)
+                .ConfigureAwait(false);
         }
         GC.SuppressFinalize(this);
     }

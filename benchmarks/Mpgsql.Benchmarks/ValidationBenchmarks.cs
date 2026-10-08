@@ -26,7 +26,9 @@ public class ValidationBenchmarks
         LegacyTextArrayWrite();
         var expected = _output.ToArray();
         TextArrayWrite();
-        if (!expected.AsSpan().SequenceEqual(_output))
+        if (!expected
+                .AsSpan()
+                .SequenceEqual(_output))
         {
             throw new InvalidOperationException("Text array benchmark bytes differ.");
         }
@@ -95,7 +97,9 @@ public class ValidationBenchmarks
 
     private static int LegacyLength(string value)
     {
-        if (value.AsSpan().Contains('\0'))
+        if (value
+            .AsSpan()
+            .Contains('\0'))
         {
             throw new ArgumentException();
         }

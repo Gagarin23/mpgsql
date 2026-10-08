@@ -51,8 +51,11 @@ internal ref struct WireReader(ReadOnlySequence<byte> payload)
         {
             throw new InvalidDataException("Invalid PostgreSQL value length.");
         }
-        var value = _reader.Sequence.Slice(_reader.Position,
-            length);
+        var value = _reader.Sequence.Slice
+        (
+            _reader.Position,
+            length
+        );
         _reader.Advance(length);
         return value;
     }
@@ -87,8 +90,11 @@ internal ref struct WireReader(ReadOnlySequence<byte> payload)
 
     internal ReadOnlySequence<byte> CStringBytes()
     {
-        if (!_reader.TryReadTo(out ReadOnlySequence<byte> value,
-                0))
+        if (!_reader.TryReadTo
+            (
+                out ReadOnlySequence<byte> value,
+                0
+            ))
         {
             throw new InvalidDataException("Unterminated PostgreSQL string.");
         }
@@ -118,8 +124,10 @@ internal ref struct WireReader(ReadOnlySequence<byte> payload)
         return format;
     }
 
-    internal void RequireElements(int count,
-        int minimumSize)
+    internal void RequireElements(
+        int count,
+        int minimumSize
+    )
     {
         if (count < 0 || count > Remaining / minimumSize)
         {

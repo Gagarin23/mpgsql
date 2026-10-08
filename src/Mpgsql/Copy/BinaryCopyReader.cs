@@ -15,13 +15,18 @@ public sealed class BinaryCopyReader
     private readonly int _maxFieldLength;
     private readonly int _maxHeaderExtensionLength;
 
-    public BinaryCopyReader(int columnCount,
+    public BinaryCopyReader(
+        int columnCount,
         int maxFieldLength = BackendMessageReader.DefaultMaxMessageLength,
-        int maxHeaderExtensionLength = 1024 * 1024)
+        int maxHeaderExtensionLength = 1024 * 1024
+    )
     {
         ArgumentOutOfRangeException.ThrowIfNegative(columnCount);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(columnCount,
-            short.MaxValue);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan
+        (
+            columnCount,
+            short.MaxValue
+        );
         ArgumentOutOfRangeException.ThrowIfNegative(maxFieldLength);
         ArgumentOutOfRangeException.ThrowIfNegative(maxHeaderExtensionLength);
         ColumnCount = columnCount;
@@ -71,9 +76,11 @@ public sealed class BinaryCopyReader
         return true;
     }
 
-    public BinaryCopyReadStatus TryReadRow(ref ReadOnlySequence<byte> input,
+    public BinaryCopyReadStatus TryReadRow(
+        ref ReadOnlySequence<byte> input,
         Memory<ReadOnlySequence<byte>?> fields,
-        out BinaryCopyRow row)
+        out BinaryCopyRow row
+    )
     {
         row = default;
         if (!HeaderRead)
@@ -90,9 +97,12 @@ public sealed class BinaryCopyReader
         }
         if (ColumnCount == 1 && input.IsSingleSegment)
         {
-            return TryReadSingleColumn(ref input,
+            return TryReadSingleColumn
+            (
+                ref input,
                 fields,
-                out row);
+                out row
+            );
         }
         var reader = new SequenceReader<byte>(input);
         if (!reader.TryReadBigEndian(out short count))
@@ -115,12 +125,17 @@ public sealed class BinaryCopyReader
         }
         if (fields.Length < count)
         {
-            throw new ArgumentException("Field storage is too small for the COPY row.",
-                nameof(fields));
+            throw new ArgumentException
+            (
+                "Field storage is too small for the COPY row.",
+                nameof(fields)
+            );
         }
 
         var valuesStart = reader.Position;
-        for (var i = 0; i < count; i++)
+        for (var i = 0;
+             i < count;
+             i++)
         {
             if (!reader.TryReadBigEndian(out int length))
             {
@@ -143,13 +158,18 @@ public sealed class BinaryCopyReader
 
         // Validate the complete row before modifying reusable field storage.
         var values = new SequenceReader<byte>(input.Slice(valuesStart));
-        for (var i = 0; i < count; i++)
+        for (var i = 0;
+             i < count;
+             i++)
         {
             values.TryReadBigEndian(out int length);
             fields.Span[i] = length == -1
                 ? null
-                : values.Sequence.Slice(values.Position,
-                    length);
+                : values.Sequence.Slice
+                (
+                    values.Position,
+                    length
+                );
             if (length > 0)
             {
                 values.Advance(length);
@@ -161,9 +181,11 @@ public sealed class BinaryCopyReader
         return BinaryCopyReadStatus.Row;
     }
 
-    private BinaryCopyReadStatus TryReadSingleColumn(ref ReadOnlySequence<byte> input,
+    private BinaryCopyReadStatus TryReadSingleColumn(
+        ref ReadOnlySequence<byte> input,
         Memory<ReadOnlySequence<byte>?> fields,
-        out BinaryCopyRow row)
+        out BinaryCopyRow row
+    )
     {
         row = default;
         var bytes = input.FirstSpan;
@@ -188,8 +210,11 @@ public sealed class BinaryCopyReader
         }
         if (fields.IsEmpty)
         {
-            throw new ArgumentException("Field storage is too small for the COPY row.",
-                nameof(fields));
+            throw new ArgumentException
+            (
+                "Field storage is too small for the COPY row.",
+                nameof(fields)
+            );
         }
         if (bytes.Length < 6)
         {
@@ -200,8 +225,11 @@ public sealed class BinaryCopyReader
         {
             throw new InvalidDataException("Invalid binary COPY field length.");
         }
-        var size = 6L + Math.Max(length,
-            0);
+        var size = 6L + Math.Max
+        (
+            length,
+            0
+        );
         if (bytes.Length < size)
         {
             return BinaryCopyReadStatus.NeedMoreData;
@@ -209,8 +237,11 @@ public sealed class BinaryCopyReader
         // A complete one-field row needs no second validation/indexing pass.
         fields.Span[0] = length == -1
             ? null
-            : input.Slice(6,
-                length);
+            : input.Slice
+            (
+                6,
+                length
+            );
         input = input.Slice(size);
         row = new BinaryCopyRow(fields[..1]);
         RowsRead++;

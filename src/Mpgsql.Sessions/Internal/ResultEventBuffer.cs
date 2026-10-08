@@ -8,7 +8,12 @@ namespace Mpgsql.Internal;
 internal sealed class ResultEventBuffer : IValueTaskSource<bool>
 {
     private readonly Lock _gate = new Lock();
-    private ManualResetValueTaskSourceCore<bool> _available = new ManualResetValueTaskSourceCore<bool> {RunContinuationsAsynchronously = true};
+
+    private ManualResetValueTaskSourceCore<bool> _available = new ManualResetValueTaskSourceCore<bool>
+    {
+        RunContinuationsAsynchronously = true
+    };
+
     private bool _completed;
     private int _count;
     private Exception? _error;
@@ -38,9 +43,11 @@ internal sealed class ResultEventBuffer : IValueTaskSource<bool>
         }
     }
 
-    void IValueTaskSource<bool>.OnCompleted(Action<object?> continuation, object? state,
+    void IValueTaskSource<bool>.OnCompleted(
+        Action<object?> continuation, object? state,
         short token,
-        ValueTaskSourceOnCompletedFlags flags)
+        ValueTaskSourceOnCompletedFlags flags
+    )
     {
         lock (_gate)
         {
@@ -207,8 +214,12 @@ internal sealed class ResultEventBuffer : IValueTaskSource<bool>
         var old = _items!;
         var next = ArrayPool<ResultEvent>.Shared.Rent(checked(old.Length * 2));
         var first = Math.Min(_count, old.Length - _head);
-        old.AsSpan(_head, first).CopyTo(next);
-        old.AsSpan(0, _count - first).CopyTo(next.AsSpan(first));
+        old
+            .AsSpan(_head, first)
+            .CopyTo(next);
+        old
+            .AsSpan(0, _count - first)
+            .CopyTo(next.AsSpan(first));
         Array.Clear(old, _head, first);
         Array.Clear(old, 0, _count - first);
         ArrayPool<ResultEvent>.Shared.Return(old);

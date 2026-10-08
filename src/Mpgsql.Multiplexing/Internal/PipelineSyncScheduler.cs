@@ -17,14 +17,19 @@ internal sealed class PipelineSyncScheduler : IDisposable
     private long _deadline;
     private bool _disposed;
 
-    internal PipelineSyncScheduler(MpgsqlMessageSession session, int size,
-        TimeSpan delay)
+    internal PipelineSyncScheduler(
+        MpgsqlMessageSession session, int size,
+        TimeSpan delay
+    )
     {
         _session = session;
         _size = size;
         _delayTicks = (long)Math.Ceiling(delay.TotalSeconds * Stopwatch.Frequency);
-        _timer = new Timer(static state => ((PipelineSyncScheduler)state!).Tick(), this,
-            Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        _timer = new Timer
+        (
+            static state => ((PipelineSyncScheduler)state!).Tick(), this,
+            Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan
+        );
     }
 
     public void Dispose()
@@ -53,7 +58,8 @@ internal sealed class PipelineSyncScheduler : IDisposable
                 Close();
             }
             var first = _current is null;
-            var group = _current ?? _session.CreateSharedSyncBatch().SyncGroup;
+            var group = _current ?? _session.CreateSharedSyncBatch()
+                .SyncGroup;
             var started = Stopwatch.GetTimestamp();
             OutboundWork work;
             try { work = _session.SendGroupedExecution(batch, group.Boundary, query); }

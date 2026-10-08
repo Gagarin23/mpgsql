@@ -7,8 +7,11 @@ internal sealed class FixedBufferWriter(int capacity) : IBufferWriter<byte>
 {
     private readonly byte[] _buffer = new byte[capacity];
     public int WrittenCount { get; private set; }
-    public ReadOnlySpan<byte> WrittenSpan => _buffer.AsSpan(0,
-        WrittenCount);
+    public ReadOnlySpan<byte> WrittenSpan => _buffer.AsSpan
+    (
+        0,
+        WrittenCount
+    );
 
     public void Advance(int count)
     {
@@ -30,7 +33,8 @@ internal sealed class FixedBufferWriter(int capacity) : IBufferWriter<byte>
 
     public Span<byte> GetSpan(int sizeHint = 0)
     {
-        return GetMemory(sizeHint).Span;
+        return GetMemory(sizeHint)
+            .Span;
     }
 
     public void Reset()

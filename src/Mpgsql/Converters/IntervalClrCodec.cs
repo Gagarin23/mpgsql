@@ -19,10 +19,14 @@ internal readonly struct IntervalClrCodec : IBinaryCodec<TimeSpan>
     }
     public static TimeSpan Read(ReadOnlySpan<byte> payload)
     {
-        return IntervalCodec.Read(payload).ToTimeSpan();
+        return IntervalCodec
+            .Read(payload)
+            .ToTimeSpan();
     }
     public static TimeSpan Read(ReadOnlySequence<byte> payload)
     {
-        return IntervalCodec.Read(payload).ToTimeSpan();
+        return IntervalCodec
+            .Read(payload)
+            .ToTimeSpan();
     }
 }

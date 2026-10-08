@@ -90,7 +90,10 @@ public sealed class MpgsqlBatchCommandCollection : DbBatchCommandCollection
     }
     public override void CopyTo(DbBatchCommand[] array, int arrayIndex)
     {
-        foreach (var command in _items) array[arrayIndex++] = command;
+        foreach (var command in _items)
+        {
+            array[arrayIndex++] = command;
+        }
     }
     public override IEnumerator<DbBatchCommand> GetEnumerator()
     {

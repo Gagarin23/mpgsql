@@ -14,13 +14,25 @@ public sealed class FirstResultTests
         await batch.SendQueryAsync("select second");
         await batch.SendSyncAsync();
         await wire.ReadOutputAsync();
-        var pending = batch.ReadResultsAsync().AsTask();
+        var pending = batch
+            .ReadResultsAsync()
+            .AsTask();
         Assert.False(pending.IsCompleted);
-        await wire.WriteAsync(Join(Begin(20), Row((byte[]?)null), Row(Int64(2)), Command("SELECT 2"),
-            Query(99), Ready()), fragment);
+        await wire.WriteAsync
+        (
+            Join
+            (
+                Begin(20), Row((byte[]?)null), Row(Int64(2)), Command("SELECT 2"),
+                Query(99), Ready()
+            ), fragment
+        );
         await using var reader = await pending.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         Assert.Equal(0, reader.QueryIndex);
-        Assert.Equal(20u, Assert.Single(reader.Columns.ToArray()).DataTypeOid);
+        Assert.Equal
+        (
+            20u, Assert.Single(reader.Columns.ToArray())
+                .DataTypeOid
+        );
         Assert.True(await reader.ReadAsync());
         Assert.True(reader.IsDBNull(0));
         Assert.True(await reader.ReadAsync());
@@ -46,14 +58,25 @@ public sealed class FirstResultTests
         await batch.SendQueryAsync("select rows");
         await batch.SendSyncAsync();
         await wire.ReadOutputAsync();
-        var pending = batch.ReadResultsAsync().AsTask();
-        var writing = wire.WriteAsync(Join(Begin(20), Row(Int64(1)), Row(Int64(2)), Row(Int64(3)),
-            Command("SELECT 3"), Ready()));
+        var pending = batch
+            .ReadResultsAsync()
+            .AsTask();
+        var writing = wire.WriteAsync
+        (
+            Join
+            (
+                Begin(20), Row(Int64(1)), Row(Int64(2)), Row(Int64(3)),
+                Command("SELECT 3"), Ready()
+            )
+        );
         await using var reader = await pending.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         Assert.True(await reader.ReadAsync());
         Assert.Equal(1, reader.GetInt64(0));
         // Disposal must drain the remaining rows and unblock the waiting network reader.
-        await reader.DisposeAsync().AsTask().WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
+        await reader
+            .DisposeAsync()
+            .AsTask()
+            .WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         await writing.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         await batch.DisposeAsync();
         Assert.Equal(0, wire.Session.BufferedRowBytes);
@@ -69,12 +92,19 @@ public sealed class FirstResultTests
         await batch.SendQueryAsync("select failing");
         await batch.SendSyncAsync();
         await wire.ReadOutputAsync();
-        var pending = batch.ReadResultsAsync().AsTask();
+        var pending = batch
+            .ReadResultsAsync()
+            .AsTask();
         await wire.WriteAsync(Error());
         Assert.False(pending.IsCompleted);
         await wire.WriteAsync(Ready());
-        var error = await Assert.ThrowsAsync<MpgsqlServerException>(() => pending.WaitAsync(TestTimeout,
-            TestContext.Current.CancellationToken));
+        var error = await Assert.ThrowsAsync<MpgsqlServerException>
+        (() => pending.WaitAsync
+            (
+                TestTimeout,
+                TestContext.Current.CancellationToken
+            )
+        );
         Assert.Equal(0, error.QueryIndex);
         Assert.Equal(TransactionStatus.Idle, error.TransactionStatus);
         Assert.True(batch.ConsumerDisposed);
@@ -92,10 +122,17 @@ public sealed class FirstResultTests
         await batch.SendQueryAsync("select cancelled");
         await batch.SendSyncAsync();
         await wire.ReadOutputAsync();
-        var pending = batch.ReadResultsAsync().AsTask();
+        var pending = batch
+            .ReadResultsAsync()
+            .AsTask();
         request.Cancel();
-        var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(TestTimeout,
-            TestContext.Current.CancellationToken));
+        var error = await Assert.ThrowsAnyAsync<OperationCanceledException>
+        (() => pending.WaitAsync
+            (
+                TestTimeout,
+                TestContext.Current.CancellationToken
+            )
+        );
         Assert.Equal(request.Token, error.CancellationToken);
         Assert.True(pending.IsCanceled);
         Assert.True(batch.ConsumerDisposed);
@@ -110,11 +147,19 @@ public sealed class FirstResultTests
     {
         await using var wire = new ScriptedSession();
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        var pending = batch.ReadResultsAsync().AsTask();
+        var pending = batch
+            .ReadResultsAsync()
+            .AsTask();
         Assert.False(pending.IsCompleted);
         Assert.False(wire.HasOutput());
         await batch.SendSyncAsync();
-        Assert.Equal(new[] {'S'}, Tags(await wire.ReadOutputAsync()));
+        Assert.Equal
+        (
+            new[]
+            {
+                'S'
+            }, Tags(await wire.ReadOutputAsync())
+        );
         await wire.WriteAsync(Ready());
         await using var reader = await pending.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         Assert.Equal(-1, reader.QueryIndex);
@@ -132,14 +177,19 @@ public sealed class FirstResultTests
         await batch.SendQueryAsync("select one");
         await batch.SendSyncAsync();
         await wire.ReadOutputAsync();
-        var pending = batch.ReadResultsAsync().AsTask();
+        var pending = batch
+            .ReadResultsAsync()
+            .AsTask();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var release = new ManualResetEventSlim();
-        var callback = pending.ContinueWith(_ =>
-        {
-            entered.TrySetResult();
-            Assert.True(release.Wait(TestTimeout));
-        }, TestContext.Current.CancellationToken, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        var callback = pending.ContinueWith
+        (
+            _ =>
+            {
+                entered.TrySetResult();
+                Assert.True(release.Wait(TestTimeout));
+            }, TestContext.Current.CancellationToken, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default
+        );
         try
         {
             await wire.WriteAsync(Begin(20));

@@ -11,28 +11,39 @@ public readonly struct RawFrontendMessage : IFrontendMessage<RawFrontendMessage>
     }
     public int Write(Span<byte> destination)
     {
-        return FrontendMessageWriter.Write(in this,
-            destination);
+        return FrontendMessageWriter.Write
+        (
+            in this,
+            destination
+        );
     }
     public void Write(IBufferWriter<byte> destination)
     {
-        FrontendMessageWriter.Write(in this,
-            destination);
+        FrontendMessageWriter.Write
+        (
+            in this,
+            destination
+        );
     }
 
     private readonly ReadOnlyMemory<byte> _payload;
     private readonly int _byteCount;
     public byte? Type { get; }
     public FrontendMessageKind Kind { get; }
-    internal RawFrontendMessage(byte? type,
+    internal RawFrontendMessage(
+        byte? type,
         ReadOnlyMemory<byte> payload,
-        FrontendMessageKind kind)
+        FrontendMessageKind kind
+    )
     {
         Type = type;
         Kind = kind;
         _payload = payload;
-        _byteCount = FrontendSize.Packet(payload.Length,
-            type.HasValue);
+        _byteCount = FrontendSize.Packet
+        (
+            payload.Length,
+            type.HasValue
+        );
     }
     static byte? IFrontendMessage<RawFrontendMessage>.GetMessageType(in RawFrontendMessage message)
     {
@@ -42,8 +53,10 @@ public readonly struct RawFrontendMessage : IFrontendMessage<RawFrontendMessage>
     {
         return FrontendSize.Initialized(message._byteCount);
     }
-    static void IFrontendMessage<RawFrontendMessage>.WritePayload(in RawFrontendMessage message,
-        Span<byte> destination)
+    static void IFrontendMessage<RawFrontendMessage>.WritePayload(
+        in RawFrontendMessage message,
+        Span<byte> destination
+    )
     {
         message._payload.Span.CopyTo(destination);
     }
@@ -58,13 +71,19 @@ public readonly struct TextMessage : IFrontendMessage<TextMessage>
     }
     public int Write(Span<byte> destination)
     {
-        return FrontendMessageWriter.Write(in this,
-            destination);
+        return FrontendMessageWriter.Write
+        (
+            in this,
+            destination
+        );
     }
     public void Write(IBufferWriter<byte> destination)
     {
-        FrontendMessageWriter.Write(in this,
-            destination);
+        FrontendMessageWriter.Write
+        (
+            in this,
+            destination
+        );
     }
 
     private readonly string _text;
@@ -72,9 +91,11 @@ public readonly struct TextMessage : IFrontendMessage<TextMessage>
     private readonly byte _type;
     public byte? Type => _type;
     public FrontendMessageKind Kind { get; }
-    internal TextMessage(byte type,
+    internal TextMessage(
+        byte type,
         string text,
-        FrontendMessageKind kind)
+        FrontendMessageKind kind
+    )
     {
         _byteCount = FrontendSize.Packet(WireEncoding.CStringLength(text));
         _type = type;
@@ -89,8 +110,10 @@ public readonly struct TextMessage : IFrontendMessage<TextMessage>
     {
         return FrontendSize.Initialized(message._byteCount);
     }
-    static void IFrontendMessage<TextMessage>.WritePayload(in TextMessage message,
-        Span<byte> destination)
+    static void IFrontendMessage<TextMessage>.WritePayload(
+        in TextMessage message,
+        Span<byte> destination
+    )
     {
         var writer = new WireWriter(destination);
         writer.CString(message._text);
@@ -106,20 +129,28 @@ public readonly struct EmptyMessage : IFrontendMessage<EmptyMessage>
     }
     public int Write(Span<byte> destination)
     {
-        return FrontendMessageWriter.Write(in this,
-            destination);
+        return FrontendMessageWriter.Write
+        (
+            in this,
+            destination
+        );
     }
     public void Write(IBufferWriter<byte> destination)
     {
-        FrontendMessageWriter.Write(in this,
-            destination);
+        FrontendMessageWriter.Write
+        (
+            in this,
+            destination
+        );
     }
 
     private readonly byte _type;
     public byte? Type => _type;
     public FrontendMessageKind Kind { get; }
-    internal EmptyMessage(byte type,
-        FrontendMessageKind kind)
+    internal EmptyMessage(
+        byte type,
+        FrontendMessageKind kind
+    )
     {
         _type = type;
         Kind = kind;
@@ -132,8 +163,10 @@ public readonly struct EmptyMessage : IFrontendMessage<EmptyMessage>
     {
         return FrontendSize.Initialized(message._type == 0 ? 0 : 5);
     }
-    static void IFrontendMessage<EmptyMessage>.WritePayload(in EmptyMessage message,
-        Span<byte> destination) { }
+    static void IFrontendMessage<EmptyMessage>.WritePayload(
+        in EmptyMessage message,
+        Span<byte> destination
+    ) { }
 }
 
 /// <summary>A Describe or Close command; the target selects statement or portal.</summary>
@@ -145,13 +178,19 @@ public readonly struct TargetMessage : IFrontendMessage<TargetMessage>
     }
     public int Write(Span<byte> destination)
     {
-        return FrontendMessageWriter.Write(in this,
-            destination);
+        return FrontendMessageWriter.Write
+        (
+            in this,
+            destination
+        );
     }
     public void Write(IBufferWriter<byte> destination)
     {
-        FrontendMessageWriter.Write(in this,
-            destination);
+        FrontendMessageWriter.Write
+        (
+            in this,
+            destination
+        );
     }
 
     private readonly byte _type;
@@ -160,10 +199,12 @@ public readonly struct TargetMessage : IFrontendMessage<TargetMessage>
     private readonly int _byteCount;
     public byte? Type => _type;
     public FrontendMessageKind Kind { get; }
-    internal TargetMessage(byte type,
+    internal TargetMessage(
+        byte type,
         StatementOrPortal target,
         string name,
-        FrontendMessageKind kind)
+        FrontendMessageKind kind
+    )
     {
         if (target is not (StatementOrPortal.Statement or StatementOrPortal.Portal))
         {
@@ -183,8 +224,10 @@ public readonly struct TargetMessage : IFrontendMessage<TargetMessage>
     {
         return FrontendSize.Initialized(message._byteCount);
     }
-    static void IFrontendMessage<TargetMessage>.WritePayload(in TargetMessage message,
-        Span<byte> destination)
+    static void IFrontendMessage<TargetMessage>.WritePayload(
+        in TargetMessage message,
+        Span<byte> destination
+    )
     {
         var writer = new WireWriter(destination);
         writer.Byte((byte)message._target);
@@ -200,13 +243,19 @@ public readonly struct ExecuteMessage : IFrontendMessage<ExecuteMessage>
     }
     public int Write(Span<byte> destination)
     {
-        return FrontendMessageWriter.Write(in this,
-            destination);
+        return FrontendMessageWriter.Write
+        (
+            in this,
+            destination
+        );
     }
     public void Write(IBufferWriter<byte> destination)
     {
-        FrontendMessageWriter.Write(in this,
-            destination);
+        FrontendMessageWriter.Write
+        (
+            in this,
+            destination
+        );
     }
 
     private readonly string _portal;
@@ -214,8 +263,10 @@ public readonly struct ExecuteMessage : IFrontendMessage<ExecuteMessage>
     private readonly int _byteCount;
     public byte? Type => (byte)'E';
     public FrontendMessageKind Kind => FrontendMessageKind.Execute;
-    internal ExecuteMessage(string portal,
-        int maxRows)
+    internal ExecuteMessage(
+        string portal,
+        int maxRows
+    )
     {
         ArgumentOutOfRangeException.ThrowIfNegative(maxRows);
         _byteCount = FrontendSize.Packet(checked(WireEncoding.CStringLength(portal) + 4));
@@ -230,8 +281,10 @@ public readonly struct ExecuteMessage : IFrontendMessage<ExecuteMessage>
     {
         return FrontendSize.Initialized(message._byteCount);
     }
-    static void IFrontendMessage<ExecuteMessage>.WritePayload(in ExecuteMessage message,
-        Span<byte> destination)
+    static void IFrontendMessage<ExecuteMessage>.WritePayload(
+        in ExecuteMessage message,
+        Span<byte> destination
+    )
     {
         var writer = new WireWriter(destination);
         writer.CString(message._portal);

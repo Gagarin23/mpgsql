@@ -19,9 +19,12 @@ public class BackendControlBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _packet = new ReadOnlySequence<byte>(ReadyForQuery
-            ? [(byte)'Z', 0, 0, 0, 5, (byte)'I']
-            : [(byte)'1', 0, 0, 0, 4]);
+        _packet = new ReadOnlySequence<byte>
+        (
+            ReadyForQuery
+                ? [(byte)'Z', 0, 0, 0, 5, (byte)'I']
+                : [(byte)'1', 0, 0, 0, 4]
+        );
 #if PROTOCOL_BASELINE
         if (Original() != Current())
         {
@@ -37,8 +40,11 @@ public class BackendControlBenchmarks
     public int Original()
     {
         var input = _packet;
-        if (!OriginalReader.TryRead(ref input,
-                out var message))
+        if (!OriginalReader.TryRead
+            (
+                ref input,
+                out var message
+            ))
         {
             throw new InvalidOperationException();
         }
@@ -50,8 +56,11 @@ public class BackendControlBenchmarks
     public int Current()
     {
         var input = _packet;
-        if (!BackendMessageReader.TryRead(ref input,
-                out var message))
+        if (!BackendMessageReader.TryRead
+            (
+                ref input,
+                out var message
+            ))
         {
             throw new InvalidOperationException();
         }

@@ -9,13 +9,26 @@ public sealed class Float32ConvertersTests
     public void LiteralPayloadsArraysBuffersAndSegmentBoundaries()
     {
         var value = 1.5f;
-        ConverterAssertions.CheckScalar(value, "3fc00000", Float32Converter.GetByteCount, Float32Converter.Write,
-            Float32Converter.Write, Float32Converter.Read, Float32Converter.Read);
-        ConverterAssertions.CheckNullableScalar(Float32Converter.Write, Float32Converter.Write,
-            Float32Converter.GetByteCount, Float32Converter.ReadNullable, Float32Converter.ReadNullable);
-        ConverterAssertions.CheckArray(new[] {value, value}, (uint)TypeOid.Float32, "3fc00000",
+        ConverterAssertions.CheckScalar
+        (
+            value, "3fc00000", Float32Converter.GetByteCount, Float32Converter.Write,
+            Float32Converter.Write, Float32Converter.Read, Float32Converter.Read
+        );
+        ConverterAssertions.CheckNullableScalar
+        (
+            Float32Converter.Write, Float32Converter.Write,
+            Float32Converter.GetByteCount, Float32Converter.ReadNullable, Float32Converter.ReadNullable
+        );
+        ConverterAssertions.CheckArray
+        (
+            new[]
+            {
+                value,
+                value
+            }, (uint)TypeOid.Float32, "3fc00000",
             Float32ArrayConverter.GetByteCount, Float32ArrayConverter.Write, Float32ArrayConverter.Write,
-            Float32ArrayConverter.Read, Float32ArrayConverter.Read, Float32ArrayConverter.Read, Float32ArrayConverter.Read);
+            Float32ArrayConverter.Read, Float32ArrayConverter.Read, Float32ArrayConverter.Read, Float32ArrayConverter.Read
+        );
         ConverterAssertions.CheckNullableArray<float, Float32Codec>(value, "3fc00000");
     }
     [Fact]

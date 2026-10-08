@@ -36,38 +36,56 @@ namespace Mpgsql.Benchmarks.NpgsqlBaseline.Copied;
 // Compatibility adapters for internal Npgsql overloads, using the public API.
 internal static class ConverterCompatibilityExtensions
 {
-    public static ValueTask Buffer(this PgReader reader,
+    public static ValueTask Buffer(
+        this PgReader reader,
         bool async,
         int byteCount,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         if (async)
         {
-            return reader.BufferAsync(byteCount,
-                cancellationToken);
+            return reader.BufferAsync
+            (
+                byteCount,
+                cancellationToken
+            );
         }
 
         reader.Buffer(byteCount);
         return default;
     }
 
-    public static ValueTask<NestedReadScope> BeginNestedRead(this PgReader reader,
+    public static ValueTask<NestedReadScope> BeginNestedRead(
+        this PgReader reader,
         bool async,
         int size,
         Size bufferRequirement,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         return async
-            ? reader.BeginNestedReadAsync(size,
+            ? reader.BeginNestedReadAsync
+            (
+                size,
                 bufferRequirement,
-                cancellationToken)
-            : new ValueTask<NestedReadScope>(reader.BeginNestedRead(size,
-                bufferRequirement));
+                cancellationToken
+            )
+            : new ValueTask<NestedReadScope>
+            (
+                reader.BeginNestedRead
+                (
+                    size,
+                    bufferRequirement
+                )
+            );
     }
 
-    public static ValueTask Flush(this PgWriter writer,
+    public static ValueTask Flush(
+        this PgWriter writer,
         bool async,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         if (async)
         {
@@ -78,31 +96,47 @@ internal static class ConverterCompatibilityExtensions
         return default;
     }
 
-    public static ValueTask<NestedWriteScope> BeginNestedWrite(this PgWriter writer,
+    public static ValueTask<NestedWriteScope> BeginNestedWrite(
+        this PgWriter writer,
         bool async,
         Size bufferRequirement,
         int byteCount,
         object? state,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         return async
-            ? writer.BeginNestedWriteAsync(bufferRequirement,
+            ? writer.BeginNestedWriteAsync
+            (
+                bufferRequirement,
                 byteCount,
                 state,
-                cancellationToken)
-            : new ValueTask<NestedWriteScope>(writer.BeginNestedWrite(bufferRequirement,
-                byteCount,
-                state));
+                cancellationToken
+            )
+            : new ValueTask<NestedWriteScope>
+            (
+                writer.BeginNestedWrite
+                (
+                    bufferRequirement,
+                    byteCount,
+                    state
+                )
+            );
     }
 
-    public static Size? GetSizeOrDbNull<T>(this PgConverter<T> converter,
+    public static Size? GetSizeOrDbNull<T>(
+        this PgConverter<T> converter,
         DataFormat format,
         Size writeRequirement,
         T? value,
-        ref object? writeState)
+        ref object? writeState
+    )
     {
-        if (converter.IsDbNull(value,
-                ref writeState))
+        if (converter.IsDbNull
+            (
+                value,
+                ref writeState
+            ))
         {
             return null;
         }
@@ -111,10 +145,16 @@ internal static class ConverterCompatibilityExtensions
         {
             return byteCount;
         }
-        var size = converter.GetSize(new SizeContext(format,
-                writeRequirement),
+        var size = converter.GetSize
+        (
+            new SizeContext
+            (
+                format,
+                writeRequirement
+            ),
             value,
-            ref writeState);
+            ref writeState
+        );
 
         switch (size.Kind)
         {

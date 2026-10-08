@@ -9,25 +9,48 @@ namespace Mpgsql.Tests.Converters;
 internal static class ConverterAssertions
 {
 
-    internal static void CheckScalar<T>(T value, string hex,
+    internal static void CheckScalar<T>(
+        T value, string hex,
         Func<T, int> size,
         ScalarWrite<T> write, Action<T, IBufferWriter<byte>> writeBuffered,
-        ScalarRead<T> read, Func<ReadOnlySequence<byte>, T> readSequence)
+        ScalarRead<T> read, Func<ReadOnlySequence<byte>, T> readSequence
+    )
     {
         var expected = TestWire.Bytes(hex);
         Assert.Equal(expected.Length, size(value));
-        var output = Enumerable.Repeat((byte)0xcc, expected.Length + 10).ToArray();
+        var output = Enumerable
+            .Repeat((byte)0xcc, expected.Length + 10)
+            .ToArray();
         Assert.Equal(expected.Length, write(value, output.AsSpan(3)));
-        Assert.Equal(expected, output.AsSpan(3, expected.Length).ToArray());
-        Assert.All(output[..3].Concat(output[(3 + expected.Length)..]), b => Assert.Equal((byte)0xcc, b));
+        Assert.Equal
+        (
+            expected, output
+                .AsSpan(3, expected.Length)
+                .ToArray()
+        );
+        Assert.All
+        (
+            output[..3]
+                .Concat(output[(3 + expected.Length)..]), b => Assert.Equal((byte)0xcc, b)
+        );
         if (expected.Length != 0)
         {
             Assert.Throws<ArgumentException>(() => write(value, output.AsSpan(0, expected.Length - 1)));
-            Assert.Equal(expected, output.AsSpan(3, expected.Length).ToArray());
+            Assert.Equal
+            (
+                expected, output
+                    .AsSpan(3, expected.Length)
+                    .ToArray()
+            );
         }
         var writer = new RecordingWriter(expected.Length);
         writeBuffered(value, writer);
-        Assert.Equal(expected, writer.Bytes.AsSpan(0, expected.Length).ToArray());
+        Assert.Equal
+        (
+            expected, writer
+                .Bytes.AsSpan(0, expected.Length)
+                .ToArray()
+        );
         Assert.Equal(expected.Length, writer.SizeHint);
         Assert.Equal(expected.Length, writer.Advanced);
         Assert.Equal(expected.Length == 0 ? 0 : 1, writer.Reservations);
@@ -35,10 +58,15 @@ internal static class ConverterAssertions
         var rewritten = new byte[expected.Length];
         Assert.Equal(expected.Length, write(read(expected), rewritten));
         Assert.Equal(expected, rewritten);
-        for (var split = 0; split <= expected.Length; split++)
+        for (var split = 0;
+             split <= expected.Length;
+             split++)
         {
-            var input = TestWire.Chunks(ReadOnlyMemory<byte>.Empty, expected.AsMemory(0, split),
-                ReadOnlyMemory<byte>.Empty, expected.AsMemory(split), ReadOnlyMemory<byte>.Empty);
+            var input = TestWire.Chunks
+            (
+                ReadOnlyMemory<byte>.Empty, expected.AsMemory(0, split),
+                ReadOnlyMemory<byte>.Empty, expected.AsMemory(split), ReadOnlyMemory<byte>.Empty
+            );
             write(readSequence(input), rewritten);
             Assert.Equal(expected, rewritten);
         }
@@ -46,11 +74,15 @@ internal static class ConverterAssertions
         Assert.Equal(expected, rewritten);
     }
 
-    internal static void CheckNullableScalar<T>(ScalarWrite<T?> write, Action<T?, IBufferWriter<byte>> writeBuffered,
+    internal static void CheckNullableScalar<T>(
+        ScalarWrite<T?> write, Action<T?, IBufferWriter<byte>> writeBuffered,
         Func<T?, int> size, Func<ReadOnlyMemory<byte>?, T?> readNullable,
-        Func<ReadOnlySequence<byte>?, T?> readNullableSequence) where T : struct
+        Func<ReadOnlySequence<byte>?, T?> readNullableSequence
+    ) where T : struct
     {
-        var bytes = Enumerable.Repeat((byte)0xcc, 32).ToArray();
+        var bytes = Enumerable
+            .Repeat((byte)0xcc, 32)
+            .ToArray();
         var writer = new RecordingWriter(32);
         Assert.Equal(0, size(null));
         Assert.Equal(0, write(null, bytes));
@@ -62,19 +94,32 @@ internal static class ConverterAssertions
         Assert.All(bytes, b => Assert.Equal((byte)0xcc, b));
     }
 
-    internal static void CheckArray<T>(T[] values, uint oid,
+    internal static void CheckArray<T>(
+        T[] values, uint oid,
         string elementHex, Func<ReadOnlyMemory<T>, int> size,
         ArrayWrite<T> write, Action<ReadOnlyMemory<T>, IBufferWriter<byte>> writeBuffered,
         ArrayRead<T> read, Func<ReadOnlySequence<byte>, ReadOnlyMemory<T>> readSequence,
-        ArrayReadInto<T> readInto, SequenceReadInto<T> readSequenceInto)
+        ArrayReadInto<T> readInto, SequenceReadInto<T> readSequenceInto
+    )
     {
         var element = TestWire.Bytes(elementHex);
         var expected = ArrayBytes(oid, element, element);
         Assert.Equal(expected.Length, size(values));
-        var bytes = Enumerable.Repeat((byte)0xcc, expected.Length + 9).ToArray();
+        var bytes = Enumerable
+            .Repeat((byte)0xcc, expected.Length + 9)
+            .ToArray();
         Assert.Equal(expected.Length, write(values, bytes.AsSpan(3)));
-        Assert.Equal(expected, bytes.AsSpan(3, expected.Length).ToArray());
-        Assert.All(bytes[..3].Concat(bytes[(3 + expected.Length)..]), b => Assert.Equal((byte)0xcc, b));
+        Assert.Equal
+        (
+            expected, bytes
+                .AsSpan(3, expected.Length)
+                .ToArray()
+        );
+        Assert.All
+        (
+            bytes[..3]
+                .Concat(bytes[(3 + expected.Length)..]), b => Assert.Equal((byte)0xcc, b)
+        );
         var original = bytes.ToArray();
         Assert.Throws<ArgumentException>(() => write(values, bytes.AsSpan(0, expected.Length - 1)));
         Assert.Equal(original, bytes);
@@ -91,7 +136,9 @@ internal static class ConverterAssertions
         Assert.Equal(values.Length, readInto(expected, scratch));
         write(scratch.AsMemory(0, values.Length), rewritten);
         Assert.Equal(expected, rewritten);
-        for (var split = 0; split <= expected.Length; split++)
+        for (var split = 0;
+             split <= expected.Length;
+             split++)
         {
             var input = TestWire.Chunks(ReadOnlyMemory<byte>.Empty, expected.AsMemory(0, split), expected.AsMemory(split));
             write(readSequence(input), rewritten);
@@ -110,8 +157,16 @@ internal static class ConverterAssertions
         Assert.Equal(12, size(ReadOnlyMemory<T>.Empty));
         Assert.Equal(12, write(ReadOnlyMemory<T>.Empty, rewritten));
         Assert.Equal(empty, rewritten[..12]);
-        Assert.True(read(empty).IsEmpty);
-        Assert.True(readSequence(TestWire.ByteSegments(empty)).IsEmpty);
+        Assert.True
+        (
+            read(empty)
+                .IsEmpty
+        );
+        Assert.True
+        (
+            readSequence(TestWire.ByteSegments(empty))
+                .IsEmpty
+        );
         var bounded = expected.ToArray();
         BinaryPrimitives.WriteInt32BigEndian(bounded.AsSpan(16), -3);
         write(read(bounded), rewritten);
@@ -130,8 +185,20 @@ internal static class ConverterAssertions
         Assert.Throws<ArgumentException>(() => readSequenceInto(fragmented, new T[1]));
 
         // Verify converter payloads inside complete binary Bind and DataRow frames.
-        var bind = FrontendMessage.Bind(parameters: new ReadOnlyMemory<byte>?[] {expected},
-            parameterFormats: new[] {FormatCode.Binary}, resultFormats: new[] {FormatCode.Binary});
+        var bind = FrontendMessage.Bind
+        (
+            parameters: new ReadOnlyMemory<byte>?[]
+            {
+                expected
+            },
+            parameterFormats: new[]
+            {
+                FormatCode.Binary
+            }, resultFormats: new[]
+            {
+                FormatCode.Binary
+            }
+        );
         var packet = new byte[FrontendMessageWriter.GetByteCount(in bind)];
         FrontendMessageWriter.Write(in bind, packet);
         var expectedBind = new byte[17 + expected.Length];
@@ -157,7 +224,9 @@ internal static class ConverterAssertions
         var sequence = TestWire.ByteSegments(row);
         Assert.True(BackendMessageReader.TryRead(ref sequence, out var message));
         Assert.True(sequence.IsEmpty);
-        var fields = message.GetDataRow().GetEnumerator();
+        var fields = message
+            .GetDataRow()
+            .GetEnumerator();
         Assert.True(fields.MoveNext());
         var field = fields.Current!.Value;
         write(readSequence(field), rewritten);
@@ -175,7 +244,9 @@ internal static class ConverterAssertions
         BinaryNullableArray<T, TCodec>.Write(values, writer);
         Assert.Equal(expected, writer.Bytes[..expected.Length]);
         T?[] scratch = [value, value, value, value];
-        for (var split = 0; split <= expected.Length; split++)
+        for (var split = 0;
+             split <= expected.Length;
+             split++)
         {
             var input = TestWire.Chunks(expected.AsMemory(0, split), expected.AsMemory(split));
             Assert.Equal(3, BinaryNullableArray<T, TCodec>.Read(input, scratch));
@@ -185,11 +256,28 @@ internal static class ConverterAssertions
             Assert.Equal(expected, output);
         }
         // PostgreSQL accepts flags=0 even when prefixes encode NULLs.
-        expected.AsSpan(4, 4).Clear();
-        Assert.Null(BinaryNullableArray<T, TCodec>.Read(expected).Span[1]);
-        Assert.Null(BinaryNullableArray<T, TCodec>.Read(TestWire.ByteSegments(expected)).Span[1]);
+        expected
+            .AsSpan(4, 4)
+            .Clear();
+        Assert.Null
+        (
+            BinaryNullableArray<T, TCodec>
+                .Read(expected)
+                .Span[1]
+        );
+        Assert.Null
+        (
+            BinaryNullableArray<T, TCodec>
+                .Read(TestWire.ByteSegments(expected))
+                .Span[1]
+        );
         var allNull = ArrayBytes(TCodec.Oid, null, null);
-        Assert.All(BinaryNullableArray<T, TCodec>.Read(TestWire.ByteSegments(allNull)).ToArray(), Assert.Null);
+        Assert.All
+        (
+            BinaryNullableArray<T, TCodec>
+                .Read(TestWire.ByteSegments(allNull))
+                .ToArray(), Assert.Null
+        );
         Assert.Throws<NotSupportedException>(() => BinaryArray<T, TCodec>.Read(allNull));
     }
 
@@ -227,7 +315,18 @@ internal static class ConverterAssertions
         yield return valid[..19];
         yield return valid[..^1];
         yield return [.. valid, 0];
-        foreach (var (offset, number) in new[] {(0, -1), (0, 7), (4, 2), (8, 99999), (12, -1), (12, int.MaxValue), (16, int.MaxValue), (20, -2), (20, int.MaxValue)})
+        foreach (var (offset, number) in new[]
+                 {
+                     (0, -1),
+                     (0, 7),
+                     (4, 2),
+                     (8, 99999),
+                     (12, -1),
+                     (12, int.MaxValue),
+                     (16, int.MaxValue),
+                     (20, -2),
+                     (20, int.MaxValue)
+                 })
         {
             var bad = valid.ToArray();
             BinaryPrimitives.WriteInt32BigEndian(bad.AsSpan(offset), number);
@@ -249,7 +348,9 @@ internal static class ConverterAssertions
 
     internal sealed class RecordingWriter(int size) : IBufferWriter<byte>
     {
-        internal byte[] Bytes { get; } = Enumerable.Repeat((byte)0xcc, size + 17).ToArray();
+        internal byte[] Bytes { get; } = Enumerable
+            .Repeat((byte)0xcc, size + 17)
+            .ToArray();
         internal int SizeHint { get; private set; }
         internal int Advanced { get; private set; }
         internal int Reservations { get; private set; }

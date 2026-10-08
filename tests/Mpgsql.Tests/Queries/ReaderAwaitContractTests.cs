@@ -10,19 +10,35 @@ public sealed class ReaderAwaitContractTests
         var token = TestContext.Current.CancellationToken;
         var context = new AsyncLocal<string?>();
         await using var wire = new ScriptedSession();
-        await using var source = new MpgsqlMultiplexingDataSource(_ => ValueTask.FromResult(wire.Session), new MpgsqlMultiplexingOptions {MaxConnections = 1, MaxInFlightPerConnection = 1});
+        await using var source = new MpgsqlMultiplexingDataSource
+        (
+            _ => ValueTask.FromResult(wire.Session), new MpgsqlMultiplexingOptions
+            {
+                MaxConnections = 1,
+                MaxInFlightPerConnection = 1
+            }
+        );
 
-        for (var i = 0; i < 32; i++)
+        for (var i = 0;
+             i < 32;
+             i++)
         {
             context.Value = $"caller-{i}";
             var held = await MultiplexingLease.HoldAsync(wire, source, token);
-            var opening = source.ExecuteReaderAsync("select $1::bigint",
-                new[] {MpgsqlParameterValue.Int64(i)}, token);
+            var opening = source.ExecuteReaderAsync
+            (
+                "select $1::bigint",
+                new[]
+                {
+                    MpgsqlParameterValue.Int64(i)
+                }, token
+            );
             Assert.False(opening.IsCompleted);
             var opened = AwaitOnceAsync(opening, shareTask, token);
             await held.DisposeAsync();
             var tags = new List<char>();
-            do { tags.AddRange(Tags(await wire.ReadOutputAsync())); } while (!tags.Contains('S'));
+            do { tags.AddRange(Tags(await wire.ReadOutputAsync())); }
+            while (!tags.Contains('S'));
             Assert.Equal("PBDES", new string([.. tags]));
             Assert.False(opened.IsCompleted);
 
@@ -50,8 +66,10 @@ public sealed class ReaderAwaitContractTests
         }
     }
 
-    private static async Task<T> AwaitOnceAsync<T>(ValueTask<T> operation, bool shareTask,
-        CancellationToken token)
+    private static async Task<T> AwaitOnceAsync<T>(
+        ValueTask<T> operation, bool shareTask,
+        CancellationToken token
+    )
     {
         if (!shareTask)
         {
@@ -59,7 +77,9 @@ public sealed class ReaderAwaitContractTests
         }
         // Convert once. Multiple observers are supported by the resulting Task, not by ValueTask.
         var shared = operation.AsTask();
-        var values = await Task.WhenAll(shared, shared).WaitAsync(TestTimeout, token);
+        var values = await Task
+            .WhenAll(shared, shared)
+            .WaitAsync(TestTimeout, token);
         Assert.Equal(values[0], values[1]);
         return values[0];
     }

@@ -6,8 +6,14 @@ public sealed class AdmissionQueueTests
 {
     private static MpgsqlDataSource Source(ScriptedSession wire)
     {
-        return new MpgsqlDataSource(_ => ValueTask.FromResult(wire.Session), (_, _) => ValueTask.CompletedTask,
-            new MpgsqlDataSourceOptions {MaxConnections = 1});
+        return new MpgsqlDataSource
+        (
+            _ => ValueTask.FromResult(wire.Session), (_, _) => ValueTask.CompletedTask,
+            new MpgsqlDataSourceOptions
+            {
+                MaxConnections = 1
+            }
+        );
     }
 
     private static async Task<string> ThroughSync(ScriptedSession wire)
@@ -26,17 +32,32 @@ public sealed class AdmissionQueueTests
         var token = TestContext.Current.CancellationToken;
         using var input = new BlockingInputMemory();
         await using var wire = new ScriptedSession();
-        await using var source = new MpgsqlMultiplexingDataSource(_ => ValueTask.FromResult(wire.Session),
+        await using var source = new MpgsqlMultiplexingDataSource
+        (
+            _ => ValueTask.FromResult(wire.Session),
             new MpgsqlMultiplexingOptions
             {
-                MaxConnections = 1, MaxInFlightPerConnection = 1,
-                SyncGroupSize = groupSize, SyncGroupTimeout = TimeSpan.FromMilliseconds(1)
-            });
+                MaxConnections = 1,
+                MaxInFlightPerConnection = 1,
+                SyncGroupSize = groupSize,
+                SyncGroupTimeout = TimeSpan.FromMilliseconds(1)
+            }
+        );
         var held = await MultiplexingLease.HoldAsync(wire, source, token);
         using var request = CancellationTokenSource.CreateLinkedTokenSource(token);
-        var cancelled = source.ExecuteReaderAsync("select $1::bigint[]",
-            new[] {MpgsqlParameterValue.Int64Array(input.Memory)}, request.Token).AsTask();
-        var following = source.ExecuteScalarAsync<long>("select 9::bigint", cancellationToken: token).AsTask();
+        var cancelled = source
+            .ExecuteReaderAsync
+            (
+                "select $1::bigint[]",
+                new[]
+                {
+                    MpgsqlParameterValue.Int64Array(input.Memory)
+                }, request.Token
+            )
+            .AsTask();
+        var following = source
+            .ExecuteScalarAsync<long>("select 9::bigint", cancellationToken: token)
+            .AsTask();
         Assert.False(cancelled.IsCompleted);
         Assert.False(following.IsCompleted);
         request.Cancel();
@@ -58,16 +79,27 @@ public sealed class AdmissionQueueTests
     {
         var token = TestContext.Current.CancellationToken;
         await using var wire = new ScriptedSession();
-        await using var source = new MpgsqlMultiplexingDataSource(_ => ValueTask.FromResult(wire.Session),
+        await using var source = new MpgsqlMultiplexingDataSource
+        (
+            _ => ValueTask.FromResult(wire.Session),
             new MpgsqlMultiplexingOptions
             {
-                MaxConnections = 1, MaxInFlightPerConnection = 1,
-                SyncGroupSize = groupSize, SyncGroupTimeout = TimeSpan.FromMilliseconds(1)
-            });
+                MaxConnections = 1,
+                MaxInFlightPerConnection = 1,
+                SyncGroupSize = groupSize,
+                SyncGroupTimeout = TimeSpan.FromMilliseconds(1)
+            }
+        );
         var held = await MultiplexingLease.HoldAsync(wire, source, token);
-        var first = source.ExecuteReaderAsync("select 1::bigint", cancellationToken: token).AsTask();
-        var exclusive = source.ExecuteReaderAsync("select 2::bigint", cancellationToken: token).AsTask();
-        var last = source.ExecuteScalarAsync<long>("select 3::bigint", cancellationToken: token).AsTask();
+        var first = source
+            .ExecuteReaderAsync("select 1::bigint", cancellationToken: token)
+            .AsTask();
+        var exclusive = source
+            .ExecuteReaderAsync("select 2::bigint", cancellationToken: token)
+            .AsTask();
+        var last = source
+            .ExecuteScalarAsync<long>("select 3::bigint", cancellationToken: token)
+            .AsTask();
         await held.DisposeAsync();
         Assert.Equal("PBDES", await ThroughSync(wire));
         await wire.WriteAsync(Join(Query(1), Ready()), 1);
@@ -97,10 +129,16 @@ public sealed class AdmissionQueueTests
         await using var wire = new ScriptedSession();
         await using var source = Source(wire);
         var held = await source.OpenConnectionAsync(TestContext.Current.CancellationToken);
-        var first = source.OpenConnectionAsync(TestContext.Current.CancellationToken).AsTask();
-        var second = source.OpenConnectionAsync(TestContext.Current.CancellationToken).AsTask();
+        var first = source
+            .OpenConnectionAsync(TestContext.Current.CancellationToken)
+            .AsTask();
+        var second = source
+            .OpenConnectionAsync(TestContext.Current.CancellationToken)
+            .AsTask();
         await held.DisposeAsync();
-        var newcomer = source.OpenConnectionAsync(TestContext.Current.CancellationToken).AsTask();
+        var newcomer = source
+            .OpenConnectionAsync(TestContext.Current.CancellationToken)
+            .AsTask();
         var one = await first.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         Assert.False(second.IsCompleted);
         Assert.False(newcomer.IsCompleted);
@@ -121,10 +159,18 @@ public sealed class AdmissionQueueTests
         var held = await source.OpenConnectionAsync(TestContext.Current.CancellationToken);
         using var headToken = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         using var middleToken = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        var head = source.OpenConnectionAsync(headToken.Token).AsTask();
-        var first = source.OpenConnectionAsync(TestContext.Current.CancellationToken).AsTask();
-        var middle = source.OpenConnectionAsync(middleToken.Token).AsTask();
-        var last = source.OpenConnectionAsync(TestContext.Current.CancellationToken).AsTask();
+        var head = source
+            .OpenConnectionAsync(headToken.Token)
+            .AsTask();
+        var first = source
+            .OpenConnectionAsync(TestContext.Current.CancellationToken)
+            .AsTask();
+        var middle = source
+            .OpenConnectionAsync(middleToken.Token)
+            .AsTask();
+        var last = source
+            .OpenConnectionAsync(TestContext.Current.CancellationToken)
+            .AsTask();
         headToken.Cancel();
         middleToken.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => head.WaitAsync(TestTimeout, TestContext.Current.CancellationToken));
@@ -144,17 +190,26 @@ public sealed class AdmissionQueueTests
     {
         await using var wire = new ScriptedSession();
         await using var source = Source(wire);
-        for (var i = 0; i < 64; i++)
+        for (var i = 0;
+             i < 64;
+             i++)
         {
             var held = await source.OpenConnectionAsync(TestContext.Current.CancellationToken);
             using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-            var waiting = source.OpenConnectionAsync(request.Token).AsTask();
-            await Task.WhenAll(Task.Run(request.Cancel, TestContext.Current.CancellationToken),
-                Task.Run(async () => await held.DisposeAsync(), TestContext.Current.CancellationToken));
+            var waiting = source
+                .OpenConnectionAsync(request.Token)
+                .AsTask();
+            await Task.WhenAll
+            (
+                Task.Run(request.Cancel, TestContext.Current.CancellationToken),
+                Task.Run(async () => await held.DisposeAsync(), TestContext.Current.CancellationToken)
+            );
             try { await (await waiting).DisposeAsync(); }
             catch (OperationCanceledException) { }
-            await using var probe = await source.OpenConnectionAsync(TestContext.Current.CancellationToken)
-                .AsTask().WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
+            await using var probe = await source
+                .OpenConnectionAsync(TestContext.Current.CancellationToken)
+                .AsTask()
+                .WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         }
         Assert.True(wire.Session.IsHealthy);
     }
@@ -165,22 +220,34 @@ public sealed class AdmissionQueueTests
         await using var wire = new ScriptedSession();
         var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var calls = 0;
-        await using var source = new MpgsqlDataSource(async token =>
-        {
-            var call = Interlocked.Increment(ref calls);
-            if (call == 1)
+        await using var source = new MpgsqlDataSource
+        (
+            async token =>
             {
-                await resume.Task.WaitAsync(token);
-            }
-            if (call < 3)
+                var call = Interlocked.Increment(ref calls);
+                if (call == 1)
+                {
+                    await resume.Task.WaitAsync(token);
+                }
+                if (call < 3)
+                {
+                    throw new IOException("startup failed");
+                }
+                return wire.Session;
+            }, (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions
             {
-                throw new IOException("startup failed");
+                MaxConnections = 1
             }
-            return wire.Session;
-        }, (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions {MaxConnections = 1});
-        var one = source.OpenConnectionAsync(TestContext.Current.CancellationToken).AsTask();
-        var two = source.OpenConnectionAsync(TestContext.Current.CancellationToken).AsTask();
-        var three = source.OpenConnectionAsync(TestContext.Current.CancellationToken).AsTask();
+        );
+        var one = source
+            .OpenConnectionAsync(TestContext.Current.CancellationToken)
+            .AsTask();
+        var two = source
+            .OpenConnectionAsync(TestContext.Current.CancellationToken)
+            .AsTask();
+        var three = source
+            .OpenConnectionAsync(TestContext.Current.CancellationToken)
+            .AsTask();
         Assert.Equal(1, calls);
         resume.SetResult();
         await Assert.ThrowsAsync<MpgsqlException>(() => one.WaitAsync(TestTimeout, TestContext.Current.CancellationToken));

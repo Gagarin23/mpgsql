@@ -5,10 +5,12 @@ namespace Mpgsql.Tests.Protocol;
 
 public sealed class BackendHeaderTests
 {
-    private static bool Read(ref ReadOnlySequence<byte> input, int mode,
+    private static bool Read(
+        ref ReadOnlySequence<byte> input, int mode,
         out BackendMessage message,
         out IndexedDataRow row, Memory<ReadOnlySequence<byte>?> fields = default,
-        int limit = BackendMessageReader.DefaultMaxMessageLength)
+        int limit = BackendMessageReader.DefaultMaxMessageLength
+    )
     {
         row = default;
         return mode switch
@@ -26,16 +28,27 @@ public sealed class BackendHeaderTests
         var frame = TestWire.Bytes("44 0000001a 0003 00000008 0102030405060708 ffffffff 00000000");
         var next = TestWire.Bytes("5a 00000005 49");
         byte[] data = [99, 98, 97, .. frame, .. next];
-        for (var split = 0; split <= frame.Length; split++)
+        for (var split = 0;
+             split <= frame.Length;
+             split++)
         {
             // Including split=0/5/full exercises empty first segments and both header paths.
-            var input = TestWire.Chunks(data.AsMemory(0, 3 + split), ReadOnlyMemory<byte>.Empty,
-                data.AsMemory(3 + split)).Slice(3);
+            var input = TestWire
+                .Chunks
+                (
+                    data.AsMemory(0, 3 + split), ReadOnlyMemory<byte>.Empty,
+                    data.AsMemory(3 + split)
+                )
+                .Slice(3);
             var fields = new ReadOnlySequence<byte>?[3];
             Assert.True(Read(ref input, mode, out var message, out var row, fields));
             Assert.Equal(BackendMessageKind.DataRow, message.Kind);
             Assert.Equal(frame[5..], message.Payload.ToArray());
-            Assert.Equal(3, message.GetDataRow().Count);
+            Assert.Equal
+            (
+                3, message.GetDataRow()
+                    .Count
+            );
             if (mode == 1)
             {
                 Assert.Equal(TestWire.Bytes("0102030405060708"), row.Values.Span[0]!.Value.ToArray());
@@ -54,7 +67,11 @@ public sealed class BackendHeaderTests
     {
         var frames = TestWire.Bytes("31 00000004 32 00000004 5a 00000005 49");
         byte[] data = [17, 18, .. frames];
-        foreach (var fragmented in new[] {false, true})
+        foreach (var fragmented in new[]
+                 {
+                     false,
+                     true
+                 })
         {
             var input = (fragmented ? TestWire.ByteSegments(data) : TestWire.Chunks(data.AsMemory())).Slice(2);
             Assert.True(Read(ref input, mode, out var parse, out _));
@@ -75,7 +92,9 @@ public sealed class BackendHeaderTests
     public void EveryContiguousTruncationLeavesInputUnconsumed(int mode)
     {
         var frame = TestWire.Bytes("44 00000012 0001 00000008 0102030405060708");
-        for (var length = 0; length < frame.Length; length++)
+        for (var length = 0;
+             length < frame.Length;
+             length++)
         {
             var input = new ReadOnlySequence<byte>(frame.AsMemory(0, length));
             var before = input;
@@ -90,8 +109,17 @@ public sealed class BackendHeaderTests
     [Theory, InlineData(0), InlineData(1), InlineData(2)]
     public void InvalidLengthIsRejectedImmediatelyOnBothHeaderPaths(int mode)
     {
-        foreach (var hex in new[] {"43 00000003", "43 ffffffff", "43 7fffffff"})
-        foreach (var fragmented in new[] {false, true})
+        foreach (var hex in new[]
+                 {
+                     "43 00000003",
+                     "43 ffffffff",
+                     "43 7fffffff"
+                 })
+        foreach (var fragmented in new[]
+                 {
+                     false,
+                     true
+                 })
         {
             var bytes = TestWire.Bytes(hex);
             var input = fragmented ? TestWire.ByteSegments(bytes) : new ReadOnlySequence<byte>(bytes);
@@ -105,7 +133,12 @@ public sealed class BackendHeaderTests
     [Theory, InlineData(0), InlineData(1)]
     public void ContiguousHeaderDoesNotRelaxBodyValidationOrExplicitLimit(int mode)
     {
-        foreach (var hex in new[] {"31 00000005 01", "5a 00000005 58", "43 00000007 780001"})
+        foreach (var hex in new[]
+                 {
+                     "31 00000005 01",
+                     "5a 00000005 58",
+                     "43 00000007 780001"
+                 })
         {
             var input = new ReadOnlySequence<byte>(TestWire.Bytes(hex));
             var before = input;
@@ -119,7 +152,12 @@ public sealed class BackendHeaderTests
         Assert.Equal(original.Start, bounded.Start);
         Assert.Equal(original.End, bounded.End);
         Assert.True(Read(ref bounded, mode, out var message, out _, limit: 6));
-        Assert.Equal(TestWire.Bytes("0102"), message.GetCopyData().ToArray());
+        Assert.Equal
+        (
+            TestWire.Bytes("0102"), message
+                .GetCopyData()
+                .ToArray()
+        );
         Assert.True(bounded.IsEmpty);
     }
 }

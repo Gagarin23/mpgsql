@@ -85,7 +85,8 @@ internal static class SaslPrepTables
 
     internal static bool In(int[] ranges, int value)
     {
-        int low = 0, high = ranges.Length / 2 - 1;
+        int low = 0,
+            high = ranges.Length / 2 - 1;
         while (low <= high)
         {
             var middle = (low + high) / 2;

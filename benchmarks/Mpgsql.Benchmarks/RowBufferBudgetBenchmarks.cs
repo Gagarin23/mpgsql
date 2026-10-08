@@ -24,7 +24,8 @@ public class RowBufferBudgetBenchmarks
     {
         _session = new MpgsqlMessageSession(_input.Reader, _output.Writer);
         _batch = _session.CreateBatch();
-        if (!Uncontended() || !await WaitAndRelease().ConfigureAwait(false) || _budget.Used != 0)
+        if (!Uncontended() || !await WaitAndRelease()
+                .ConfigureAwait(false) || _budget.Used != 0)
         {
             throw new InvalidOperationException("Row capacity diagnostic verification.");
         }
@@ -33,7 +34,10 @@ public class RowBufferBudgetBenchmarks
     [Benchmark]
     public bool Uncontended()
     {
-        var result = _budget.ReserveAsync(1, _batch, Token).GetAwaiter().GetResult();
+        var result = _budget
+            .ReserveAsync(1, _batch, Token)
+            .GetAwaiter()
+            .GetResult();
         _budget.Release(1);
         return result;
     }
@@ -41,7 +45,9 @@ public class RowBufferBudgetBenchmarks
     [Benchmark]
     public async ValueTask<bool> WaitAndRelease()
     {
-        _ = await _budget.ReserveAsync(1, _batch, Token).ConfigureAwait(false);
+        _ = await _budget
+            .ReserveAsync(1, _batch, Token)
+            .ConfigureAwait(false);
         var pending = _budget.ReserveAsync(1, _batch, Token);
         _budget.Release(1);
         var result = await pending.ConfigureAwait(false);
@@ -56,10 +62,18 @@ public class RowBufferBudgetBenchmarks
         {
             throw new InvalidOperationException("Capacity diagnostic retains bytes.");
         }
-        await _batch.DisposeAsync().ConfigureAwait(false);
-        await _session.DisposeAsync().ConfigureAwait(false);
-        await _input.Writer.CompleteAsync().ConfigureAwait(false);
-        await _output.Reader.CompleteAsync().ConfigureAwait(false);
+        await _batch
+            .DisposeAsync()
+            .ConfigureAwait(false);
+        await _session
+            .DisposeAsync()
+            .ConfigureAwait(false);
+        await _input
+            .Writer.CompleteAsync()
+            .ConfigureAwait(false);
+        await _output
+            .Reader.CompleteAsync()
+            .ConfigureAwait(false);
         _lifetime.Dispose();
     }
 }

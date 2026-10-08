@@ -10,17 +10,24 @@ internal static class BinaryCopyFormat
 
     internal static void WriteHeader(IBufferWriter<byte> destination)
     {
-        var bytes = destination.GetSpan(HeaderSize)[..HeaderSize];
+        var bytes = destination
+            .GetSpan(HeaderSize)[..HeaderSize];
         Signature.CopyTo(bytes);
-        bytes[11..].Clear(); // Int32 flags=0, Int32 extension length=0, both big-endian.
+        bytes[11..]
+            .Clear(); // Int32 flags=0, Int32 extension length=0, both big-endian.
         destination.Advance(HeaderSize);
     }
 
-    internal static void WriteInt16(IBufferWriter<byte> destination,
-        short value)
+    internal static void WriteInt16(
+        IBufferWriter<byte> destination,
+        short value
+    )
     {
-        BinaryPrimitives.WriteInt16BigEndian(destination.GetSpan(2),
-            value);
+        BinaryPrimitives.WriteInt16BigEndian
+        (
+            destination.GetSpan(2),
+            value
+        );
         destination.Advance(2);
     }
 }

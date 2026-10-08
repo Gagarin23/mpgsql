@@ -20,9 +20,12 @@ internal sealed record QueryScenario
     internal static readonly QueryScenario Empty = new QueryScenario("Empty", "select $1::bigint where false", 0);
     internal static readonly QueryScenario One = new QueryScenario("OneBigint", "select $1::bigint", 1);
 
-    internal static readonly QueryScenario Wide = new QueryScenario("Rows128Columns8",
+    internal static readonly QueryScenario Wide = new QueryScenario
+    (
+        "Rows128Columns8",
         "select $1::bigint+8*(i-1), $1::bigint+8*(i-1)+1, $1::bigint+8*(i-1)+2, " + "$1::bigint+8*(i-1)+3, $1::bigint+8*(i-1)+4, $1::bigint+8*(i-1)+5, " + "$1::bigint+8*(i-1)+6, $1::bigint+8*(i-1)+7 from generate_series(1,128) i",
-        128, 8);
+        128, 8
+    );
 
     internal static readonly QueryScenario Many = new QueryScenario("Rows4096", "select $1::bigint+i-1 from generate_series(1,4096) i", 4096);
     internal static readonly QueryScenario Blob64K = new QueryScenario("Bytea64KiB", "select $1::bigint, $2::bytea", 1, 2, 65536);
@@ -53,10 +56,14 @@ internal sealed record QueryScenario
             return 0;
         }
         long result = 0;
-        for (var row = 0; row < Rows; row++)
+        for (var row = 0;
+             row < Rows;
+             row++)
         {
             var integers = ByteaBytes == 0 ? Columns : 1;
-            for (var column = 0; column < integers; column++)
+            for (var column = 0;
+                 column < integers;
+                 column++)
             {
                 result += worker + 1L + (long)row * integers + column;
             }
@@ -71,7 +78,9 @@ internal sealed record QueryScenario
     private static byte[] CreateBlob(int length)
     {
         var bytes = new byte[length];
-        for (var i = 0; i < length; i++)
+        for (var i = 0;
+             i < length;
+             i++)
         {
             bytes[i] = unchecked((byte)(i * 31 + 7));
         }

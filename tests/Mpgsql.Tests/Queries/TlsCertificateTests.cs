@@ -25,8 +25,23 @@ public sealed class TlsCertificateTests
         using var root = rootRequest.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(1));
         using var leafKey = RSA.Create(2048);
         var request = new CertificateRequest("CN=localhost", leafKey, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-        request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(new OidCollection {new Oid(serverPurpose ? "1.3.6.1.5.5.7.3.1" : "1.3.6.1.5.5.7.3.2")}, true));
-        using var leaf = request.Create(root, DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddHours(1), new byte[] {1});
+        request.CertificateExtensions.Add
+        (
+            new X509EnhancedKeyUsageExtension
+            (
+                new OidCollection
+                {
+                    new Oid(serverPurpose ? "1.3.6.1.5.5.7.3.1" : "1.3.6.1.5.5.7.3.2")
+                }, true
+            )
+        );
+        using var leaf = request.Create
+        (
+            root, DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddHours(1), new byte[]
+            {
+                1
+            }
+        );
         Assert.Equal(serverPurpose, SocketTransport.ValidateCertificate(MpgsqlSslMode.VerifyFull, leaf, SslPolicyErrors.RemoteCertificateChainErrors, root));
         Assert.False(SocketTransport.ValidateCertificate(MpgsqlSslMode.VerifyFull, leaf, SslPolicyErrors.RemoteCertificateChainErrors, null));
     }

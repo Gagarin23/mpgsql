@@ -18,7 +18,9 @@ internal static class ScalarNumericArrayBaseline<T, TCodec> where TCodec : struc
         else
         {
             foreach (var item in source)
+            {
                 elementBytes = checked(elementBytes + TCodec.Measure(item));
+            }
         }
         return ArrayPayload.Measure(source.Length, elementBytes);
     }
@@ -39,7 +41,8 @@ internal static class ScalarNumericArrayBaseline<T, TCodec> where TCodec : struc
         ArgumentNullException.ThrowIfNull(destination);
         var source = value.Span;
         var size = Measure(source);
-        var bytes = destination.GetSpan(size)[..size];
+        var bytes = destination
+            .GetSpan(size)[..size];
         CheckOverlap(source, bytes);
         WriteCore(source, bytes);
         destination.Advance(size);
@@ -51,7 +54,9 @@ internal static class ScalarNumericArrayBaseline<T, TCodec> where TCodec : struc
         if (TCodec.MayOverlap)
         {
             foreach (var item in source)
+            {
                 TCodec.CheckOverlap(item, destination);
+            }
         }
     }
 

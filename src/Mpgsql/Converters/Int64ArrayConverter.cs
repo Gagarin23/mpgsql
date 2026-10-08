@@ -34,77 +34,119 @@ public static class Int64ArrayConverter
 
     /// <summary>Writes directly into the destination, returning the payload size.</summary>
     /// <remarks>Checks capacity and rejects overlapping storage before changing the destination.</remarks>
-    public static int Write(ReadOnlyMemory<long> value,
-        Span<byte> destination)
+    public static int Write(
+        ReadOnlyMemory<long> value,
+        Span<byte> destination
+    )
     {
         var size = GetByteCount(value);
         if (destination.Length < size)
         {
-            throw new ArgumentException("The destination is too small for the bigint[] payload.",
-                nameof(destination));
+            throw new ArgumentException
+            (
+                "The destination is too small for the bigint[] payload.",
+                nameof(destination)
+            );
         }
         var source = value.Span;
         destination = destination[..size];
-        RequireSeparateStorage(MemoryMarshal.AsBytes(source),
-            destination);
-        WriteCore(source,
-            destination);
+        RequireSeparateStorage
+        (
+            MemoryMarshal.AsBytes(source),
+            destination
+        );
+        WriteCore
+        (
+            source,
+            destination
+        );
         return size;
     }
 
     /// <summary>Reserves the complete payload and advances only the written region.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Write(ReadOnlyMemory<long> value,
-        IBufferWriter<byte> destination)
+    public static void Write(
+        ReadOnlyMemory<long> value,
+        IBufferWriter<byte> destination
+    )
     {
         ArgumentNullException.ThrowIfNull(destination);
         var size = GetByteCount(value);
-        Write(value,
-            destination.GetSpan(size));
+        Write
+        (
+            value,
+            destination.GetSpan(size)
+        );
         destination.Advance(size);
     }
 
     /// <summary>Returns independently owned memory with one long[] allocation for a nonempty array.</summary>
     public static ReadOnlyMemory<long> Read(ReadOnlySpan<byte> payload)
     {
-        var count = ReadHeader(payload,
+        var count = ReadHeader
+        (
+            payload,
             out var headerSize,
-            out var nullable);
+            out var nullable
+        );
         if (nullable && payload.Length - headerSize != (long)RecordSize * count)
         {
-            ValidateNullableRecords(payload[headerSize..],
-                count);
+            ValidateNullableRecords
+            (
+                payload[headerSize..],
+                count
+            );
         }
         if (count == 0)
         {
             return ReadOnlyMemory<long>.Empty;
         }
         var result = GC.AllocateUninitializedArray<long>(count);
-        ReadSharedRecords(payload[headerSize..],
-            result);
+        ReadSharedRecords
+        (
+            payload[headerSize..],
+            result
+        );
         return result;
     }
 
     /// <summary>Decodes into reusable storage without allocating; returns the element count.</summary>
     /// <remarks>On an invalid element prefix, part of the destination may have been written.</remarks>
-    public static int Read(ReadOnlySpan<byte> payload,
-        Span<long> destination)
+    public static int Read(
+        ReadOnlySpan<byte> payload,
+        Span<long> destination
+    )
     {
-        var count = ReadHeader(payload,
+        var count = ReadHeader
+        (
+            payload,
             out var headerSize,
-            out var nullable);
+            out var nullable
+        );
         if (nullable && payload.Length - headerSize != (long)RecordSize * count)
         {
-            ValidateNullableRecords(payload[headerSize..],
-                count);
+            ValidateNullableRecords
+            (
+                payload[headerSize..],
+                count
+            );
         }
-        RequireCapacity(count,
-            destination.Length);
+        RequireCapacity
+        (
+            count,
+            destination.Length
+        );
         destination = destination[..count];
-        RequireSeparateStorage(payload,
-            MemoryMarshal.AsBytes(destination));
-        ReadSharedRecords(payload[headerSize..],
-            destination);
+        RequireSeparateStorage
+        (
+            payload,
+            MemoryMarshal.AsBytes(destination)
+        );
+        ReadSharedRecords
+        (
+            payload[headerSize..],
+            destination
+        );
         return count;
     }
 
@@ -116,77 +158,126 @@ public static class Int64ArrayConverter
             return Read(payload.FirstSpan);
         }
         var reader = new SequenceReader<byte>(payload);
-        var count = ReadHeader(ref reader,
-            out var nullable);
+        var count = ReadHeader
+        (
+            ref reader,
+            out var nullable
+        );
         if (nullable && reader.Remaining != (long)RecordSize * count)
         {
-            ValidateNullableRecords(reader,
-                count);
+            ValidateNullableRecords
+            (
+                reader,
+                count
+            );
         }
         if (count == 0)
         {
             return ReadOnlyMemory<long>.Empty;
         }
         var result = GC.AllocateUninitializedArray<long>(count);
-        ReadSegmentedRecords(ref reader,
-            result);
+        ReadSegmentedRecords
+        (
+            ref reader,
+            result
+        );
         return result;
     }
 
     /// <summary>Reads segmented input into reusable storage without a payload copy or allocation.</summary>
     /// <remarks>On an invalid element prefix, part of the destination may have been written.</remarks>
-    public static int Read(ReadOnlySequence<byte> payload,
-        Span<long> destination)
+    public static int Read(
+        ReadOnlySequence<byte> payload,
+        Span<long> destination
+    )
     {
         if (payload.IsSingleSegment)
         {
-            return Read(payload.FirstSpan,
-                destination);
+            return Read
+            (
+                payload.FirstSpan,
+                destination
+            );
         }
         var reader = new SequenceReader<byte>(payload);
-        var count = ReadHeader(ref reader,
-            out var nullable);
+        var count = ReadHeader
+        (
+            ref reader,
+            out var nullable
+        );
         if (nullable && reader.Remaining != (long)RecordSize * count)
         {
-            ValidateNullableRecords(reader,
-                count);
+            ValidateNullableRecords
+            (
+                reader,
+                count
+            );
         }
-        RequireCapacity(count,
-            destination.Length);
+        RequireCapacity
+        (
+            count,
+            destination.Length
+        );
         destination = destination[..count];
         var outputBytes = MemoryMarshal.AsBytes(destination);
         foreach (var segment in payload)
         {
-            RequireSeparateStorage(segment.Span,
-                outputBytes);
+            RequireSeparateStorage
+            (
+                segment.Span,
+                outputBytes
+            );
         }
-        ReadSegmentedRecords(ref reader,
-            destination);
+        ReadSegmentedRecords
+        (
+            ref reader,
+            destination
+        );
         return count;
     }
 
-    private static void WriteCore(ReadOnlySpan<long> source,
-        Span<byte> destination)
+    private static void WriteCore(
+        ReadOnlySpan<long> source,
+        Span<byte> destination
+    )
     {
         // Int32 ndim, Int32 flags, UInt32 element OID, then Int32 count/lower bound per dimension.
-        BinaryPrimitives.WriteInt32BigEndian(destination,
+        BinaryPrimitives.WriteInt32BigEndian
+        (
+            destination,
             source.IsEmpty
                 ? 0
-                : 1);
-        BinaryPrimitives.WriteInt32BigEndian(destination[4..],
-            0);
-        BinaryPrimitives.WriteUInt32BigEndian(destination[8..],
-            ElementTypeOid);
+                : 1
+        );
+        BinaryPrimitives.WriteInt32BigEndian
+        (
+            destination[4..],
+            0
+        );
+        BinaryPrimitives.WriteUInt32BigEndian
+        (
+            destination[8..],
+            ElementTypeOid
+        );
         if (source.IsEmpty)
         {
             return;
         }
-        BinaryPrimitives.WriteInt32BigEndian(destination[12..],
-            source.Length);
-        BinaryPrimitives.WriteInt32BigEndian(destination[16..],
-            1);
-        WriteSharedRecords(source,
-            destination[HeaderSize..]);
+        BinaryPrimitives.WriteInt32BigEndian
+        (
+            destination[12..],
+            source.Length
+        );
+        BinaryPrimitives.WriteInt32BigEndian
+        (
+            destination[16..],
+            1
+        );
+        WriteSharedRecords
+        (
+            source,
+            destination[HeaderSize..]
+        );
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -195,7 +286,9 @@ public static class Int64ArrayConverter
         var i = BinaryArray<long, Int64Codec>.CanUseNumericSimd && source.Length >= 4
             ? BinaryArray<long, Int64Codec>.WriteNumericVectors(source, destination)
             : 0;
-        for (var offset = i * RecordSize; i < source.Length; i++, offset += RecordSize)
+        for (var offset = i * RecordSize;
+             i < source.Length;
+             i++, offset += RecordSize)
         {
             BinaryPrimitives.WriteInt32BigEndian(destination[offset..], sizeof(long));
             BinaryPrimitives.WriteInt64BigEndian(destination[(offset + 4)..], source[i]);
@@ -208,7 +301,9 @@ public static class Int64ArrayConverter
         var i = BinaryArray<long, Int64Codec>.CanUseNumericSimd && destination.Length >= 4
             ? BinaryArray<long, Int64Codec>.ReadNumericVectors(source, destination)
             : 0;
-        for (var offset = i * RecordSize; i < destination.Length; i++, offset += RecordSize)
+        for (var offset = i * RecordSize;
+             i < destination.Length;
+             i++, offset += RecordSize)
         {
             if (BinaryPrimitives.ReadInt32BigEndian(source[offset..]) != sizeof(long))
             {
@@ -218,8 +313,10 @@ public static class Int64ArrayConverter
         }
     }
 
-    private static int ReadHeader(ref SequenceReader<byte> reader,
-        out bool nullable)
+    private static int ReadHeader(
+        ref SequenceReader<byte> reader,
+        out bool nullable
+    )
     {
         var payloadLength = reader.Remaining;
         if (!reader.TryReadBigEndian(out int dimensions) || !reader.TryReadBigEndian(out int flags) ||
@@ -227,28 +324,36 @@ public static class Int64ArrayConverter
         {
             throw new InvalidDataException("Truncated PostgreSQL array header.");
         }
-        nullable = ValidateArrayType(dimensions,
+        nullable = ValidateArrayType
+        (
+            dimensions,
             flags,
-            unchecked((uint)oid));
+            unchecked((uint)oid)
+        );
         var count = 0;
         var lowerBound = 0;
         if (dimensions == 1 && (!reader.TryReadBigEndian(out count) || !reader.TryReadBigEndian(out lowerBound)))
         {
             throw new InvalidDataException("Truncated PostgreSQL array dimension.");
         }
-        ValidateBoundsAndLength(count,
+        ValidateBoundsAndLength
+        (
+            count,
             lowerBound,
             dimensions == 0
                 ? EmptyHeaderSize
                 : HeaderSize,
             payloadLength,
-            nullable);
+            nullable
+        );
         return count;
     }
 
-    private static int ReadHeader(ReadOnlySpan<byte> payload,
+    private static int ReadHeader(
+        ReadOnlySpan<byte> payload,
         out int headerSize,
-        out bool nullable)
+        out bool nullable
+    )
     {
         if (payload.Length < EmptyHeaderSize)
         {
@@ -257,9 +362,12 @@ public static class Int64ArrayConverter
         var dimensions = BinaryPrimitives.ReadInt32BigEndian(payload);
         var flags = BinaryPrimitives.ReadInt32BigEndian(payload[4..]);
         var oid = BinaryPrimitives.ReadUInt32BigEndian(payload[8..]);
-        nullable = ValidateArrayType(dimensions,
+        nullable = ValidateArrayType
+        (
+            dimensions,
             flags,
-            oid);
+            oid
+        );
         headerSize = dimensions == 0 ? EmptyHeaderSize : HeaderSize;
         if (payload.Length < headerSize)
         {
@@ -267,18 +375,23 @@ public static class Int64ArrayConverter
         }
         var count = dimensions == 0 ? 0 : BinaryPrimitives.ReadInt32BigEndian(payload[12..]);
         var lowerBound = dimensions == 0 ? 0 : BinaryPrimitives.ReadInt32BigEndian(payload[16..]);
-        ValidateBoundsAndLength(count,
+        ValidateBoundsAndLength
+        (
+            count,
             lowerBound,
             headerSize,
             payload.Length,
-            nullable);
+            nullable
+        );
         return count;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool ValidateArrayType(int dimensions,
+    private static bool ValidateArrayType(
+        int dimensions,
         int flags,
-        uint oid)
+        uint oid
+    )
     {
         if ((uint)dimensions > 6 || (uint)flags > 1 || oid != ElementTypeOid)
         {
@@ -292,11 +405,13 @@ public static class Int64ArrayConverter
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void ValidateBoundsAndLength(int count,
+    private static void ValidateBoundsAndLength(
+        int count,
         int lowerBound,
         int headerSize,
         long payloadLength,
-        bool nullable)
+        bool nullable
+    )
     {
         // PostgreSQL requires lowerBound + count to fit Int32, including the exclusive upper bound.
         if (count < 0 || (long)lowerBound + count > int.MaxValue)
@@ -313,10 +428,14 @@ public static class Int64ArrayConverter
         }
     }
 
-    private static void ValidateNullableRecords(ReadOnlySpan<byte> records,
-        int count)
+    private static void ValidateNullableRecords(
+        ReadOnlySpan<byte> records,
+        int count
+    )
     {
-        for (var i = 0; i < count; i++)
+        for (var i = 0;
+             i < count;
+             i++)
         {
             if (records.Length < 4)
             {
@@ -335,10 +454,14 @@ public static class Int64ArrayConverter
         }
     }
 
-    private static void ValidateNullableRecords(SequenceReader<byte> reader,
-        int count)
+    private static void ValidateNullableRecords(
+        SequenceReader<byte> reader,
+        int count
+    )
     {
-        for (var i = 0; i < count; i++)
+        for (var i = 0;
+             i < count;
+             i++)
         {
             if (!reader.TryReadBigEndian(out int length))
             {
@@ -369,21 +492,32 @@ public static class Int64ArrayConverter
         }
     }
 
-    private static void ReadSegmentedRecords(ref SequenceReader<byte> reader,
-        Span<long> destination)
+    private static void ReadSegmentedRecords(
+        ref SequenceReader<byte> reader,
+        Span<long> destination
+    )
     {
         var written = 0;
         while (written < destination.Length)
         {
             // Decode whole records within a segment through the same contiguous fast path.
-            var count = Math.Min(reader.UnreadSpan.Length / RecordSize,
-                destination.Length - written);
+            var count = Math.Min
+            (
+                reader.UnreadSpan.Length / RecordSize,
+                destination.Length - written
+            );
             if (count != 0)
             {
                 var byteCount = count * RecordSize;
-                ReadSharedRecords(reader.UnreadSpan[..byteCount],
-                    destination.Slice(written,
-                        count));
+                ReadSharedRecords
+                (
+                    reader.UnreadSpan[..byteCount],
+                    destination.Slice
+                    (
+                        written,
+                        count
+                    )
+                );
                 reader.Advance(byteCount);
                 written += count;
             }
@@ -400,23 +534,33 @@ public static class Int64ArrayConverter
         }
     }
 
-    private static void RequireCapacity(int count,
-        int capacity)
+    private static void RequireCapacity(
+        int count,
+        int capacity
+    )
     {
         if (capacity < count)
         {
-            throw new ArgumentException("The destination is too small for the bigint[] elements.",
-                "destination");
+            throw new ArgumentException
+            (
+                "The destination is too small for the bigint[] elements.",
+                "destination"
+            );
         }
     }
 
-    private static void RequireSeparateStorage(ReadOnlySpan<byte> source,
-        Span<byte> destination)
+    private static void RequireSeparateStorage(
+        ReadOnlySpan<byte> source,
+        Span<byte> destination
+    )
     {
         if (source.Overlaps(destination))
         {
-            throw new ArgumentException("Array input and output storage must not overlap.",
-                "destination");
+            throw new ArgumentException
+            (
+                "Array input and output storage must not overlap.",
+                "destination"
+            );
         }
     }
 }

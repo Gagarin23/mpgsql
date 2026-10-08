@@ -16,20 +16,30 @@ internal sealed class QueryExecution : IResultExecutionOwner
     private readonly MpgsqlMessageSession _session;
     private readonly Timer? _timer;
     private CancellationToken _cancellationToken;
-    private volatile bool _cancelled, _timedOut;
-    private bool _ended, _discard;
+
+    private volatile bool _cancelled,
+        _timedOut;
+
+    private bool _ended,
+        _discard;
+
     private Task? _finish;
     private int _finishErrorObserved;
     private TaskCompletionSource? _finishSignal;
     private bool _finishing;
-    private Task _producer = Task.CompletedTask, _control = Task.CompletedTask;
+
+    private Task _producer = Task.CompletedTask,
+        _control = Task.CompletedTask;
+
     private MpgsqlResultReader? _reader;
     private Task _readerIdle = Task.CompletedTask;
     private OutboundWork? _send;
 
-    internal QueryExecution(MpgsqlConnection connection, CancellationToken request,
+    internal QueryExecution(
+        MpgsqlConnection connection, CancellationToken request,
         int timeout, Action completed,
-        bool ownsConnection, long[]? affectedRows = null)
+        bool ownsConnection, long[]? affectedRows = null
+    )
     {
         if ((uint)timeout > (uint.MaxValue - 1) / 1000)
         {
@@ -100,15 +110,24 @@ internal sealed class QueryExecution : IResultExecutionOwner
             {
                 if (close)
                 {
-                    await _batch.SendCloseAsync(statement).ConfigureAwait(false);
+                    await _batch
+                        .SendCloseAsync(statement)
+                        .ConfigureAwait(false);
                 }
                 else
                 {
-                    await _batch.SendPrepareAsync(statement).ConfigureAwait(false);
+                    await _batch
+                        .SendPrepareAsync(statement)
+                        .ConfigureAwait(false);
                 }
             }
         }
-        finally { await _batch.SendSyncAsync().ConfigureAwait(false); }
+        finally
+        {
+            await _batch
+                .SendSyncAsync()
+                .ConfigureAwait(false);
+        }
     }
 
     internal void Cancel()
@@ -145,13 +164,19 @@ internal sealed class QueryExecution : IResultExecutionOwner
         using var deadline = new CancellationTokenSource(_connection.RecoveryTimeout);
         try
         {
-            if (!await _batch.FirstPublished.WaitAsync(deadline.Token).ConfigureAwait(false))
+            if (!await _batch
+                    .FirstPublished.WaitAsync(deadline.Token)
+                    .ConfigureAwait(false))
             {
                 return;
             }
             if (!_batch.Completion.IsCompleted)
             {
-                await _connection.SendCancelAsync(_session, deadline.Token).AsTask().WaitAsync(deadline.Token).ConfigureAwait(false);
+                await _connection
+                    .SendCancelAsync(_session, deadline.Token)
+                    .AsTask()
+                    .WaitAsync(deadline.Token)
+                    .ConfigureAwait(false);
             }
             Task producer;
             OutboundWork? send;
@@ -160,13 +185,25 @@ internal sealed class QueryExecution : IResultExecutionOwner
                 producer = _producer;
                 send = _send;
             }
-            try { await producer.WaitAsync(deadline.Token).ConfigureAwait(false); }
+            try
+            {
+                await producer
+                    .WaitAsync(deadline.Token)
+                    .ConfigureAwait(false);
+            }
             catch (OperationCanceledException) when (_cancelled && !deadline.IsCancellationRequested) { }
             if (send is not null)
             {
-                await send.Delivery.WaitAsync(deadline.Token).ConfigureAwait(false);
+                await send
+                    .Delivery.WaitAsync(deadline.Token)
+                    .ConfigureAwait(false);
             }
-            try { await _batch.Completion.WaitAsync(deadline.Token).ConfigureAwait(false); }
+            try
+            {
+                await _batch
+                    .Completion.WaitAsync(deadline.Token)
+                    .ConfigureAwait(false);
+            }
             catch (MpgsqlServerException error) when (error.TransactionStatus is not null) { }
         }
         catch (Exception error)
@@ -179,7 +216,7 @@ internal sealed class QueryExecution : IResultExecutionOwner
     internal Exception Map(Exception error)
     {
         return _cancelled
-            ? (_timedOut ? new MpgsqlException("The command timed out.", new TimeoutException()) : new OperationCanceledException("The execution was canceled.", error, _cancellationToken))
+            ? _timedOut ? new MpgsqlException("The command timed out.", new TimeoutException()) : new OperationCanceledException("The execution was canceled.", error, _cancellationToken)
             : MpgsqlException.Map(error);
     }
 
@@ -200,7 +237,9 @@ internal sealed class QueryExecution : IResultExecutionOwner
     {
         try
         {
-            var reader = await _batch.ReadResultsAsync().ConfigureAwait(false);
+            var reader = await _batch
+                .ReadResultsAsync()
+                .ConfigureAwait(false);
             lock (_gate)
             {
                 _reader = reader;
@@ -215,7 +254,11 @@ internal sealed class QueryExecution : IResultExecutionOwner
         }
         catch (Exception error)
         {
-            try { await FinishAsync(true).ConfigureAwait(false); }
+            try
+            {
+                await FinishAsync(true)
+                    .ConfigureAwait(false);
+            }
             catch { }
             ExceptionDispatchInfo.Throw(Map(error));
             return null!;
@@ -225,7 +268,8 @@ internal sealed class QueryExecution : IResultExecutionOwner
     internal ValueTask FinishAsync(bool discard, bool primaryObserver = false)
     {
         Task? finish;
-        bool start, enforceRecovery = false;
+        bool start,
+            enforceRecovery = false;
         lock (_gate)
         {
             if (discard && !_discard)
@@ -269,7 +313,12 @@ internal sealed class QueryExecution : IResultExecutionOwner
     }
     private async Task EnforceRecoveryAsync(Task finish)
     {
-        try { await finish.WaitAsync(_connection.RecoveryTimeout).ConfigureAwait(false); }
+        try
+        {
+            await finish
+                .WaitAsync(_connection.RecoveryTimeout)
+                .ConfigureAwait(false);
+        }
         catch (TimeoutException error) { _session.Abort(error); }
         catch { }
     }
@@ -308,7 +357,9 @@ internal sealed class QueryExecution : IResultExecutionOwner
         catch (Exception failure) { error = failure; }
         try
         {
-            await _batch.ObserveCompletionAsync().ConfigureAwait(false);
+            await _batch
+                .ObserveCompletionAsync()
+                .ConfigureAwait(false);
         }
         catch (Exception failure) { error ??= failure; }
         if (error is not null)
@@ -330,7 +381,9 @@ internal sealed class QueryExecution : IResultExecutionOwner
             }
             if (recovering)
             {
-                await protocol.WaitAsync(_connection.RecoveryTimeout).ConfigureAwait(false);
+                await protocol
+                    .WaitAsync(_connection.RecoveryTimeout)
+                    .ConfigureAwait(false);
             }
             else
             {
@@ -347,27 +400,37 @@ internal sealed class QueryExecution : IResultExecutionOwner
                 catch { }
             }
         }
-        Task control, idle;
+        Task control,
+            idle;
         lock (_gate)
         {
             _ended = true;
             control = _control;
             idle = _readerIdle;
         }
-        await _registration.DisposeAsync().ConfigureAwait(false);
+        await _registration
+            .DisposeAsync()
+            .ConfigureAwait(false);
         _timer?.Dispose();
         try { await control.ConfigureAwait(false); }
         catch (Exception failure) { error ??= failure; }
         await idle.ConfigureAwait(false);
         _reader?.ReleaseCurrent();
-        try { await _batch.DisposeAsync().ConfigureAwait(false); }
+        try
+        {
+            await _batch
+                .DisposeAsync()
+                .ConfigureAwait(false);
+        }
         catch (Exception failure) { error ??= failure; }
         _connection.ExecutionCompleted(this);
         try
         {
             if (_ownsConnection)
             {
-                await _connection.CloseOwnedLeaseAsync().ConfigureAwait(false);
+                await _connection
+                    .CloseOwnedLeaseAsync()
+                    .ConfigureAwait(false);
             }
         }
         finally { _completed(); }

@@ -31,7 +31,8 @@ public sealed class MpgsqlMultiplexingDataSource : IAsyncDisposable
 
     public MpgsqlMultiplexingDataSource(
         Func<CancellationToken, ValueTask<MpgsqlMessageSession>> sessionFactory,
-        MpgsqlMultiplexingOptions? options = null)
+        MpgsqlMultiplexingOptions? options = null
+    )
     {
         ArgumentNullException.ThrowIfNull(sessionFactory);
         _factory = sessionFactory;
@@ -69,8 +70,10 @@ public sealed class MpgsqlMultiplexingDataSource : IAsyncDisposable
     ///     Input memory is borrowed until this method completes. The reader owns the request slot
     ///     until it is fully consumed or disposed. Slow readers apply transport-wide backpressure.
     /// </summary>
-    public ValueTask<MpgsqlResultReader> ExecuteReaderAsync(string sql,
-        ReadOnlyMemory<MpgsqlParameterValue> parameters = default, CancellationToken cancellationToken = default)
+    public ValueTask<MpgsqlResultReader> ExecuteReaderAsync(
+        string sql,
+        ReadOnlyMemory<MpgsqlParameterValue> parameters = default, CancellationToken cancellationToken = default
+    )
     {
         try
         {
@@ -86,37 +89,59 @@ public sealed class MpgsqlMultiplexingDataSource : IAsyncDisposable
         catch (Exception error) { return QueryExecution.ReaderFailureAsync(error); }
     }
 
-    private ValueTask<MpgsqlResultReader> OpenReservedReader(PooledSession pooled,
-        QueryDefinition query, CancellationToken token)
+    private ValueTask<MpgsqlResultReader> OpenReservedReader(
+        PooledSession pooled,
+        QueryDefinition query, CancellationToken token
+    )
     {
         try { return new QueryExecution(this, pooled, query, token).OpenReaderAsync(true); }
         catch (Exception error) { return ReleaseFailedReservationAsync(pooled, error); }
     }
 
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
-    private async ValueTask<MpgsqlResultReader> OpenAdmittedReaderAsync(ValueTask<PooledSession> admission,
-        QueryDefinition query, CancellationToken token)
+    private async ValueTask<MpgsqlResultReader> OpenAdmittedReaderAsync(
+        ValueTask<PooledSession> admission,
+        QueryDefinition query, CancellationToken token
+    )
     {
-        return await OpenReservedReader(await admission.ConfigureAwait(false), query, token).ConfigureAwait(false);
+        return await OpenReservedReader(await admission.ConfigureAwait(false), query, token)
+            .ConfigureAwait(false);
     }
 
     private async ValueTask<MpgsqlResultReader> ReleaseFailedReservationAsync(PooledSession pooled, Exception error)
     {
-        await ReleaseRequestAsync(pooled).ConfigureAwait(false);
+        await ReleaseRequestAsync(pooled)
+            .ConfigureAwait(false);
         ExceptionDispatchInfo.Throw(error);
         return null!;
     }
 
-    public async ValueTask<MpgsqlScalarResult<T>> ExecuteScalarAsync<T>(string sql,
-        ReadOnlyMemory<MpgsqlParameterValue> parameters = default, CancellationToken cancellationToken = default)
+    public async ValueTask<MpgsqlScalarResult<T>> ExecuteScalarAsync<T>(
+        string sql,
+        ReadOnlyMemory<MpgsqlParameterValue> parameters = default, CancellationToken cancellationToken = default
+    )
     {
-        return await ResultConsumption.ScalarAsync<T>(await ExecuteReaderAsync(sql, parameters, cancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
+        return await ResultConsumption
+            .ScalarAsync<T>
+            (
+                await ExecuteReaderAsync(sql, parameters, cancellationToken)
+                    .ConfigureAwait(false)
+            )
+            .ConfigureAwait(false);
     }
 
-    public async ValueTask<long> ExecuteNonQueryAsync(string sql,
-        ReadOnlyMemory<MpgsqlParameterValue> parameters = default, CancellationToken cancellationToken = default)
+    public async ValueTask<long> ExecuteNonQueryAsync(
+        string sql,
+        ReadOnlyMemory<MpgsqlParameterValue> parameters = default, CancellationToken cancellationToken = default
+    )
     {
-        return await ResultConsumption.NonQueryAsync(await ExecuteReaderAsync(sql, parameters, cancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
+        return await ResultConsumption
+            .NonQueryAsync
+            (
+                await ExecuteReaderAsync(sql, parameters, cancellationToken)
+                    .ConfigureAwait(false)
+            )
+            .ConfigureAwait(false);
     }
 
     private static TaskCompletionSource NewSignal()
@@ -236,12 +261,17 @@ public sealed class MpgsqlMultiplexingDataSource : IAsyncDisposable
 
     private static async ValueTask<PooledSession> WaitForCancelableSessionAsync(SessionWaiter waiter)
     {
-        using var registration = waiter.Token.UnsafeRegister(static state =>
-        {
-            var waiting = (SessionWaiter)state!;
-            waiting.Source.CancelWaiter(waiting);
-        }, waiter);
-        return await waiter.WaitAsync().ConfigureAwait(false);
+        using var registration = waiter.Token.UnsafeRegister
+        (
+            static state =>
+            {
+                var waiting = (SessionWaiter)state!;
+                waiting.Source.CancelWaiter(waiting);
+            }, waiter
+        );
+        return await waiter
+            .WaitAsync()
+            .ConfigureAwait(false);
     }
 
     private void CancelWaiter(SessionWaiter waiter)
@@ -261,7 +291,14 @@ public sealed class MpgsqlMultiplexingDataSource : IAsyncDisposable
 
     private async Task CreateForWaiterAsync(SessionWaiter waiter)
     {
-        try { waiter.TrySetResult(await CreateSessionAsync(waiter.Token).ConfigureAwait(false)); }
+        try
+        {
+            waiter.TrySetResult
+            (
+                await CreateSessionAsync(waiter.Token)
+                    .ConfigureAwait(false)
+            );
+        }
         catch (OperationCanceledException) when (waiter.Token.IsCancellationRequested) { waiter.TrySetCanceled(); }
         catch (Exception error) { waiter.TrySetException(error); }
     }
@@ -273,7 +310,8 @@ public sealed class MpgsqlMultiplexingDataSource : IAsyncDisposable
         MpgsqlMessageSession? returned = null;
         try
         {
-            returned = await _factory(linked.Token).ConfigureAwait(false)
+            returned = await _factory(linked.Token)
+                           .ConfigureAwait(false)
                        ?? throw new InvalidOperationException("The session factory returned null.");
             returned.ClaimForDataSource(Options.MaxBufferedRowBytesPerConnection);
             created = new PooledSession(returned, Options);
@@ -292,11 +330,15 @@ public sealed class MpgsqlMultiplexingDataSource : IAsyncDisposable
         {
             if (created is not null)
             {
-                await created.DisposeAsync().ConfigureAwait(false);
+                await created
+                    .DisposeAsync()
+                    .ConfigureAwait(false);
             }
             else if (returned is not null && !returned.IsClaimedForDataSource)
             {
-                await returned.DisposeAsync().ConfigureAwait(false);
+                await returned
+                    .DisposeAsync()
+                    .ConfigureAwait(false);
             }
             throw;
         }
@@ -317,7 +359,8 @@ public sealed class MpgsqlMultiplexingDataSource : IAsyncDisposable
         {
             /* session failure is also delivered to its outstanding operations */
         }
-        await RetireAsync(pooled).ConfigureAwait(false);
+        await RetireAsync(pooled)
+            .ConfigureAwait(false);
     }
 
     internal async ValueTask ReleaseRequestAsync(PooledSession pooled)
@@ -331,7 +374,8 @@ public sealed class MpgsqlMultiplexingDataSource : IAsyncDisposable
         }
         if (retire)
         {
-            await RetireAsync(pooled).ConfigureAwait(false);
+            await RetireAsync(pooled)
+                .ConfigureAwait(false);
         }
     }
 
@@ -344,7 +388,9 @@ public sealed class MpgsqlMultiplexingDataSource : IAsyncDisposable
             _available.Remove(pooled);
             Signal();
         }
-        await pooled.DisposeAsync().ConfigureAwait(false);
+        await pooled
+            .DisposeAsync()
+            .ConfigureAwait(false);
         lock (_gate)
         {
             _all.Remove(pooled);
@@ -372,7 +418,9 @@ public sealed class MpgsqlMultiplexingDataSource : IAsyncDisposable
             sessions = [.. _all];
             _available.Clear();
         }
-        await Task.WhenAll(sessions.Select(RetireAsync)).ConfigureAwait(false);
+        await Task
+            .WhenAll(sessions.Select(RetireAsync))
+            .ConfigureAwait(false);
         // Keep the CTS alive: outstanding owners can still inspect the cancelled lifetime token.
     }
 }

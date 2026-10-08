@@ -21,7 +21,9 @@ internal sealed class PooledSession(MpgsqlMessageSession session, MpgsqlMultiple
                 return _dispose;
             }
             SyncScheduler?.Dispose();
-            return _dispose = Session.DisposeAsync().AsTask();
+            return _dispose = Session
+                .DisposeAsync()
+                .AsTask();
         }
     }
 }

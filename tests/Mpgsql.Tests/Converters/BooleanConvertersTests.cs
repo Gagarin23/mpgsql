@@ -9,13 +9,26 @@ public sealed class BooleanConvertersTests
     public void LiteralPayloadsArraysBuffersAndSegmentBoundaries()
     {
         var value = true;
-        ConverterAssertions.CheckScalar(value, "01", BooleanConverter.GetByteCount, BooleanConverter.Write,
-            BooleanConverter.Write, BooleanConverter.Read, BooleanConverter.Read);
-        ConverterAssertions.CheckNullableScalar(BooleanConverter.Write, BooleanConverter.Write,
-            BooleanConverter.GetByteCount, BooleanConverter.ReadNullable, BooleanConverter.ReadNullable);
-        ConverterAssertions.CheckArray(new[] {value, value}, (uint)TypeOid.Boolean, "01",
+        ConverterAssertions.CheckScalar
+        (
+            value, "01", BooleanConverter.GetByteCount, BooleanConverter.Write,
+            BooleanConverter.Write, BooleanConverter.Read, BooleanConverter.Read
+        );
+        ConverterAssertions.CheckNullableScalar
+        (
+            BooleanConverter.Write, BooleanConverter.Write,
+            BooleanConverter.GetByteCount, BooleanConverter.ReadNullable, BooleanConverter.ReadNullable
+        );
+        ConverterAssertions.CheckArray
+        (
+            new[]
+            {
+                value,
+                value
+            }, (uint)TypeOid.Boolean, "01",
             BooleanArrayConverter.GetByteCount, BooleanArrayConverter.Write, BooleanArrayConverter.Write,
-            BooleanArrayConverter.Read, BooleanArrayConverter.Read, BooleanArrayConverter.Read, BooleanArrayConverter.Read);
+            BooleanArrayConverter.Read, BooleanArrayConverter.Read, BooleanArrayConverter.Read, BooleanArrayConverter.Read
+        );
         ConverterAssertions.CheckNullableArray<bool, BooleanCodec>(value, "01");
     }
     [Fact]

@@ -4,18 +4,41 @@ namespace Mpgsql.IntegrationTests;
 
 internal static partial class UpperApiChecks
 {
-    internal static async Task RunAsync(string host, int port,
+    internal static async Task RunAsync(
+        string host, int port,
         string user, string password,
         string database,
-        bool transactionPool, bool activeTerminalEofOnly = false)
+        bool transactionPool, bool activeTerminalEofOnly = false
+    )
     {
         using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(90));
         var token = lifetime.Token;
         await using (var fixture = new UpperApiTestSource(host, port, user, password, database))
         {
-            var values = await Task.WhenAll(Enumerable.Range(0, 32).Select(async i =>
-                (await fixture.Source.ExecuteScalarAsync<long>("select $1", new[] {MpgsqlParameterValue.Int64(i)}, token)).Value));
-            Check(values.SequenceEqual(Enumerable.Range(0, 32).Select(i => (long)i)), "multiplexed scalar results");
+            var values = await Task.WhenAll
+            (
+                Enumerable
+                    .Range(0, 32)
+                    .Select
+                    (async i =>
+                        (await fixture.Source.ExecuteScalarAsync<long>
+                        (
+                            "select $1", new[]
+                            {
+                                MpgsqlParameterValue.Int64(i)
+                            }, token
+                        )).Value
+                    )
+            );
+            Check
+            (
+                values.SequenceEqual
+                (
+                    Enumerable
+                        .Range(0, 32)
+                        .Select(i => (long)i)
+                ), "multiplexed scalar results"
+            );
             await TypedValuesAsync(fixture.Source, token);
             await StringAliasesAsync(fixture.Source, fixture.ClientSource, token);
             await ErrorAndDrainAsync(fixture.ClientSource, token);
@@ -32,8 +55,10 @@ internal static partial class UpperApiChecks
         {
             await BackendSwapAsync(host, port, user, password, database, token);
         }
-        Console.WriteLine(
-            $"PASS upper API: multiplexing, all {Enum.GetValues<TypeOid>().Length} OIDs, string table/catalog reads, error/drain recovery, logical/server cancellation, {(activeTerminalEofOnly ? "terminal diagnostics/EOF retirement" : "terminal diagnostics")}, explicit cleanup, prepared statements; mode={(transactionPool ? "transaction" : "session/direct")}");
+        Console.WriteLine
+        (
+            $"PASS upper API: multiplexing, all {Enum.GetValues<TypeOid>().Length} OIDs, string table/catalog reads, error/drain recovery, logical/server cancellation, {(activeTerminalEofOnly ? "terminal diagnostics/EOF retirement" : "terminal diagnostics")}, explicit cleanup, prepared statements; mode={(transactionPool ? "transaction" : "session/direct")}"
+        );
     }
 
     private static async Task ErrorAndDrainAsync(MpgsqlDataSource source, CancellationToken token)
@@ -73,16 +98,25 @@ internal static partial class UpperApiChecks
     {
         await using var connection = await fixture.ClientSource.OpenConnectionAsync(token);
         using var request = CancellationTokenSource.CreateLinkedTokenSource(token);
-        var marker = "mpgsql_cancel_" + Guid.NewGuid().ToString("N");
+        var marker = "mpgsql_cancel_" + Guid
+            .NewGuid()
+            .ToString("N");
         await using var command = connection.CreateCommand("select pg_sleep(10) /*" + marker + "*/");
-        var pending = command.ExecuteReaderValueTaskAsync(cancellationToken: request.Token).AsTask();
+        var pending = command
+            .ExecuteReaderValueTaskAsync(cancellationToken: request.Token)
+            .AsTask();
         // Establish that SQL is active before cancellation; merely timing the client is insufficient.
         var deadline = Stopwatch.StartNew();
         while (true)
         {
-            var active = (await fixture.Source.ExecuteScalarAsync<bool>(
+            var active = (await fixture.Source.ExecuteScalarAsync<bool>
+            (
                 "select exists(select 1 from pg_stat_activity where state='active' and query like $1 and pid<>pg_backend_pid())",
-                new[] {MpgsqlParameterValue.Text("%" + marker + "%")}, token)).Value;
+                new[]
+                {
+                    MpgsqlParameterValue.Text("%" + marker + "%")
+                }, token
+            )).Value;
             if (active)
             {
                 break;
@@ -105,10 +139,12 @@ internal static partial class UpperApiChecks
         Check(await Scalar<long>(connection, "select 9::bigint", token) == 9, "reuse after cancelled SQL");
     }
 
-    private static async Task SessionStateAsync(string host, int port,
+    private static async Task SessionStateAsync(
+        string host, int port,
         string user, string password,
         string database,
-        bool transactionPool, CancellationToken token)
+        bool transactionPool, CancellationToken token
+    )
     {
         await using var fixture = new UpperApiTestSource(host, port, user, password, database, 1, true);
         var connection = await fixture.ClientSource.OpenConnectionAsync(token);
@@ -141,8 +177,11 @@ internal static partial class UpperApiChecks
         await connection.ClearSessionStateAsync(MpgsqlSessionCleanup.Settings, token);
         Check(await Scalar<string>(connection, "select current_setting('application_name')", token) == baseline, "selective settings reset");
         Check(await Scalar<bool>(connection, "select to_regclass('pg_temp.mpgsql_state') is not null", token), "settings reset retains temp table");
-        await connection.ClearSessionStateAsync(MpgsqlSessionCleanup.ListenSubscriptions | MpgsqlSessionCleanup.AdvisoryLocks
-                                                                                         | MpgsqlSessionCleanup.Cursors | MpgsqlSessionCleanup.TemporaryObjects, token);
+        await connection.ClearSessionStateAsync
+        (
+            MpgsqlSessionCleanup.ListenSubscriptions | MpgsqlSessionCleanup.AdvisoryLocks
+                                                     | MpgsqlSessionCleanup.Cursors | MpgsqlSessionCleanup.TemporaryObjects, token
+        );
         Check(await Scalar<long>(connection, "select count(*) from pg_cursors where name='mpgsql_cursor'", token) == 0, "cursors closed");
         Check(await Scalar<bool>(connection, "select to_regclass('pg_temp.mpgsql_state') is null", token), "temporary objects dropped");
         Check(await Scalar<long>(connection, "select count(*) from pg_locks where pid=pg_backend_pid() and locktype='advisory'", token) == 0, "session locks released");
@@ -155,9 +194,11 @@ internal static partial class UpperApiChecks
         await connection.DisposeAsync();
     }
 
-    private static async Task BackendSwapAsync(string host, int port,
+    private static async Task BackendSwapAsync(
+        string host, int port,
         string user, string password,
-        string database, CancellationToken token)
+        string database, CancellationToken token
+    )
     {
         // The test pooler configurations have exactly two backend slots and no reserve slots.
         await using var fixture = new UpperApiTestSource(host, port, user, password, database, 3, true);
@@ -184,11 +225,19 @@ internal static partial class UpperApiChecks
         Console.WriteLine("PASS transaction pooler backend reassignment and named prepared Bind");
     }
 
-    private static async Task<long> PreparedValue(MpgsqlMessageSession session, MpgsqlPreparedStatement statement,
-        long input, CancellationToken token)
+    private static async Task<long> PreparedValue(
+        MpgsqlMessageSession session, MpgsqlPreparedStatement statement,
+        long input, CancellationToken token
+    )
     {
         await using var group = session.CreateBatch(token);
-        await group.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(input)});
+        await group.SendQueryAsync
+        (
+            statement, new[]
+            {
+                MpgsqlParameterValue.Int64(input)
+            }
+        );
         await group.SendSyncAsync();
         await using var reader = await group.ReadResultsAsync();
         Check(await reader.ReadAsync(), "prepared row");
@@ -197,14 +246,18 @@ internal static partial class UpperApiChecks
         return result;
     }
 
-    private static async Task<T> Scalar<T>(MpgsqlConnection connection, string sql,
-        CancellationToken token)
+    private static async Task<T> Scalar<T>(
+        MpgsqlConnection connection, string sql,
+        CancellationToken token
+    )
     {
         await using var command = connection.CreateCommand(sql);
         return (await command.ExecuteScalarAsync<T>(token)).Value;
     }
-    private static async Task NonQuery(MpgsqlConnection connection, string sql,
-        CancellationToken token)
+    private static async Task NonQuery(
+        MpgsqlConnection connection, string sql,
+        CancellationToken token
+    )
     {
         await using var command = connection.CreateCommand(sql);
         await command.ExecuteNonQueryAsync(token);

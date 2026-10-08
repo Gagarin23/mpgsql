@@ -36,8 +36,10 @@ namespace Mpgsql.Benchmarks.NpgsqlBaseline.Copied;
 
 internal sealed class Int8Converter<T> : PgBufferedConverter<T> where T : INumberBase<T>
 {
-    public override bool CanConvert(DataFormat format,
-        out BufferRequirements bufferRequirements)
+    public override bool CanConvert(
+        DataFormat format,
+        out BufferRequirements bufferRequirements
+    )
     {
         bufferRequirements = BufferRequirements.CreateFixedSize(sizeof(long));
         return format is DataFormat.Binary;
@@ -47,8 +49,10 @@ internal sealed class Int8Converter<T> : PgBufferedConverter<T> where T : INumbe
     {
         return T.CreateChecked(reader.ReadInt64());
     }
-    protected override void WriteCore(PgWriter writer,
-        T value)
+    protected override void WriteCore(
+        PgWriter writer,
+        T value
+    )
     {
         writer.WriteInt64(long.CreateChecked(value));
     }

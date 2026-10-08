@@ -10,13 +10,26 @@ public sealed class TimeConvertersTests
     public void LiteralPayloadsArraysBuffersAndSegmentBoundaries()
     {
         var value = new PgTime(1000001);
-        ConverterAssertions.CheckScalar(value, "00000000000f4241", TimeConverter.GetByteCount, TimeConverter.Write,
-            TimeConverter.Write, TimeConverter.Read, TimeConverter.Read);
-        ConverterAssertions.CheckNullableScalar(TimeConverter.Write, TimeConverter.Write,
-            TimeConverter.GetByteCount, TimeConverter.ReadNullable, TimeConverter.ReadNullable);
-        ConverterAssertions.CheckArray(new[] {value, value}, (uint)TypeOid.Time, "00000000000f4241",
+        ConverterAssertions.CheckScalar
+        (
+            value, "00000000000f4241", TimeConverter.GetByteCount, TimeConverter.Write,
+            TimeConverter.Write, TimeConverter.Read, TimeConverter.Read
+        );
+        ConverterAssertions.CheckNullableScalar
+        (
+            TimeConverter.Write, TimeConverter.Write,
+            TimeConverter.GetByteCount, TimeConverter.ReadNullable, TimeConverter.ReadNullable
+        );
+        ConverterAssertions.CheckArray
+        (
+            new[]
+            {
+                value,
+                value
+            }, (uint)TypeOid.Time, "00000000000f4241",
             TimeArrayConverter.GetByteCount, TimeArrayConverter.Write, TimeArrayConverter.Write,
-            TimeArrayConverter.Read, TimeArrayConverter.Read, TimeArrayConverter.Read, TimeArrayConverter.Read);
+            TimeArrayConverter.Read, TimeArrayConverter.Read, TimeArrayConverter.Read, TimeArrayConverter.Read
+        );
         ConverterAssertions.CheckNullableArray<PgTime, TimeCodec>(value, "00000000000f4241");
     }
     [Fact]

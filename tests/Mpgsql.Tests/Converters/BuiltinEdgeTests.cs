@@ -63,40 +63,101 @@ public sealed class BuiltinEdgeTests
     public void CalendarBoundariesInfinitiesAndExactClrMappings()
     {
         var bytes = new byte[16];
-        foreach (var days in new[] {PgDate.MinFiniteDays, PgDate.MaxFiniteDays, int.MinValue, int.MaxValue})
+        foreach (var days in new[]
+                 {
+                     PgDate.MinFiniteDays,
+                     PgDate.MaxFiniteDays,
+                     int.MinValue,
+                     int.MaxValue
+                 })
         {
             DateConverter.Write(new PgDate(days), bytes);
-            Assert.Equal(days, DateConverter.Read(bytes.AsSpan(0, 4)).DaysSinceEpoch);
+            Assert.Equal
+            (
+                days, DateConverter.Read(bytes.AsSpan(0, 4))
+                    .DaysSinceEpoch
+            );
         }
         DateConverter.Write(new DateOnly(2000, 1, 1), bytes);
         Assert.Equal(new byte[4], bytes[..4]);
-        Assert.Equal(DateOnly.MinValue, PgDate.FromDateOnly(DateOnly.MinValue).ToDateOnly());
-        Assert.Equal(DateOnly.MaxValue, PgDate.FromDateOnly(DateOnly.MaxValue).ToDateOnly());
+        Assert.Equal
+        (
+            DateOnly.MinValue, PgDate
+                .FromDateOnly(DateOnly.MinValue)
+                .ToDateOnly()
+        );
+        Assert.Equal
+        (
+            DateOnly.MaxValue, PgDate
+                .FromDateOnly(DateOnly.MaxValue)
+                .ToDateOnly()
+        );
         Assert.Throws<OverflowException>(() => PgDate.PositiveInfinity.ToDateOnly());
-        foreach (var micros in new[] {PgTimestamp.MinFiniteMicroseconds, PgTimestamp.MaxFiniteMicroseconds, long.MinValue, long.MaxValue})
+        foreach (var micros in new[]
+                 {
+                     PgTimestamp.MinFiniteMicroseconds,
+                     PgTimestamp.MaxFiniteMicroseconds,
+                     long.MinValue,
+                     long.MaxValue
+                 })
         {
             TimestampConverter.Write(new PgTimestamp(micros), bytes);
             TimestampTzConverter.Write(new PgTimestampTz(micros), bytes);
-            Assert.Equal(micros, TimestampConverter.Read(bytes.AsSpan(0, 8)).MicrosecondsSinceEpoch);
+            Assert.Equal
+            (
+                micros, TimestampConverter.Read(bytes.AsSpan(0, 8))
+                    .MicrosecondsSinceEpoch
+            );
         }
         var beforeEpoch = new DateTime(1999, 12, 31, 23, 59, 59, DateTimeKind.Unspecified).AddTicks(9_999_990);
-        Assert.Equal(-1, PgTimestamp.FromDateTime(beforeEpoch).MicrosecondsSinceEpoch);
-        Assert.Equal(beforeEpoch, PgTimestamp.FromDateTime(beforeEpoch).ToDateTime());
-        Assert.Equal(DateTime.MinValue, PgTimestamp.FromDateTime(DateTime.MinValue).ToDateTime());
+        Assert.Equal
+        (
+            -1, PgTimestamp.FromDateTime(beforeEpoch)
+                .MicrosecondsSinceEpoch
+        );
+        Assert.Equal
+        (
+            beforeEpoch, PgTimestamp
+                .FromDateTime(beforeEpoch)
+                .ToDateTime()
+        );
+        Assert.Equal
+        (
+            DateTime.MinValue, PgTimestamp
+                .FromDateTime(DateTime.MinValue)
+                .ToDateTime()
+        );
         Assert.Equal(new DateTime(2000, 1, 1), new PgTimestamp(0).ToDateTime());
         var offset = new DateTimeOffset(2000, 1, 1, 5, 0, 0, TimeSpan.FromHours(5));
-        Assert.Equal(0, PgTimestampTz.FromDateTimeOffset(offset).MicrosecondsSinceEpoch);
-        Assert.Equal(DateTimeKind.Utc, new PgTimestampTz(0).ToDateTime().Kind);
+        Assert.Equal
+        (
+            0, PgTimestampTz.FromDateTimeOffset(offset)
+                .MicrosecondsSinceEpoch
+        );
+        Assert.Equal
+        (
+            DateTimeKind.Utc, new PgTimestampTz(0).ToDateTime()
+                .Kind
+        );
         Assert.Throws<ArgumentException>(() => TimestampConverter.Write(DateTime.UtcNow, bytes));
         Assert.Throws<ArgumentException>(() => TimestampTzConverter.Write(DateTime.SpecifyKind(DateTime.Now, DateTimeKind.Unspecified), bytes));
         Assert.Throws<ArgumentException>(() => PgTimestamp.FromDateTime(new DateTime(2000, 1, 1).AddTicks(1)));
         Assert.Throws<ArgumentOutOfRangeException>(() => TimeConverter.Write(new PgTime(-1), bytes));
         TimeConverter.Write(new PgTime(PgTime.MicrosecondsPerDay), bytes);
-        Assert.Equal(PgTime.MicrosecondsPerDay, TimeConverter.Read(bytes.AsSpan(0, 8)).Microseconds);
+        Assert.Equal
+        (
+            PgTime.MicrosecondsPerDay, TimeConverter.Read(bytes.AsSpan(0, 8))
+                .Microseconds
+        );
         Assert.Throws<OverflowException>(() => new PgTime(PgTime.MicrosecondsPerDay).ToTimeOnly());
         var interval = new PgInterval(1, 2, -3);
         Assert.Throws<InvalidOperationException>(() => interval.ToTimeSpan());
-        Assert.Equal(TimeSpan.FromTicks(-10), PgInterval.FromTimeSpan(TimeSpan.FromTicks(-10)).ToTimeSpan());
+        Assert.Equal
+        (
+            TimeSpan.FromTicks(-10), PgInterval
+                .FromTimeSpan(TimeSpan.FromTicks(-10))
+                .ToTimeSpan()
+        );
         IntervalConverter.Write(PgInterval.PositiveInfinity, bytes);
         Assert.Equal(PgInterval.PositiveInfinity, IntervalConverter.Read(bytes));
     }
@@ -104,7 +165,9 @@ public sealed class BuiltinEdgeTests
     [Fact]
     public void InvalidScalarCalendarValuesFailBeforeOutputMutation()
     {
-        var output = Enumerable.Repeat((byte)0xcc, 64).ToArray();
+        var output = Enumerable
+            .Repeat((byte)0xcc, 64)
+            .ToArray();
         Assert.Throws<ArgumentOutOfRangeException>(() => DateConverter.Write(new PgDate(PgDate.MinFiniteDays - 1), output));
         Assert.Throws<ArgumentOutOfRangeException>(() => TimestampConverter.Write(new PgTimestamp(PgTimestamp.MaxFiniteMicroseconds + 1), output));
         Assert.Throws<ArgumentOutOfRangeException>(() => TimeTzConverter.Write(new PgTimeTz(default, 57600), output));
@@ -135,7 +198,9 @@ public sealed class BuiltinEdgeTests
     public void ClrArrayConversionErrorsCanLeaveEarlierElementsWritten()
     {
         DateTime[] values = [new DateTime(2000, 1, 1), new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc)];
-        var payload = Enumerable.Repeat((byte)0xcc, 64).ToArray();
+        var payload = Enumerable
+            .Repeat((byte)0xcc, 64)
+            .ToArray();
         Assert.Equal(44, TimestampArrayConverter.GetByteCount(values));
         Assert.Throws<ArgumentException>(() => TimestampArrayConverter.Write(values, payload));
         Assert.Equal(8, BinaryPrimitives.ReadInt32BigEndian(payload.AsSpan(20)));

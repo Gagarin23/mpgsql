@@ -32,7 +32,11 @@ public class TcpAdoReaderBenchmarks
     private MpgsqlCommand CreateCommand()
     {
         var command = _connection.CreateCommand(_scenario.Sql);
-        foreach (var value in _catalog.Inputs[0][0]) command.Parameters.Add(MpgsqlParameter.FromValue(value));
+        foreach (var value in _catalog
+                     .Inputs[0][0])
+        {
+            command.Parameters.Add(MpgsqlParameter.FromValue(value));
+        }
         return command;
     }
     [Benchmark(Baseline = true)]
@@ -58,17 +62,22 @@ public class TcpAdoReaderBenchmarks
         {
             while (await reader.ReadAsync())
             {
-                for (var i = 0; i < (_scenario.ByteaBytes == 0 ? _scenario.Columns : 1); i++)
+                for (var i = 0;
+                     i < (_scenario.ByteaBytes == 0 ? _scenario.Columns : 1);
+                     i++)
                 {
                     sum += (long)reader.GetValue(i);
                 }
                 if (_scenario.ByteaBytes != 0)
                 {
                     var length = (int)reader.GetBytes(1, 0, _fixture.Buffers[0], 0, _scenario.ByteaBytes);
-                    sum += length + _fixture.Buffers[0][0] + _fixture.Buffers[0][_scenario.ByteaBytes - 1];
+                    sum += length + _fixture
+                        .Buffers[0][0] + _fixture
+                        .Buffers[0][_scenario.ByteaBytes - 1];
                 }
             }
-        } while (await reader.NextResultAsync());
+        }
+        while (await reader.NextResultAsync());
         return sum;
     }
     [GlobalCleanup]

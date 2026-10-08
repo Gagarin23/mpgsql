@@ -10,13 +10,26 @@ public sealed class TimestampConvertersTests
     public void LiteralPayloadsArraysBuffersAndSegmentBoundaries()
     {
         var value = new PgTimestamp(-1);
-        ConverterAssertions.CheckScalar(value, "ffffffffffffffff", TimestampConverter.GetByteCount, TimestampConverter.Write,
-            TimestampConverter.Write, TimestampConverter.Read, TimestampConverter.Read);
-        ConverterAssertions.CheckNullableScalar(TimestampConverter.Write, TimestampConverter.Write,
-            TimestampConverter.GetByteCount, TimestampConverter.ReadNullable, TimestampConverter.ReadNullable);
-        ConverterAssertions.CheckArray(new[] {value, value}, (uint)TypeOid.Timestamp, "ffffffffffffffff",
+        ConverterAssertions.CheckScalar
+        (
+            value, "ffffffffffffffff", TimestampConverter.GetByteCount, TimestampConverter.Write,
+            TimestampConverter.Write, TimestampConverter.Read, TimestampConverter.Read
+        );
+        ConverterAssertions.CheckNullableScalar
+        (
+            TimestampConverter.Write, TimestampConverter.Write,
+            TimestampConverter.GetByteCount, TimestampConverter.ReadNullable, TimestampConverter.ReadNullable
+        );
+        ConverterAssertions.CheckArray
+        (
+            new[]
+            {
+                value,
+                value
+            }, (uint)TypeOid.Timestamp, "ffffffffffffffff",
             TimestampArrayConverter.GetByteCount, TimestampArrayConverter.Write, TimestampArrayConverter.Write,
-            TimestampArrayConverter.Read, TimestampArrayConverter.Read, TimestampArrayConverter.Read, TimestampArrayConverter.Read);
+            TimestampArrayConverter.Read, TimestampArrayConverter.Read, TimestampArrayConverter.Read, TimestampArrayConverter.Read
+        );
         ConverterAssertions.CheckNullableArray<PgTimestamp, TimestampCodec>(value, "ffffffffffffffff");
     }
     [Fact]

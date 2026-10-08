@@ -40,8 +40,11 @@ public sealed class BatchCompletionSignalTests
         var signal = new BatchCompletionSignal();
         var pending = signal.Task;
         var inline = false;
-        Task observer = pending.ContinueWith(_ => inline = _completing, CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        Task observer = pending.ContinueWith
+        (
+            _ => inline = _completing, CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default
+        );
         _completing = true;
         try { Assert.True(signal.TrySetResult(true)); }
         finally { _completing = false; }

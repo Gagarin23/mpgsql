@@ -15,8 +15,15 @@ internal sealed class QueryPeer : IAsyncDisposable
     private readonly Pipe _outgoing;
     private readonly Task _read;
 
-    private readonly Channel<ReadOnlyMemory<byte>> _replies = Channel.CreateBounded<ReadOnlyMemory<byte>>(
-        new BoundedChannelOptions(256) {SingleReader = true, SingleWriter = true, AllowSynchronousContinuations = false});
+    private readonly Channel<ReadOnlyMemory<byte>> _replies = Channel.CreateBounded<ReadOnlyMemory<byte>>
+    (
+        new BoundedChannelOptions(256)
+        {
+            SingleReader = true,
+            SingleWriter = true,
+            AllowSynchronousContinuations = false
+        }
+    );
 
     private readonly CancellationTokenSource _stop = new CancellationTokenSource();
     private readonly Task _write;
@@ -31,18 +38,32 @@ internal sealed class QueryPeer : IAsyncDisposable
     private long _syncs;
     private int _worker;
 
-    internal QueryPeer(QueryCatalog catalog, int chunk = 0,
-        bool capture = false)
+    internal QueryPeer(
+        QueryCatalog catalog, int chunk = 0,
+        bool capture = false
+    )
     {
         _catalog = catalog;
         _chunk = chunk;
         _capture = capture ? [] : null;
         // A threshold of one forces each chunk to be consumed, including partial frames.
-        _incoming = new Pipe(new PipeOptions(pauseWriterThreshold: chunk > 0 ? 1 : 65536,
-            resumeWriterThreshold: chunk > 0 ? 1 : 32768, minimumSegmentSize: 4096,
-            useSynchronizationContext: false));
-        _outgoing = new Pipe(new PipeOptions(pauseWriterThreshold: 65536, resumeWriterThreshold: 32768,
-            useSynchronizationContext: false));
+        _incoming = new Pipe
+        (
+            new PipeOptions
+            (
+                pauseWriterThreshold: chunk > 0 ? 1 : 65536,
+                resumeWriterThreshold: chunk > 0 ? 1 : 32768, minimumSegmentSize: 4096,
+                useSynchronizationContext: false
+            )
+        );
+        _outgoing = new Pipe
+        (
+            new PipeOptions
+            (
+                pauseWriterThreshold: 65536, resumeWriterThreshold: 32768,
+                useSynchronizationContext: false
+            )
+        );
         ClientWriter = new CountingPipeWriter(_outgoing.Writer);
         Session = new MpgsqlMessageSession(_incoming.Reader, ClientWriter);
         _read = ReadAsync();
@@ -63,8 +84,12 @@ internal sealed class QueryPeer : IAsyncDisposable
             return;
         }
         _stop.Cancel();
-        await Session.DisposeAsync().ConfigureAwait(false);
-        await Task.WhenAll(_read, _write).ConfigureAwait(false);
+        await Session
+            .DisposeAsync()
+            .ConfigureAwait(false);
+        await Task
+            .WhenAll(_read, _write)
+            .ConfigureAwait(false);
         _stop.Dispose();
         ThrowIfFailed();
     }
@@ -81,7 +106,9 @@ internal sealed class QueryPeer : IAsyncDisposable
         {
             while (true)
             {
-                var read = await _outgoing.Reader.ReadAsync(_stop.Token).ConfigureAwait(false);
+                var read = await _outgoing
+                    .Reader.ReadAsync(_stop.Token)
+                    .ConfigureAwait(false);
                 var remaining = read.Buffer;
                 try
                 {
@@ -89,12 +116,17 @@ internal sealed class QueryPeer : IAsyncDisposable
                     {
                         if (_capture is not null)
                         {
-                            foreach (var segment in frame) _capture.AddRange(segment.ToArray());
+                            foreach (var segment in frame)
+                            {
+                                _capture.AddRange(segment.ToArray());
+                            }
                         }
                         var response = Process(tag, payload);
                         if (!response.IsEmpty)
                         {
-                            await _replies.Writer.WriteAsync(response, _stop.Token).ConfigureAwait(false);
+                            await _replies
+                                .Writer.WriteAsync(response, _stop.Token)
+                                .ConfigureAwait(false);
                         }
                     }
                     if (read.IsCompleted)
@@ -118,7 +150,9 @@ internal sealed class QueryPeer : IAsyncDisposable
         finally
         {
             _replies.Writer.TryComplete(failure);
-            await _outgoing.Reader.CompleteAsync(failure).ConfigureAwait(false);
+            await _outgoing
+                .Reader.CompleteAsync(failure)
+                .ConfigureAwait(false);
         }
     }
 
@@ -135,7 +169,9 @@ internal sealed class QueryPeer : IAsyncDisposable
                 reader.SkipCString();
                 var sql = reader.CStringBytes();
                 _scenario = -1;
-                for (var i = 0; i < _catalog.Scenarios.Length; i++)
+                for (var i = 0;
+                     i < _catalog.Scenarios.Length;
+                     i++)
                 {
                     if (QueryWire.Equal(sql, _catalog.Scenarios[i].SqlUtf8))
                     {
@@ -148,11 +184,14 @@ internal sealed class QueryPeer : IAsyncDisposable
                     throw new InvalidDataException("Unknown synthetic SQL transcript.");
                 }
                 int count = reader.Count();
-                if (count != _catalog.Inputs[_scenario][0].Length)
+                if (count != _catalog
+                        .Inputs[_scenario][0].Length)
                 {
                     throw new InvalidDataException("Parse parameter count.");
                 }
-                for (var i = 0; i < count; i++)
+                for (var i = 0;
+                     i < count;
+                     i++)
                 {
                     if (reader.UInt32() != (i == 0 ? 20U : 17U))
                     {
@@ -169,7 +208,8 @@ internal sealed class QueryPeer : IAsyncDisposable
                     throw new InvalidDataException("Binary parameter formats.");
                 }
                 int parameters = reader.Count();
-                if (parameters != _catalog.Inputs[_scenario][0].Length)
+                if (parameters != _catalog
+                        .Inputs[_scenario][0].Length)
                 {
                     throw new InvalidDataException("Bind parameter count.");
                 }
@@ -183,7 +223,8 @@ internal sealed class QueryPeer : IAsyncDisposable
                 {
                     throw new InvalidDataException("Worker identifier.");
                 }
-                if (parameters == 2 && reader.Value()?.Length != _catalog.Scenarios[_scenario].ByteaBytes)
+                if (parameters == 2 && reader.Value()
+                        ?.Length != _catalog.Scenarios[_scenario].ByteaBytes)
                 {
                     throw new InvalidDataException("Bytea parameter length.");
                 }
@@ -214,7 +255,8 @@ internal sealed class QueryPeer : IAsyncDisposable
                 _phase = 0;
                 _recovering = _catalog.Scenarios[_scenario].Error;
                 Interlocked.Increment(ref _queries);
-                var response = _catalog.Replies[_scenario][_worker];
+                var response = _catalog
+                    .Replies[_scenario][_worker];
                 if (response.Length == 0)
                 {
                     throw new InvalidDataException("Worker/scenario is not enabled.");
@@ -244,13 +286,19 @@ internal sealed class QueryPeer : IAsyncDisposable
         Exception? failure = null;
         try
         {
-            await foreach (var response in _replies.Reader.ReadAllAsync(_stop.Token).ConfigureAwait(false))
+            await foreach (var response in _replies
+                               .Reader.ReadAllAsync(_stop.Token)
+                               .ConfigureAwait(false))
             {
                 var chunk = _chunk == 0 ? response.Length : _chunk;
-                for (var offset = 0; offset < response.Length; offset += chunk)
+                for (var offset = 0;
+                     offset < response.Length;
+                     offset += chunk)
                 {
                     var length = Math.Min(chunk, response.Length - offset);
-                    var flush = await _incoming.Writer.WriteAsync(response.Slice(offset, length), _stop.Token).ConfigureAwait(false);
+                    var flush = await _incoming
+                        .Writer.WriteAsync(response.Slice(offset, length), _stop.Token)
+                        .ConfigureAwait(false);
                     if (flush.IsCanceled)
                     {
                         throw new OperationCanceledException(_stop.Token);
@@ -273,7 +321,12 @@ internal sealed class QueryPeer : IAsyncDisposable
             failure = error;
             Fail(error);
         }
-        finally { await _incoming.Writer.CompleteAsync(failure).ConfigureAwait(false); }
+        finally
+        {
+            await _incoming
+                .Writer.CompleteAsync(failure)
+                .ConfigureAwait(false);
+        }
     }
 
     private void Fail(Exception error)
@@ -291,11 +344,15 @@ internal sealed class QueryPeer : IAsyncDisposable
         }
         if (_read.IsFaulted)
         {
-            _read.GetAwaiter().GetResult();
+            _read
+                .GetAwaiter()
+                .GetResult();
         }
         if (_write.IsFaulted)
         {
-            _write.GetAwaiter().GetResult();
+            _write
+                .GetAwaiter()
+                .GetResult();
         }
     }
 }

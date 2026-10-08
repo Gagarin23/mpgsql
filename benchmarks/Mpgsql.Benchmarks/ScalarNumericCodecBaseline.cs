@@ -35,9 +35,11 @@ internal readonly struct ScalarNumericCodecBaseline : IBinaryCodec<PgNumeric>
         return WriteParts(value.Weight, value.Scale, value.Sign, value.Digits.Span, destination);
     }
 
-    internal static int WriteParts(short weight, ushort scale,
+    internal static int WriteParts(
+        short weight, ushort scale,
         PgNumericSign sign, ReadOnlySpan<ushort> digits,
-        Span<byte> bytes)
+        Span<byte> bytes
+    )
     {
         // UInt16 ndigits, Int16 weight, UInt16 sign, UInt16 dscale, UInt16 base-10000 digits.
         BinaryPrimitives.WriteUInt16BigEndian(bytes, (ushort)digits.Length);
@@ -59,8 +61,10 @@ internal readonly struct ScalarNumericCodecBaseline : IBinaryCodec<PgNumeric>
             PgNumericSign.NaN or PgNumericSign.PositiveInfinity or PgNumericSign.NegativeInfinity;
     }
 
-    internal static int ReadHeader(ReadOnlySpan<byte> payload, out short weight,
-        out ushort scale, out PgNumericSign sign)
+    internal static int ReadHeader(
+        ReadOnlySpan<byte> payload, out short weight,
+        out ushort scale, out PgNumericSign sign
+    )
     {
         if (payload.Length < 8)
         {
@@ -74,8 +78,10 @@ internal readonly struct ScalarNumericCodecBaseline : IBinaryCodec<PgNumeric>
         return count;
     }
 
-    private static int ReadHeader(ref SequenceReader<byte> reader, out short weight,
-        out ushort scale, out PgNumericSign sign)
+    private static int ReadHeader(
+        ref SequenceReader<byte> reader, out short weight,
+        out ushort scale, out PgNumericSign sign
+    )
     {
         if (!reader.TryReadBigEndian(out short countField) || !reader.TryReadBigEndian(out weight) ||
             !reader.TryReadBigEndian(out short signField) || !reader.TryReadBigEndian(out short scaleField))
@@ -89,8 +95,10 @@ internal readonly struct ScalarNumericCodecBaseline : IBinaryCodec<PgNumeric>
         return count;
     }
 
-    private static void ValidateHeader(int count, ushort scale,
-        PgNumericSign sign, long remaining)
+    private static void ValidateHeader(
+        int count, ushort scale,
+        PgNumericSign sign, long remaining
+    )
     {
         if (remaining != 2L * count || scale > 16383 || !ValidSign(sign) ||
             sign is not (PgNumericSign.Positive or PgNumericSign.Negative) && count != 0)

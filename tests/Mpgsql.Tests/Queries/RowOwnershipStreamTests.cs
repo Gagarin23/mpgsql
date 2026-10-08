@@ -14,17 +14,26 @@ public sealed class RowOwnershipStreamTests
         await batch.SendQueryAsync("select many");
         await batch.SendSyncAsync();
         await wire.ReadOutputAsync();
-        var frames = new List<byte[]> {Begin(20)};
-        for (var i = 0; i < 512; i++)
+        var frames = new List<byte[]>
+        {
+            Begin(20)
+        };
+        for (var i = 0;
+             i < 512;
+             i++)
         {
             frames.Add(Row(Int64(i)));
         }
         frames.Add(Command("SELECT 512"));
         frames.Add(Ready());
         var writing = wire.WriteAsync(Join([.. frames]), fragment);
-        await using var reader = await batch.ReadResultsAsync().AsTask()
+        await using var reader = await batch
+            .ReadResultsAsync()
+            .AsTask()
             .WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
-        for (var i = 0; i < 512; i++)
+        for (var i = 0;
+             i < 512;
+             i++)
         {
             Assert.True(await reader.ReadAsync());
             Assert.Equal(i, reader.GetInt64(0));
@@ -56,17 +65,26 @@ public sealed class RowOwnershipStreamTests
         await second.SendQueryAsync("select following rows");
         await second.SendSyncAsync();
         await wire.ReadOutputAsync();
-        var frames = new List<byte[]> {Begin(20)};
-        for (var i = 0; i < 1024; i++)
+        var frames = new List<byte[]>
+        {
+            Begin(20)
+        };
+        for (var i = 0;
+             i < 1024;
+             i++)
         {
             frames.Add(Row(Int64(i + 1000L)));
         }
         frames.Add(Command("SELECT 1024"));
         frames.Add(Ready());
         var writing = wire.WriteAsync(Join([.. frames]), fragment);
-        await using var secondReader = await second.ReadResultsAsync().AsTask()
+        await using var secondReader = await second
+            .ReadResultsAsync()
+            .AsTask()
             .WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
-        for (var i = 0; i < 1024; i++)
+        for (var i = 0;
+             i < 1024;
+             i++)
         {
             Assert.True(await secondReader.ReadAsync());
             Assert.Equal(i + 1000L, secondReader.GetInt64(0));

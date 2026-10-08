@@ -5,20 +5,32 @@ namespace Mpgsql.IntegrationTests;
 
 internal static class AdoNetChecks
 {
-    internal static async Task RunAsync(string host, int port,
+    internal static async Task RunAsync(
+        string host, int port,
         string user, string password,
-        string database, bool singleSessionCancellation = false)
+        string database, bool singleSessionCancellation = false
+    )
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         var token = deadline.Token;
-        var settings = new MpgsqlConnectionStringBuilder {Host = host, Port = port, Username = user, Password = password, Database = database, SslMode = MpgsqlSslMode.Disable};
+        var settings = new MpgsqlConnectionStringBuilder
+        {
+            Host = host,
+            Port = port,
+            Username = user,
+            Password = password,
+            Database = database,
+            SslMode = MpgsqlSslMode.Disable
+        };
         await using DbDataSource source = new MpgsqlDataSource(settings.ConnectionString);
         await using var connection = await source.OpenConnectionAsync(token);
         await using var command = connection.CreateCommand();
         command.CommandText = "select $1::bigint";
         var value = new MpgsqlParameter<long>(TypeOid.Int64, 7);
         command.Parameters.Add(value);
-        for (var i = 0; i < 8; i++)
+        for (var i = 0;
+             i < 8;
+             i++)
         {
             value.TypedValue = i;
             Check(Equals(await command.ExecuteScalarAsync(token), (long)i), "reused DbCommand");
@@ -51,7 +63,9 @@ internal static class AdoNetChecks
             select.CommandText = "select value from mpgsql_ado_test";
             batch.BatchCommands.Add(select);
             await batch.PrepareAsync(token);
-            for (var i = 0; i < 2; i++)
+            for (var i = 0;
+                 i < 2;
+                 i++)
             {
                 await using var reader = await batch.ExecuteReaderAsync(token);
                 Check(!reader.HasRows && await reader.NextResultAsync(token) && reader.HasRows, "DbBatch result metadata");
@@ -132,8 +146,11 @@ internal static class AdoNetChecks
         await connection.OpenAsync(token);
         command.CommandText = "select 101::bigint";
         Check(Equals(await command.ExecuteScalarAsync(token), 101L), "reopened connection");
-        Console.WriteLine("PASS native ADO.NET: startup/authentication, Db* reuse, NULL, batch, Prepare/Unprepare, local transaction, cancellation recovery, reader drain, CloseConnection, reopen."
-                          + (singleSessionCancellation ? " Repeated same-session CancelRequest has the explicitly checked pooler limitation above." : ""));
+        Console.WriteLine
+        (
+            "PASS native ADO.NET: startup/authentication, Db* reuse, NULL, batch, Prepare/Unprepare, local transaction, cancellation recovery, reader drain, CloseConnection, reopen."
+            + (singleSessionCancellation ? " Repeated same-session CancelRequest has the explicitly checked pooler limitation above." : "")
+        );
     }
     private static void Check(bool condition, string label)
     {

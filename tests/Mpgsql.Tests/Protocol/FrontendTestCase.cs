@@ -67,13 +67,19 @@ public abstract class FrontendTestCase
         }
         public override int Write(Span<byte> destination)
         {
-            return FrontendMessageWriter.Write(in _message,
-                destination);
+            return FrontendMessageWriter.Write
+            (
+                in _message,
+                destination
+            );
         }
         public override void Write(IBufferWriter<byte> destination)
         {
-            FrontendMessageWriter.Write(in _message,
-                destination);
+            FrontendMessageWriter.Write
+            (
+                in _message,
+                destination
+            );
         }
     }
 }

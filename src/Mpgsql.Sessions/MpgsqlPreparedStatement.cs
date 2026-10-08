@@ -14,14 +14,18 @@ public sealed class MpgsqlPreparedStatement : IDisposable
     private bool _prepareQueued;
     private bool _retired;
 
-    internal MpgsqlPreparedStatement(MpgsqlMessageSession session,
+    internal MpgsqlPreparedStatement(
+        MpgsqlMessageSession session,
         string name,
         string sql,
-        ReadOnlyMemory<uint> parameterTypes)
+        ReadOnlyMemory<uint> parameterTypes
+    )
     {
         FrontendSize.Count(parameterTypes.Length);
         var types = parameterTypes.ToArray();
-        if (types.AsSpan().Contains(0U))
+        if (types
+            .AsSpan()
+            .Contains(0U))
         {
             throw new ArgumentException("Prepared statement parameter OIDs must be nonzero.", nameof(parameterTypes));
         }
@@ -111,7 +115,9 @@ public sealed class MpgsqlPreparedStatement : IDisposable
         {
             throw new ArgumentException("The parameter count does not match the declared statement signature.", nameof(parameters));
         }
-        for (var i = 0; i < parameters.Length; i++)
+        for (var i = 0;
+             i < parameters.Length;
+             i++)
         {
             if (parameters[i].PostgresTypeOid != ParameterTypes.Span[i])
             {

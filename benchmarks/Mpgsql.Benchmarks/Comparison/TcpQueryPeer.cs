@@ -34,7 +34,12 @@ internal sealed class TcpQueryPeer : IAsyncDisposable
         {
             connections = [.. _connections];
         }
-        foreach (var connection in connections) await connection.DisposeAsync().ConfigureAwait(false);
+        foreach (var connection in connections)
+        {
+            await connection
+                .DisposeAsync()
+                .ConfigureAwait(false);
+        }
         _stop.Dispose();
     }
     private async Task AcceptAsync()
@@ -43,7 +48,9 @@ internal sealed class TcpQueryPeer : IAsyncDisposable
         {
             while (true)
             {
-                var client = await _listener.AcceptTcpClientAsync(_stop.Token).ConfigureAwait(false);
+                var client = await _listener
+                    .AcceptTcpClientAsync(_stop.Token)
+                    .ConfigureAwait(false);
                 client.NoDelay = true;
                 var connection = new Connection(client, _catalog, _stop.Token);
                 lock (_gate)
@@ -67,11 +74,16 @@ internal sealed class TcpQueryPeer : IAsyncDisposable
     {
         if (_accept.IsFaulted)
         {
-            _accept.GetAwaiter().GetResult();
+            _accept
+                .GetAwaiter()
+                .GetResult();
         }
         lock (_gate)
         {
-            foreach (var connection in _connections) connection.ThrowIfFailed();
+            foreach (var connection in _connections)
+            {
+                connection.ThrowIfFailed();
+            }
         }
     }
 
@@ -81,17 +93,32 @@ internal sealed class TcpQueryPeer : IAsyncDisposable
         private readonly PipeReader _input;
         private readonly PipeWriter _output;
         private readonly TcpQueryProtocol _protocol;
-        private readonly Task _read, _write;
 
-        private readonly Channel<ReadOnlyMemory<byte>> _replies = Channel.CreateBounded<ReadOnlyMemory<byte>>(
-            new BoundedChannelOptions(256) {SingleReader = true, SingleWriter = true, AllowSynchronousContinuations = false});
+        private readonly Task _read,
+            _write;
+
+        private readonly Channel<ReadOnlyMemory<byte>> _replies = Channel.CreateBounded<ReadOnlyMemory<byte>>
+        (
+            new BoundedChannelOptions(256)
+            {
+                SingleReader = true,
+                SingleWriter = true,
+                AllowSynchronousContinuations = false
+            }
+        );
 
         private readonly CancellationToken _stop;
         private readonly NetworkStream _stream;
-        internal long Queries, Syncs, ReplyBytes;
+
+        internal long Queries,
+            Syncs,
+            ReplyBytes;
+
         private Exception? _failure;
-        internal Connection(TcpClient client, TcpQueryCatalog catalog,
-            CancellationToken stop)
+        internal Connection(
+            TcpClient client, TcpQueryCatalog catalog,
+            CancellationToken stop
+        )
         {
             _client = client;
             _stream = client.GetStream();
@@ -105,7 +132,9 @@ internal sealed class TcpQueryPeer : IAsyncDisposable
         public async ValueTask DisposeAsync()
         {
             _client.Dispose();
-            await Task.WhenAll(_read, _write).ConfigureAwait(false);
+            await Task
+                .WhenAll(_read, _write)
+                .ConfigureAwait(false);
             ThrowIfFailed();
         }
         private async Task ReadAsync()
@@ -114,22 +143,30 @@ internal sealed class TcpQueryPeer : IAsyncDisposable
             try
             {
                 var length = new byte[4];
-                await _stream.ReadExactlyAsync(length, _stop).ConfigureAwait(false);
+                await _stream
+                    .ReadExactlyAsync(length, _stop)
+                    .ConfigureAwait(false);
                 var size = BinaryPrimitives.ReadInt32BigEndian(length);
                 if (size is < 8 or > 16384)
                 {
                     throw new InvalidDataException("Startup length.");
                 }
                 var startup = new byte[size - 4];
-                await _stream.ReadExactlyAsync(startup, _stop).ConfigureAwait(false);
+                await _stream
+                    .ReadExactlyAsync(startup, _stop)
+                    .ConfigureAwait(false);
                 if (BinaryPrimitives.ReadInt32BigEndian(startup) != 196608 || startup[^1] != 0)
                 {
                     throw new InvalidDataException("Only protocol 3.0 Startup is supported.");
                 }
-                await _replies.Writer.WriteAsync(TcpQueryCatalog.StartupReply, _stop).ConfigureAwait(false);
+                await _replies
+                    .Writer.WriteAsync(TcpQueryCatalog.StartupReply, _stop)
+                    .ConfigureAwait(false);
                 while (true)
                 {
-                    var read = await _input.ReadAsync(_stop).ConfigureAwait(false);
+                    var read = await _input
+                        .ReadAsync(_stop)
+                        .ConfigureAwait(false);
                     var remaining = read.Buffer;
                     try
                     {
@@ -140,7 +177,9 @@ internal sealed class TcpQueryPeer : IAsyncDisposable
                             Interlocked.Exchange(ref Syncs, _protocol.Syncs);
                             if (!response.IsEmpty)
                             {
-                                await _replies.Writer.WriteAsync(response, _stop).ConfigureAwait(false);
+                                await _replies
+                                    .Writer.WriteAsync(response, _stop)
+                                    .ConfigureAwait(false);
                             }
                             if (_protocol.Terminated)
                             {
@@ -170,7 +209,9 @@ internal sealed class TcpQueryPeer : IAsyncDisposable
             finally
             {
                 _replies.Writer.TryComplete(failure);
-                await _input.CompleteAsync(failure).ConfigureAwait(false);
+                await _input
+                    .CompleteAsync(failure)
+                    .ConfigureAwait(false);
             }
         }
         private async Task WriteAsync()
@@ -178,14 +219,18 @@ internal sealed class TcpQueryPeer : IAsyncDisposable
             Exception? failure = null;
             try
             {
-                while (await _replies.Reader.WaitToReadAsync(_stop).ConfigureAwait(false))
+                while (await _replies
+                           .Reader.WaitToReadAsync(_stop)
+                           .ConfigureAwait(false))
                 {
                     while (_replies.Reader.TryRead(out var response))
                     {
                         _output.Write(response.Span);
                         Interlocked.Add(ref ReplyBytes, response.Length);
                     }
-                    var flush = await _output.FlushAsync(_stop).ConfigureAwait(false);
+                    var flush = await _output
+                        .FlushAsync(_stop)
+                        .ConfigureAwait(false);
                     if (flush.IsCompleted)
                     {
                         return;
@@ -200,7 +245,12 @@ internal sealed class TcpQueryPeer : IAsyncDisposable
                 Interlocked.CompareExchange(ref _failure, error, null);
                 _client.Dispose();
             }
-            finally { await _output.CompleteAsync(failure).ConfigureAwait(false); }
+            finally
+            {
+                await _output
+                    .CompleteAsync(failure)
+                    .ConfigureAwait(false);
+            }
         }
         internal void ThrowIfFailed()
         {
@@ -210,11 +260,15 @@ internal sealed class TcpQueryPeer : IAsyncDisposable
             }
             if (_read.IsFaulted)
             {
-                _read.GetAwaiter().GetResult();
+                _read
+                    .GetAwaiter()
+                    .GetResult();
             }
             if (_write.IsFaulted)
             {
-                _write.GetAwaiter().GetResult();
+                _write
+                    .GetAwaiter()
+                    .GetResult();
             }
         }
     }

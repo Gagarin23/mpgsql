@@ -40,8 +40,14 @@ internal static class CopiedConverterFactory
     // This creates the copied converter; it does not register it with an NpgsqlDataSource.
     public static PgConverter<long[]> CreateLongArrayConverter()
     {
-        return new ArrayBasedArrayConverter<long[], long>(new PgConverterResolution(new Int8Converter<long>(),
-            new Oid(20)));
+        return new ArrayBasedArrayConverter<long[], long>
+        (
+            new PgConverterResolution
+            (
+                new Int8Converter<long>(),
+                new Oid(20)
+            )
+        );
     }
 }
 

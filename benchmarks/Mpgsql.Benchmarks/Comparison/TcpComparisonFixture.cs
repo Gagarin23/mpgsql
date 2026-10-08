@@ -4,8 +4,10 @@ namespace Mpgsql.Benchmarks.Comparison;
 
 internal sealed class TcpComparisonFixture : IAsyncDisposable
 {
-    private TcpComparisonFixture(ComparisonDriver driver, QueryCatalog catalog,
-        TcpMpgsqlFixture? m, TcpNpgsqlFixture? n)
+    private TcpComparisonFixture(
+        ComparisonDriver driver, QueryCatalog catalog,
+        TcpMpgsqlFixture? m, TcpNpgsqlFixture? n
+    )
     {
         (Driver, Catalog, Mpgsql, Npgsql) = (driver, catalog, m, n);
     }
@@ -25,13 +27,21 @@ internal sealed class TcpComparisonFixture : IAsyncDisposable
             await Npgsql!.DisposeAsync();
         }
     }
-    internal static async Task<TcpComparisonFixture> CreateAsync(ComparisonDriver driver, QueryLoadProfile profile,
-        int syncGroupSize = 1, int syncTimeoutMs = 1)
+    internal static async Task<TcpComparisonFixture> CreateAsync(
+        ComparisonDriver driver, QueryLoadProfile profile,
+        int syncGroupSize = 1, int syncTimeoutMs = 1
+    )
     {
         var catalog = profile.CreateCatalog();
         return driver == ComparisonDriver.Mpgsql
-            ? new TcpComparisonFixture(driver, catalog, await TcpMpgsqlFixture.CreateAsync(catalog, profile.Connections, profile.InFlight, profile.RowBudget,
-                syncGroupSize, syncTimeoutMs), null)
+            ? new TcpComparisonFixture
+            (
+                driver, catalog, await TcpMpgsqlFixture.CreateAsync
+                (
+                    catalog, profile.Connections, profile.InFlight, profile.RowBudget,
+                    syncGroupSize, syncTimeoutMs
+                ), null
+            )
             : new TcpComparisonFixture(driver, catalog, null, await TcpNpgsqlFixture.CreateAsync(catalog, profile.Connections, driver == ComparisonDriver.NpgsqlMultiplexed));
     }
     internal Task<long> ReadAsync(int worker, bool slow)

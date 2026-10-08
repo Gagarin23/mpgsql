@@ -26,12 +26,18 @@ public class Int64ArraySimdRegressionBenchmarks
         WriteOriginal();
         var expected = _payload.ToArray();
         WriteShared();
-        if (!expected.AsSpan().SequenceEqual(_payload))
+        if (!expected
+                .AsSpan()
+                .SequenceEqual(_payload))
         {
             throw new InvalidDataException("Shared Int64 SIMD changed wire bytes or surrounding storage.");
         }
-        if (ReadOriginal() != Count || !_destination.AsSpan(1, Count).SequenceEqual(_values.Span) ||
-            ReadShared() != Count || !_destination.AsSpan(1, Count).SequenceEqual(_values.Span))
+        if (ReadOriginal() != Count || !_destination
+                .AsSpan(1, Count)
+                .SequenceEqual(_values.Span) ||
+            ReadShared() != Count || !_destination
+                .AsSpan(1, Count)
+                .SequenceEqual(_values.Span))
         {
             throw new InvalidDataException("Shared Int64 SIMD changed decoded values.");
         }
@@ -79,9 +85,15 @@ public class Int64ArraySimdRegressionSequenceBenchmarks
         Int64ArraySimdBaseline.Write(values, payload);
         _sequence = NpgsqlArrayVerification.Sequence(payload, SegmentSize);
         _destination = new long[values.Length];
-        if (ReadOriginal() != values.Length || !_destination.AsSpan().SequenceEqual(values) ||
-            ReadShared() != values.Length || !_destination.AsSpan().SequenceEqual(values) ||
-            !OwnedOriginal().Span.SequenceEqual(values) || !OwnedShared().Span.SequenceEqual(values))
+        if (ReadOriginal() != values.Length || !_destination
+                .AsSpan()
+                .SequenceEqual(values) ||
+            ReadShared() != values.Length || !_destination
+                .AsSpan()
+                .SequenceEqual(values) ||
+            !OwnedOriginal()
+                .Span.SequenceEqual(values) || !OwnedShared()
+                .Span.SequenceEqual(values))
         {
             throw new InvalidDataException("Shared Int64 SIMD changed sequence decoding.");
         }
@@ -125,7 +137,9 @@ public class Int64ArraySimdRegressionWriterBenchmarks
         WriteOriginal();
         var expected = _writer.Bytes.ToArray();
         WriteShared();
-        if (!expected.AsSpan().SequenceEqual(_writer.Bytes))
+        if (!expected
+                .AsSpan()
+                .SequenceEqual(_writer.Bytes))
         {
             throw new InvalidDataException("Shared Int64 SIMD changed IBufferWriter output.");
         }

@@ -24,12 +24,21 @@ public class ResultBufferBenchmarks
         _frames = new BackendFrameBuffer();
         _row = new byte[11 + PayloadBytes];
         _row[0] = (byte)'D';
-        BinaryPrimitives.WriteInt32BigEndian(_row.AsSpan(1),
-            _row.Length - 1);
-        BinaryPrimitives.WriteUInt16BigEndian(_row.AsSpan(5),
-            1);
-        BinaryPrimitives.WriteInt32BigEndian(_row.AsSpan(7),
-            PayloadBytes);
+        BinaryPrimitives.WriteInt32BigEndian
+        (
+            _row.AsSpan(1),
+            _row.Length - 1
+        );
+        BinaryPrimitives.WriteUInt16BigEndian
+        (
+            _row.AsSpan(5),
+            1
+        );
+        BinaryPrimitives.WriteInt32BigEndian
+        (
+            _row.AsSpan(7),
+            PayloadBytes
+        );
         if (Buffered() != Rows || Discarded() != Rows)
         {
             throw new InvalidOperationException("Incomplete row framing.");
@@ -49,18 +58,35 @@ public class ResultBufferBenchmarks
 
     private int Read(bool discard)
     {
-        int completed = 0, fragment = FragmentSize == 0 ? _row.Length : FragmentSize;
-        for (var i = 0; i < Rows; i++)
-        for (var offset = 0; offset < _row.Length; offset += fragment)
+        int completed = 0,
+            fragment = FragmentSize == 0 ? _row.Length : FragmentSize;
+        for (var i = 0;
+             i < Rows;
+             i++)
+        for (var offset = 0;
+             offset < _row.Length;
+             offset += fragment)
         {
-            var input = new ReadOnlySequence<byte>(_row.AsMemory(offset,
-                Math.Min(fragment,
-                    _row.Length - offset)));
-            if (!_frames.TryRead(ref input,
+            var input = new ReadOnlySequence<byte>
+            (
+                _row.AsMemory
+                (
+                    offset,
+                    Math.Min
+                    (
+                        fragment,
+                        _row.Length - offset
+                    )
+                )
+            );
+            if (!_frames.TryRead
+                (
+                    ref input,
                     discard,
                     out var message,
                     out var owner,
-                    out _))
+                    out _
+                ))
             {
                 continue;
             }
@@ -70,8 +96,11 @@ public class ResultBufferBenchmarks
             }
             else
             {
-                using var row = new OwnedRow(message,
-                    owner);
+                using var row = new OwnedRow
+                (
+                    message,
+                    owner
+                );
                 if (row[0]!.Value.Length != PayloadBytes)
                 {
                     throw new InvalidDataException();

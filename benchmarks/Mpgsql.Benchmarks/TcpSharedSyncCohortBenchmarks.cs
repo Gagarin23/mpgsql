@@ -23,20 +23,35 @@ public class TcpSharedSyncCohortBenchmarks
     public async Task SetupMpgsql()
     {
         _catalog = new QueryCatalog([QueryScenario.One], RequestsPerGroup);
-        _m = await TcpMpgsqlFixture.CreateAsync(_catalog, inFlight: RequestsPerGroup,
-            syncGroupSize: RequestsPerGroup, syncTimeoutMs: 1000);
+        _m = await TcpMpgsqlFixture.CreateAsync
+        (
+            _catalog, inFlight: RequestsPerGroup,
+            syncGroupSize: RequestsPerGroup, syncTimeoutMs: 1000
+        );
     }
     [GlobalSetup(Target = nameof(NpgsqlNativeBatch))]
     public async Task SetupNpgsql()
     {
         _catalog = new QueryCatalog([QueryScenario.One], RequestsPerGroup);
         _n = await TcpNpgsqlFixture.CreateAsync(_catalog, exclusive: true);
-        _batch = new NpgsqlBatch(_n.Connection) {Timeout = 0, EnableErrorBarriers = false};
-        for (var worker = 0; worker < RequestsPerGroup; worker++)
+        _batch = new NpgsqlBatch(_n.Connection)
+        {
+            Timeout = 0,
+            EnableErrorBarriers = false
+        };
+        for (var worker = 0;
+             worker < RequestsPerGroup;
+             worker++)
         {
             var command = new NpgsqlBatchCommand(QueryScenario.One.Sql);
-            command.Parameters.Add(new NpgsqlParameter<long>
-                {NpgsqlDbType = NpgsqlDbType.Bigint, TypedValue = worker + 1L});
+            command.Parameters.Add
+            (
+                new NpgsqlParameter<long>
+                {
+                    NpgsqlDbType = NpgsqlDbType.Bigint,
+                    TypedValue = worker + 1L
+                }
+            );
             _batch.BatchCommands.Add(command);
         }
     }
@@ -44,20 +59,31 @@ public class TcpSharedSyncCohortBenchmarks
     public async Task<long> MpgsqlDataSourceCohort()
     {
         var requests = new Task<long>[RequestsPerGroup];
-        for (var worker = 0; worker < requests.Length; worker++)
+        for (var worker = 0;
+             worker < requests.Length;
+             worker++)
         {
             requests[worker] = TcpQueryOperations.MpgsqlAsync(_m!, QueryScenario.One, worker);
         }
-        var values = await Task.WhenAll(requests).ConfigureAwait(false);
+        var values = await Task
+            .WhenAll(requests)
+            .ConfigureAwait(false);
         long sum = 0;
-        foreach (var value in values) sum += value;
+        foreach (var value in values)
+        {
+            sum += value;
+        }
         return sum;
     }
     [Benchmark]
     public async Task<long> NpgsqlNativeBatch()
     {
-        await using var reader = await _batch!.ExecuteReaderAsync().ConfigureAwait(false);
-        return await TcpQueryOperations.ConsumeAsync(reader, QueryScenario.One, _n!.Buffers[0]).ConfigureAwait(false);
+        await using var reader = await _batch!
+            .ExecuteReaderAsync()
+            .ConfigureAwait(false);
+        return await TcpQueryOperations
+            .ConsumeAsync(reader, QueryScenario.One, _n!.Buffers[0])
+            .ConfigureAwait(false);
     }
     [GlobalCleanup]
     public async Task Cleanup()
@@ -79,10 +105,21 @@ public class TcpSharedSyncCohortBenchmarks
     }
     internal static async Task VerifyAsync()
     {
-        foreach (var size in new[] {8, 16})
-        foreach (var native in new[] {false, true})
+        foreach (var size in new[]
+                 {
+                     8,
+                     16
+                 })
+        foreach (var native in new[]
+                 {
+                     false,
+                     true
+                 })
         {
-            var benchmark = new TcpSharedSyncCohortBenchmarks {RequestsPerGroup = size};
+            var benchmark = new TcpSharedSyncCohortBenchmarks
+            {
+                RequestsPerGroup = size
+            };
             try
             {
                 if (native)
@@ -94,14 +131,19 @@ public class TcpSharedSyncCohortBenchmarks
                     await benchmark.SetupMpgsql();
                 }
                 var before = benchmark.Peer.Counters();
-                for (var repeat = 0; repeat < 2; repeat++)
+                for (var repeat = 0;
+                     repeat < 2;
+                     repeat++)
                 {
                     var sum = native ? await benchmark.NpgsqlNativeBatch() : await benchmark.MpgsqlDataSourceCohort();
                     TcpComparisonVerification.Check(sum == size * (size + 1L) / 2, "Shared cohort checksum");
                 }
                 var after = benchmark.Peer.Counters();
-                TcpComparisonVerification.Check(after.Queries - before.Queries == size * 2 && after.Syncs - before.Syncs == 2,
-                    "Exactly one Sync per matching shared cohort");
+                TcpComparisonVerification.Check
+                (
+                    after.Queries - before.Queries == size * 2 && after.Syncs - before.Syncs == 2,
+                    "Exactly one Sync per matching shared cohort"
+                );
             }
             finally { await benchmark.Cleanup(); }
         }

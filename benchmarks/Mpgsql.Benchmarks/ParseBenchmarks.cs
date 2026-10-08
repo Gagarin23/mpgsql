@@ -26,18 +26,30 @@ public class ParseBenchmarks
     public void Setup()
     {
         const string prefix = "select $1, $2 -- ";
-        _query = prefix + new string('x',
-            QueryLength - prefix.Length);
-        _message = FrontendMessage.Parse(_query,
+        _query = prefix + new string
+        (
+            'x',
+            QueryLength - prefix.Length
+        );
+        _message = FrontendMessage.Parse
+        (
+            _query,
             "stmt",
-            _parameterTypes);
+            _parameterTypes
+        );
         _buffer = new byte[_message.GetByteCount()];
 #if PROTOCOL_BASELINE
-        _original = OriginalFrontend.Parse(_query,
+        _original = OriginalFrontend.Parse
+        (
+            _query,
             "stmt",
-            _parameterTypes);
-        PacketVerification.Check(in _message,
-            _original);
+            _parameterTypes
+        );
+        PacketVerification.Check
+        (
+            in _message,
+            _original
+        );
 #else
         PacketVerification.Check(in _message);
 #endif
@@ -47,19 +59,34 @@ public class ParseBenchmarks
     public int TypedPrepared()
     {
         var size = _message.GetByteCount();
-        return _message.Write(_buffer.AsSpan(0,
-            size)) + _buffer[size - 1];
+        return _message.Write
+        (
+            _buffer.AsSpan
+            (
+                0,
+                size
+            )
+        ) + _buffer[size - 1];
     }
 
     [Benchmark, BenchmarkCategory("PerRequest")]
     public int TypedPerRequest()
     {
-        var message = FrontendMessage.Parse(_query,
+        var message = FrontendMessage.Parse
+        (
+            _query,
             "stmt",
-            _parameterTypes);
+            _parameterTypes
+        );
         var size = message.GetByteCount();
-        return message.Write(_buffer.AsSpan(0,
-            size)) + _buffer[size - 1];
+        return message.Write
+        (
+            _buffer.AsSpan
+            (
+                0,
+                size
+            )
+        ) + _buffer[size - 1];
     }
 
 #if PROTOCOL_BASELINE
@@ -67,19 +94,34 @@ public class ParseBenchmarks
     public int OriginalPrepared()
     {
         var size = _original.GetByteCount();
-        return _original.Write(_buffer.AsSpan(0,
-            size)) + _buffer[size - 1];
+        return _original.Write
+        (
+            _buffer.AsSpan
+            (
+                0,
+                size
+            )
+        ) + _buffer[size - 1];
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("PerRequest")]
     public int OriginalPerRequest()
     {
-        var message = OriginalFrontend.Parse(_query,
+        var message = OriginalFrontend.Parse
+        (
+            _query,
             "stmt",
-            _parameterTypes);
+            _parameterTypes
+        );
         var size = message.GetByteCount();
-        return message.Write(_buffer.AsSpan(0,
-            size)) + _buffer[size - 1];
+        return message.Write
+        (
+            _buffer.AsSpan
+            (
+                0,
+                size
+            )
+        ) + _buffer[size - 1];
     }
 #endif
 }

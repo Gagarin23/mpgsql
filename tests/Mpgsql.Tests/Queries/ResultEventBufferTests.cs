@@ -14,22 +14,30 @@ public sealed class ResultEventBufferTests
     public async Task WrapGrowAndCompletionPreserveFifo()
     {
         var buffer = new ResultEventBuffer();
-        for (var i = 0; i < 12; i++)
+        for (var i = 0;
+             i < 12;
+             i++)
         {
             Assert.True(buffer.TryWrite(new ResultEvent(i, default)));
         }
-        for (var i = 0; i < 10; i++)
+        for (var i = 0;
+             i < 10;
+             i++)
         {
             Assert.True(buffer.TryRead(out var item));
             Assert.Equal(i, item.QueryIndex);
         }
-        for (var i = 12; i < 200; i++)
+        for (var i = 12;
+             i < 200;
+             i++)
         {
             Assert.True(buffer.TryWrite(new ResultEvent(i, default)));
         }
         buffer.Complete();
         Assert.False(buffer.TryWrite(new ResultEvent(200, default)));
-        for (var i = 10; i < 200; i++)
+        for (var i = 10;
+             i < 200;
+             i++)
         {
             Assert.True(await buffer.WaitToReadAsync());
             Assert.True(buffer.TryRead(out var item));
@@ -43,18 +51,22 @@ public sealed class ResultEventBufferTests
     public async Task AwaitedNotificationsCanBeReusedAndNeverInvokeReaderInline()
     {
         var buffer = new ResultEventBuffer();
-        for (var i = 0; i < 100; i++)
+        for (var i = 0;
+             i < 100;
+             i++)
         {
             var waiting = buffer.WaitToReadAsync();
             Assert.False(waiting.IsCompleted);
             Assert.Throws<InvalidOperationException>(() => buffer.WaitToReadAsync());
             var resumed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             var awaiter = waiting.GetAwaiter();
-            awaiter.UnsafeOnCompleted(() =>
-            {
-                try { resumed.SetResult(_publishing); }
-                catch (Exception error) { resumed.SetException(error); }
-            });
+            awaiter.UnsafeOnCompleted
+            (() =>
+                {
+                    try { resumed.SetResult(_publishing); }
+                    catch (Exception error) { resumed.SetException(error); }
+                }
+            );
             _publishing = true;
             try { Assert.True(buffer.TryWrite(new ResultEvent(i, default))); }
             finally { _publishing = false; }
@@ -85,7 +97,9 @@ public sealed class ResultEventBufferTests
     {
         var buffer = new ResultEventBuffer();
         var waiting = buffer.WaitToReadAsync();
-        for (var i = 0; i < 20; i++)
+        for (var i = 0;
+             i < 20;
+             i++)
         {
             Assert.True(buffer.TryWrite(new ResultEvent(i, default), false));
         }
@@ -94,7 +108,9 @@ public sealed class ResultEventBufferTests
         Assert.Equal(0, first.QueryIndex);
         buffer.NotifyAvailable();
         Assert.True(await waiting);
-        for (var i = 1; i < 20; i++)
+        for (var i = 1;
+             i < 20;
+             i++)
         {
             Assert.True(buffer.TryRead(out var item));
             Assert.Equal(i, item.QueryIndex);
@@ -134,21 +150,35 @@ public sealed class ResultEventBufferTests
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         var budget = new RowBufferBudget(1 << 20);
         var buffer = new ResultEventBuffer();
-        for (var i = 0; i < 512; i++)
+        for (var i = 0;
+             i < 512;
+             i++)
         {
-            var payload = new ReadOnlySequence<byte>(Row(Int64(i)).AsMemory(5));
+            var payload = new ReadOnlySequence<byte>
+            (
+                Row(Int64(i))
+                    .AsMemory(5)
+            );
             Assert.True(await budget.ReserveAsync(payload.Length, batch, TestContext.Current.CancellationToken));
             var row = new OwnedRow(new BackendMessage((byte)'D', BackendMessageKind.DataRow, payload, 1), null, budget);
             Assert.True(buffer.TryWrite(new ResultEvent(i, default, row)));
         }
         buffer.Complete();
-        await Task.WhenAll(Task.Run(buffer.Drain, TestContext.Current.CancellationToken), Task.Run(() =>
-        {
-            while (buffer.TryRead(out var item))
-            {
-                item.Row!.Value.Dispose();
-            }
-        }, TestContext.Current.CancellationToken)).WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
+        await Task
+            .WhenAll
+            (
+                Task.Run(buffer.Drain, TestContext.Current.CancellationToken), Task.Run
+                (
+                    () =>
+                    {
+                        while (buffer.TryRead(out var item))
+                        {
+                            item.Row!.Value.Dispose();
+                        }
+                    }, TestContext.Current.CancellationToken
+                )
+            )
+            .WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         buffer.Drain();
         Assert.Equal(0, budget.Used);
         Assert.False(await buffer.WaitToReadAsync());

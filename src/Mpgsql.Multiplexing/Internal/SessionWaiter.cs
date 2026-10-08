@@ -12,7 +12,11 @@ internal sealed class SessionWaiter(MpgsqlMultiplexingDataSource source, Cancell
 
     // Exactly one internal admission consumer. Embed its source instead of allocating a TCS/Task
     // pair. A waiter is not reused: cancellation and factory completion can still reference it.
-    private ManualResetValueTaskSourceCore<PooledSession> _completion = new ManualResetValueTaskSourceCore<PooledSession> {RunContinuationsAsynchronously = true};
+    private ManualResetValueTaskSourceCore<PooledSession> _completion = new ManualResetValueTaskSourceCore<PooledSession>
+    {
+        RunContinuationsAsynchronously = true
+    };
+
     internal MpgsqlMultiplexingDataSource Source { get; } = source;
     internal CancellationToken Token { get; } = token;
 
@@ -24,9 +28,11 @@ internal sealed class SessionWaiter(MpgsqlMultiplexingDataSource source, Cancell
     {
         return _completion.GetStatus(token);
     }
-    void IValueTaskSource<PooledSession>.OnCompleted(Action<object?> continuation, object? state,
+    void IValueTaskSource<PooledSession>.OnCompleted(
+        Action<object?> continuation, object? state,
         short token,
-        ValueTaskSourceOnCompletedFlags flags)
+        ValueTaskSourceOnCompletedFlags flags
+    )
     {
         _completion.OnCompleted(continuation, state, token, flags);
     }

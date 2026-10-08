@@ -20,10 +20,14 @@ internal readonly struct DateClrCodec : IBinaryCodec<DateOnly>
     }
     public static DateOnly Read(ReadOnlySpan<byte> payload)
     {
-        return DateCodec.Read(payload).ToDateOnly();
+        return DateCodec
+            .Read(payload)
+            .ToDateOnly();
     }
     public static DateOnly Read(ReadOnlySequence<byte> payload)
     {
-        return DateCodec.Read(payload).ToDateOnly();
+        return DateCodec
+            .Read(payload)
+            .ToDateOnly();
     }
 }

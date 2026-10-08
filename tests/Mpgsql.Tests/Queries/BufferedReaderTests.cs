@@ -13,8 +13,14 @@ public sealed class BufferedReaderTests
         await batch.SendQueryAsync("select second");
         await batch.SendSyncAsync();
         await wire.ReadOutputAsync();
-        await wire.WriteAsync(Join(Begin(20), Row(Int64(1)), Row((byte[]?)null), Row(Int64(3)),
-            Command("SELECT 3"), Query(4), Ready()));
+        await wire.WriteAsync
+        (
+            Join
+            (
+                Begin(20), Row(Int64(1)), Row((byte[]?)null), Row(Int64(3)),
+                Command("SELECT 3"), Query(4), Ready()
+            )
+        );
         await batch.Completion.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         await using var reader = await batch.ReadResultsAsync();
         Assert.True(await reader.ReadAsync());
@@ -46,13 +52,23 @@ public sealed class BufferedReaderTests
         await batch.SendQueryAsync("select values");
         await batch.SendSyncAsync();
         await wire.ReadOutputAsync();
-        await wire.WriteAsync(Join(Begin(20), Row(Int64(1)), Row(Int64(2)), Row(Int64(3)),
-            Command("SELECT 3"), Ready()));
+        await wire.WriteAsync
+        (
+            Join
+            (
+                Begin(20), Row(Int64(1)), Row(Int64(2)), Row(Int64(3)),
+                Command("SELECT 3"), Ready()
+            )
+        );
         await batch.Completion.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         await using var reader = await batch.ReadResultsAsync();
         Assert.True(await reader.ReadAsync());
         request.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reader.ReadAsync().AsTask());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>
+        (() => reader
+            .ReadAsync()
+            .AsTask()
+        );
         await reader.DisposeAsync();
         await batch.DisposeAsync();
         Assert.Equal(0, wire.Session.BufferedRowBytes);

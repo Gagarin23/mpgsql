@@ -48,18 +48,24 @@ public sealed class BackendMetadataCacheTests
     // type OID
     // type size
     // type modifier
-     // binary/text format
+    // binary/text format
     public void EveryDescriptionFieldParticipatesInMatching(int offset)
     {
         var cache = new BackendMetadataCache();
         var original = cache.RowDescription(Decode(Description(20), false));
         var changed = Description(20);
         changed[offset] ^= 1;
-        var expected = Decode(changed, true).GetRowDescription();
+        var expected = Decode(changed, true)
+            .GetRowDescription();
         var actual = cache.RowDescription(Decode(changed, true));
         Assert.Equal(expected.ToArray(), actual.ToArray());
         Assert.False(original.Equals(actual));
-        Assert.Equal(Decode(Description(20), false).GetRowDescription().ToArray(), original.ToArray());
+        Assert.Equal
+        (
+            Decode(Description(20), false)
+                .GetRowDescription()
+                .ToArray(), original.ToArray()
+        );
     }
 
     [Fact]
@@ -69,11 +75,25 @@ public sealed class BackendMetadataCacheTests
         var small = cache.RowDescription(Decode(Description(20), false));
         var payload = new byte[2 + 5001 + 18];
         BinaryPrimitives.WriteUInt16BigEndian(payload, 1);
-        payload.AsSpan(2, 5000).Fill((byte)'a');
-        Description(20).AsSpan(10, 18).CopyTo(payload.AsSpan(5003));
+        payload
+            .AsSpan(2, 5000)
+            .Fill((byte)'a');
+        Description(20)
+            .AsSpan(10, 18)
+            .CopyTo(payload.AsSpan(5003));
         var large = Decode(Packet('T', payload), true);
-        Assert.Equal(5000, cache.RowDescription(large).Span[0].Name.Length);
-        Assert.False(cache.RowDescription(large).Equals(cache.RowDescription(large)));
+        Assert.Equal
+        (
+            5000, cache
+                .RowDescription(large)
+                .Span[0].Name.Length
+        );
+        Assert.False
+        (
+            cache
+                .RowDescription(large)
+                .Equals(cache.RowDescription(large))
+        );
         Assert.True(small.Equals(cache.RowDescription(Decode(Description(20), false))));
         var hugeTag = "SELECT " + new string('1', 2048);
         var command = Decode(Command(hugeTag), true);

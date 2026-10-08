@@ -7,11 +7,16 @@ namespace Mpgsql;
 public sealed class MpgsqlSyncGroupException : Exception
 {
 
-    internal MpgsqlSyncGroupException(MpgsqlServerException cause, bool wasSkipped,
-        int failedRequestIndex)
-        : base(wasSkipped
-            ? "PostgreSQL skipped this request after another request failed in the shared Sync group."
-            : "Another request failed before the shared Sync boundary; this request's results do not confirm a commit.", cause)
+    internal MpgsqlSyncGroupException(
+        MpgsqlServerException cause, bool wasSkipped,
+        int failedRequestIndex
+    )
+        : base
+        (
+            wasSkipped
+                ? "PostgreSQL skipped this request after another request failed in the shared Sync group."
+                : "Another request failed before the shared Sync boundary; this request's results do not confirm a commit.", cause
+        )
     {
         (Cause, WasSkipped, FailedRequestIndex) = (cause, wasSkipped, failedRequestIndex);
     }

@@ -54,14 +54,21 @@ public class TcpAdmissionComparisonBenchmarks
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var workers = new Task<long>[_profile.Callers];
-        for (var worker = 0; worker < workers.Length; worker++)
+        for (var worker = 0;
+             worker < workers.Length;
+             worker++)
         {
             workers[worker] = WorkAsync(worker);
         }
         gate.SetResult();
-        var values = await Task.WhenAll(workers).ConfigureAwait(false);
+        var values = await Task
+            .WhenAll(workers)
+            .ConfigureAwait(false);
         long sum = 0;
-        foreach (var value in values) sum += value;
+        foreach (var value in values)
+        {
+            sum += value;
+        }
         return sum;
 
         async Task<long> WorkAsync(int worker)
@@ -69,9 +76,13 @@ public class TcpAdmissionComparisonBenchmarks
             var slow = _profile.Mixed && worker % 8 == 0;
             long checksum = 0;
             await gate.Task.ConfigureAwait(false);
-            for (var i = worker; i < 256; i += _profile.Callers)
+            for (var i = worker;
+                 i < 256;
+                 i += _profile.Callers)
             {
-                checksum += await Fixture.ReadAsync(worker, slow).ConfigureAwait(false);
+                checksum += await Fixture
+                    .ReadAsync(worker, slow)
+                    .ConfigureAwait(false);
             }
             return checksum;
         }

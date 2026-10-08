@@ -10,13 +10,26 @@ public sealed class IntervalConvertersTests
     public void LiteralPayloadsArraysBuffersAndSegmentBoundaries()
     {
         var value = new PgInterval(-2, 3, -1000001);
-        ConverterAssertions.CheckScalar(value, "fffffffffff0bdbf00000003fffffffe", IntervalConverter.GetByteCount, IntervalConverter.Write,
-            IntervalConverter.Write, IntervalConverter.Read, IntervalConverter.Read);
-        ConverterAssertions.CheckNullableScalar(IntervalConverter.Write, IntervalConverter.Write,
-            IntervalConverter.GetByteCount, IntervalConverter.ReadNullable, IntervalConverter.ReadNullable);
-        ConverterAssertions.CheckArray(new[] {value, value}, (uint)TypeOid.Interval, "fffffffffff0bdbf00000003fffffffe",
+        ConverterAssertions.CheckScalar
+        (
+            value, "fffffffffff0bdbf00000003fffffffe", IntervalConverter.GetByteCount, IntervalConverter.Write,
+            IntervalConverter.Write, IntervalConverter.Read, IntervalConverter.Read
+        );
+        ConverterAssertions.CheckNullableScalar
+        (
+            IntervalConverter.Write, IntervalConverter.Write,
+            IntervalConverter.GetByteCount, IntervalConverter.ReadNullable, IntervalConverter.ReadNullable
+        );
+        ConverterAssertions.CheckArray
+        (
+            new[]
+            {
+                value,
+                value
+            }, (uint)TypeOid.Interval, "fffffffffff0bdbf00000003fffffffe",
             IntervalArrayConverter.GetByteCount, IntervalArrayConverter.Write, IntervalArrayConverter.Write,
-            IntervalArrayConverter.Read, IntervalArrayConverter.Read, IntervalArrayConverter.Read, IntervalArrayConverter.Read);
+            IntervalArrayConverter.Read, IntervalArrayConverter.Read, IntervalArrayConverter.Read, IntervalArrayConverter.Read
+        );
         ConverterAssertions.CheckNullableArray<PgInterval, IntervalCodec>(value, "fffffffffff0bdbf00000003fffffffe");
     }
     [Fact]

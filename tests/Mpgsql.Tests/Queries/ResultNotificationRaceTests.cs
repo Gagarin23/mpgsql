@@ -14,45 +14,64 @@ public sealed class ResultNotificationRaceTests
     {
         var token = TestContext.Current.CancellationToken;
         var buffer = new ResultEventBuffer();
-        var requests = Channel.CreateUnbounded<int>(new UnboundedChannelOptions {SingleReader = true, SingleWriter = true});
-        const int iterations = 4096;
-        var producer = Task.Run(async () =>
-        {
-            await foreach (var index in requests.Reader.ReadAllAsync(token).ConfigureAwait(false))
+        var requests = Channel.CreateUnbounded<int>
+        (
+            new UnboundedChannelOptions
             {
-                _publishing = true;
-                try
-                {
-                    Assert.True(buffer.TryWrite(new ResultEvent(index, default), !deferred));
-                    if (deferred)
-                    {
-                        buffer.NotifyAvailable();
-                    }
-                }
-                finally { _publishing = false; }
+                SingleReader = true,
+                SingleWriter = true
             }
-        }, token);
+        );
+        const int iterations = 4096;
+        var producer = Task.Run
+        (
+            async () =>
+            {
+                await foreach (var index in requests
+                                   .Reader.ReadAllAsync(token)
+                                   .ConfigureAwait(false))
+                {
+                    _publishing = true;
+                    try
+                    {
+                        Assert.True(buffer.TryWrite(new ResultEvent(index, default), !deferred));
+                        if (deferred)
+                        {
+                            buffer.NotifyAvailable();
+                        }
+                    }
+                    finally { _publishing = false; }
+                }
+            }, token
+        );
         try
         {
             // Keep the consumer off the test synchronization context: otherwise that context
             // could hide an inline source continuation and make the publisher assertion vacuous.
-            await Task.Run(async () =>
-            {
-                for (var index = 0; index < iterations; index++)
-                {
-                    var notification = buffer.WaitToReadAsync();
-                    Assert.False(notification.IsCompleted);
-                    Assert.True(requests.Writer.TryWrite(index));
-                    Assert.True(await notification.ConfigureAwait(false));
-                    Assert.False(_publishing); // the consumer never runs inline inside the publisher
-                    Assert.True(buffer.TryRead(out var item));
-                    Assert.Equal(index, item.QueryIndex);
-                    Assert.False(buffer.TryRead(out _));
-                }
-                var terminal = buffer.WaitToReadAsync();
-                buffer.Complete();
-                Assert.False(await terminal.ConfigureAwait(false));
-            }, token).WaitAsync(TestTimeout, token);
+            await Task
+                .Run
+                (
+                    async () =>
+                    {
+                        for (var index = 0;
+                             index < iterations;
+                             index++)
+                        {
+                            var notification = buffer.WaitToReadAsync();
+                            Assert.False(notification.IsCompleted);
+                            Assert.True(requests.Writer.TryWrite(index));
+                            Assert.True(await notification.ConfigureAwait(false));
+                            Assert.False(_publishing); // the consumer never runs inline inside the publisher
+                            Assert.True(buffer.TryRead(out var item));
+                            Assert.Equal(index, item.QueryIndex);
+                            Assert.False(buffer.TryRead(out _));
+                        }
+                        var terminal = buffer.WaitToReadAsync();
+                        buffer.Complete();
+                        Assert.False(await terminal.ConfigureAwait(false));
+                    }, token
+                )
+                .WaitAsync(TestTimeout, token);
         }
         finally
         {
@@ -65,29 +84,41 @@ public sealed class ResultNotificationRaceTests
     public async Task NotificationRacingFaultAndDrainPreservesExactlyOneTerminalError(bool deferred)
     {
         var token = TestContext.Current.CancellationToken;
-        for (var iteration = 0; iteration < 128; iteration++)
+        for (var iteration = 0;
+             iteration < 128;
+             iteration++)
         {
             var buffer = new ResultEventBuffer();
-            var notification = buffer.WaitToReadAsync().AsTask();
+            var notification = buffer
+                .WaitToReadAsync()
+                .AsTask();
             var error = new IOException("racing transport failure");
             var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            var producer = Task.Run(async () =>
-            {
-                await start.Task.ConfigureAwait(false);
-                if (buffer.TryWrite(new ResultEvent(iteration, default), !deferred) && deferred)
+            var producer = Task.Run
+            (
+                async () =>
                 {
-                    buffer.NotifyAvailable();
-                }
-            }, token);
-            var terminal = Task.Run(async () =>
-            {
-                await start.Task.ConfigureAwait(false);
-                buffer.Complete(error);
-                buffer.Drain();
-                buffer.Complete(); // normal completion cannot erase the transport failure
-            }, token);
+                    await start.Task.ConfigureAwait(false);
+                    if (buffer.TryWrite(new ResultEvent(iteration, default), !deferred) && deferred)
+                    {
+                        buffer.NotifyAvailable();
+                    }
+                }, token
+            );
+            var terminal = Task.Run
+            (
+                async () =>
+                {
+                    await start.Task.ConfigureAwait(false);
+                    buffer.Complete(error);
+                    buffer.Drain();
+                    buffer.Complete(); // normal completion cannot erase the transport failure
+                }, token
+            );
             start.SetResult();
-            await Task.WhenAll(producer, terminal).WaitAsync(TestTimeout, token);
+            await Task
+                .WhenAll(producer, terminal)
+                .WaitAsync(TestTimeout, token);
             try { Assert.True(await notification.WaitAsync(TestTimeout, token)); }
             catch (IOException observed) { Assert.Same(error, observed); }
             buffer.Drain();

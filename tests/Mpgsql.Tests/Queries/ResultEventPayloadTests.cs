@@ -60,8 +60,15 @@ public sealed class ResultEventPayloadTests
     public void BufferedCopiesKeepTheOriginalLeaseGenerationAfterStorageReuse()
     {
         var pool = new RowStoragePool();
-        var message = new BackendMessage((byte)'D', BackendMessageKind.DataRow,
-            new ReadOnlySequence<byte>(Row(Int64(55)).AsMemory(5)), 1);
+        var message = new BackendMessage
+        (
+            (byte)'D', BackendMessageKind.DataRow,
+            new ReadOnlySequence<byte>
+            (
+                Row(Int64(55))
+                    .AsMemory(5)
+            ), 1
+        );
         var original = pool.Rent(message, null, null);
         var buffer = new ResultEventBuffer();
         Assert.True(buffer.TryWrite(new ResultEvent(7, default, original)));

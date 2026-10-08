@@ -15,8 +15,13 @@ public sealed class MpgsqlConnection : DbConnection
     internal MpgsqlTransaction? CurrentTransaction;
     private QueryExecution? _active;
     private string _connectionString = "";
-    private bool _disposed, _closing;
-    private Task? _open, _close;
+
+    private bool _disposed,
+        _closing;
+
+    private Task? _open,
+        _close;
+
     private CancellationTokenSource? _opening;
     private MpgsqlMessageSession? _session;
     private ConnectionState _state;
@@ -127,8 +132,12 @@ public sealed class MpgsqlConnection : DbConnection
         try
         {
             session = _source is not null
-                ? await _source.RentAsync(opening.Token).ConfigureAwait(false)
-                : await MpgsqlMessageSession.OpenAsync(new MpgsqlConnectionStringBuilder(_connectionString).ToSessionOptions(), opening.Token).ConfigureAwait(false);
+                ? await _source
+                    .RentAsync(opening.Token)
+                    .ConfigureAwait(false)
+                : await MpgsqlMessageSession
+                    .OpenAsync(new MpgsqlConnectionStringBuilder(_connectionString).ToSessionOptions(), opening.Token)
+                    .ConfigureAwait(false);
             lock (Gate)
             {
                 opening.Token.ThrowIfCancellationRequested();
@@ -143,11 +152,15 @@ public sealed class MpgsqlConnection : DbConnection
             {
                 if (_source is not null)
                 {
-                    await _source.ReturnAsync(session).ConfigureAwait(false);
+                    await _source
+                        .ReturnAsync(session)
+                        .ConfigureAwait(false);
                 }
                 else
                 {
-                    await session.DisposeAsync().ConfigureAwait(false);
+                    await session
+                        .DisposeAsync()
+                        .ConfigureAwait(false);
                 }
             }
             lock (Gate)
@@ -185,7 +198,9 @@ public sealed class MpgsqlConnection : DbConnection
         }
         if (_source is null)
         {
-            await session.DisposeAsync().ConfigureAwait(false);
+            await session
+                .DisposeAsync()
+                .ConfigureAwait(false);
         }
     }
     private void ChangeState(ConnectionState next)
@@ -209,10 +224,12 @@ public sealed class MpgsqlConnection : DbConnection
             throw new InvalidOperationException("The connection already has an active execution or reader.");
         }
     }
-    internal QueryExecution Start(QueryDefinition single, QueryDefinition[]? queries,
+    internal QueryExecution Start(
+        QueryDefinition single, QueryDefinition[]? queries,
         CancellationToken token, int timeout,
         Action completed, bool ownsConnection = false,
-        long[]? affectedRows = null)
+        long[]? affectedRows = null
+    )
     {
         lock (Gate)
         {
@@ -222,9 +239,11 @@ public sealed class MpgsqlConnection : DbConnection
             return execution;
         }
     }
-    internal QueryExecution StartAdministration(MpgsqlPreparedStatement[] statements, bool close,
+    internal QueryExecution StartAdministration(
+        MpgsqlPreparedStatement[] statements, bool close,
         CancellationToken token, int timeout,
-        Action completed)
+        Action completed
+    )
     {
         lock (Gate)
         {
@@ -304,7 +323,8 @@ public sealed class MpgsqlConnection : DbConnection
         {
             IsolationLevel.Unspecified or IsolationLevel.ReadCommitted => "BEGIN ISOLATION LEVEL READ COMMITTED",
             IsolationLevel.ReadUncommitted                             => "BEGIN ISOLATION LEVEL READ UNCOMMITTED",
-            IsolationLevel.RepeatableRead                              => "BEGIN ISOLATION LEVEL REPEATABLE READ", IsolationLevel.Serializable => "BEGIN ISOLATION LEVEL SERIALIZABLE",
+            IsolationLevel.RepeatableRead                              => "BEGIN ISOLATION LEVEL REPEATABLE READ",
+            IsolationLevel.Serializable                                => "BEGIN ISOLATION LEVEL SERIALIZABLE",
             _                                                          => throw new NotSupportedException($"Isolation level {isolationLevel} is not supported.")
         };
         MpgsqlTransaction transaction;
@@ -379,7 +399,9 @@ public sealed class MpgsqlConnection : DbConnection
         {
             batch.BatchCommands.Add(new MpgsqlBatchCommand("DISCARD TEMP"));
         }
-        await batch.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        await batch
+            .ExecuteNonQueryAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
     private TaskCompletionSource? ReserveClose()
     {
@@ -396,7 +418,8 @@ public sealed class MpgsqlConnection : DbConnection
     {
         try
         {
-            await CloseCoreAsync().ConfigureAwait(false);
+            await CloseCoreAsync()
+                .ConfigureAwait(false);
             completion.TrySetResult();
         }
         catch (Exception error) { completion.TrySetException(error); }
@@ -469,7 +492,9 @@ public sealed class MpgsqlConnection : DbConnection
         {
             if (active is not null)
             {
-                await active.FinishAsync(true).ConfigureAwait(false);
+                await active
+                    .FinishAsync(true)
+                    .ConfigureAwait(false);
             }
         }
         finally
@@ -482,11 +507,15 @@ public sealed class MpgsqlConnection : DbConnection
                 {
                     if (_source is not null)
                     {
-                        await _source.ReturnAsync(session).ConfigureAwait(false);
+                        await _source
+                            .ReturnAsync(session)
+                            .ConfigureAwait(false);
                     }
                     else
                     {
-                        await session.DisposeAsync().ConfigureAwait(false);
+                        await session
+                            .DisposeAsync()
+                            .ConfigureAwait(false);
                     }
                 }
             }
@@ -517,7 +546,8 @@ public sealed class MpgsqlConnection : DbConnection
         {
             _disposed = true;
         }
-        await CloseAsync().ConfigureAwait(false);
+        await CloseAsync()
+            .ConfigureAwait(false);
         GC.SuppressFinalize(this);
     }
 }

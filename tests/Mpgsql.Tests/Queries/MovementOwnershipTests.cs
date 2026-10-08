@@ -18,7 +18,12 @@ public sealed class MovementOwnershipTests
         await using (reader)
         {
             var movement = dispose
-                ? Task.Run(() => reader.DisposeAsync().AsTask(), token)
+                ? Task.Run
+                (
+                    () => reader
+                        .DisposeAsync()
+                        .AsTask(), token
+                )
                 : Task.Run(async () => { await reader.ReadAsync(); }, token);
             Task? first = null;
             Task? second = null;
@@ -27,7 +32,11 @@ public sealed class MovementOwnershipTests
                 await owner.Entered.WaitAsync(TestTimeout, token);
                 if (!dispose)
                 {
-                    await Assert.ThrowsAsync<InvalidOperationException>(() => reader.ReadAsync().AsTask());
+                    await Assert.ThrowsAsync<InvalidOperationException>
+                    (() => reader
+                        .ReadAsync()
+                        .AsTask()
+                    );
                 }
                 first = reader.InvalidateFromOwner();
                 second = reader.InvalidateFromOwner();
@@ -35,7 +44,11 @@ public sealed class MovementOwnershipTests
                 Assert.False(first.IsCompleted);
                 Assert.Equal(14, budget.Used);
                 Assert.Throws<ObjectDisposedException>(() => reader.GetRawValue(0));
-                await Assert.ThrowsAsync<ObjectDisposedException>(() => reader.ReadAsync().AsTask());
+                await Assert.ThrowsAsync<ObjectDisposedException>
+                (() => reader
+                    .ReadAsync()
+                    .AsTask()
+                );
             }
             finally { owner.Resume(); }
             await wire.WriteAsync(Join(Command(), Ready()));
@@ -48,10 +61,16 @@ public sealed class MovementOwnershipTests
             {
                 Assert.IsType<ObjectDisposedException>(error);
             }
-            await Task.WhenAll(first!, second!).WaitAsync(TestTimeout, token);
+            await Task
+                .WhenAll(first!, second!)
+                .WaitAsync(TestTimeout, token);
             Assert.Equal(1, owner.Disposals);
             Assert.Equal(0, budget.Used);
-            Assert.True(reader.InvalidateFromOwner().IsCompletedSuccessfully);
+            Assert.True
+            (
+                reader.InvalidateFromOwner()
+                    .IsCompletedSuccessfully
+            );
             await batch.Completion.WaitAsync(TestTimeout, token);
             await FollowingAsync(wire, token);
         }
@@ -73,21 +92,30 @@ public sealed class MovementOwnershipTests
             {
                 await owner.Entered.WaitAsync(TestTimeout, token);
                 var observerEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                observer = Task.Run(async () =>
-                {
-                    observerEntered.TrySetResult();
-                    await reader.InvalidateFromOwner();
-                }, token);
+                observer = Task.Run
+                (
+                    async () =>
+                    {
+                        observerEntered.TrySetResult();
+                        await reader.InvalidateFromOwner();
+                    }, token
+                );
                 await observerEntered.Task.WaitAsync(TestTimeout, token);
                 Assert.False(closing.IsCompleted);
                 Assert.False(observer.IsCompleted);
                 Assert.Equal(14, budget.Used);
             }
             finally { owner.Resume(); }
-            await Task.WhenAll(closing, observer!).WaitAsync(TestTimeout, token);
+            await Task
+                .WhenAll(closing, observer!)
+                .WaitAsync(TestTimeout, token);
             Assert.Equal(1, owner.Disposals);
             Assert.Equal(0, budget.Used);
-            await Assert.ThrowsAsync<ObjectDisposedException>(() => reader.NextResultAsync().AsTask());
+            await Assert.ThrowsAsync<ObjectDisposedException>
+            (() => reader
+                .NextResultAsync()
+                .AsTask()
+            );
             await wire.WriteAsync(Join(Command(), Ready()));
             await batch.Completion.WaitAsync(TestTimeout, token);
             await FollowingAsync(wire, token);
@@ -99,7 +127,9 @@ public sealed class MovementOwnershipTests
     {
         var token = TestContext.Current.CancellationToken;
         await using var wire = new ScriptedSession();
-        for (var iteration = 0; iteration < 128; iteration++)
+        for (var iteration = 0;
+             iteration < 128;
+             iteration++)
         {
             await using var batch = wire.Session.CreateBatch(token);
             var owner = new TestOwner();
@@ -107,23 +137,35 @@ public sealed class MovementOwnershipTests
             await using (reader)
             {
                 using var start = new Barrier(3);
-                var movement = Task.Run(async () =>
-                {
-                    Assert.True(start.SignalAndWait(TestTimeout, token));
-                    try { Assert.False(await reader.ReadAsync()); }
-                    catch (ObjectDisposedException) { }
-                }, token);
-                var closing = Task.Run(async () =>
-                {
-                    Assert.True(start.SignalAndWait(TestTimeout, token));
-                    await reader.InvalidateFromOwner();
-                }, token);
+                var movement = Task.Run
+                (
+                    async () =>
+                    {
+                        Assert.True(start.SignalAndWait(TestTimeout, token));
+                        try { Assert.False(await reader.ReadAsync()); }
+                        catch (ObjectDisposedException) { }
+                    }, token
+                );
+                var closing = Task.Run
+                (
+                    async () =>
+                    {
+                        Assert.True(start.SignalAndWait(TestTimeout, token));
+                        await reader.InvalidateFromOwner();
+                    }, token
+                );
                 Assert.True(start.SignalAndWait(TestTimeout, token));
                 await wire.WriteAsync(Join(Command(), Ready()));
-                await Task.WhenAll(movement, closing).WaitAsync(TestTimeout, token);
+                await Task
+                    .WhenAll(movement, closing)
+                    .WaitAsync(TestTimeout, token);
                 Assert.Equal(1, owner.Disposals);
                 Assert.Equal(0, budget.Used);
-                await Assert.ThrowsAsync<ObjectDisposedException>(() => reader.ReadAsync().AsTask());
+                await Assert.ThrowsAsync<ObjectDisposedException>
+                (() => reader
+                    .ReadAsync()
+                    .AsTask()
+                );
                 await batch.Completion.WaitAsync(TestTimeout, token);
                 Assert.Equal(0, wire.Session.BufferedRowBytes);
                 Assert.True(wire.Session.IsIdleAndHealthy);
@@ -134,19 +176,26 @@ public sealed class MovementOwnershipTests
 
     private static async Task<(MpgsqlResultReader Reader, RowBufferBudget Budget)> OpenOwnedReaderAsync(
         ScriptedSession wire, MpgsqlQueryBatch batch,
-        TestOwner owner, CancellationToken token)
+        TestOwner owner, CancellationToken token
+    )
     {
         await batch.SendQueryAsync("select owned row");
         await batch.SendSyncAsync();
         await wire.ReadOutputAsync();
         await wire.WriteAsync(Begin(20));
-        var reader = await batch.ReadResultsAsync().AsTask().WaitAsync(TestTimeout, token);
+        var reader = await batch
+            .ReadResultsAsync()
+            .AsTask()
+            .WaitAsync(TestTimeout, token);
         var budget = new RowBufferBudget(14);
         Assert.True(await budget.ReserveAsync(14, batch, token));
         IMemoryOwner<byte>? transferred = owner;
         var reservation = budget;
-        batch.Accept(new BackendMessage((byte)'D', BackendMessageKind.DataRow, new ReadOnlySequence<byte>(owner.Memory), 1),
-            ref transferred, ref reservation);
+        batch.Accept
+        (
+            new BackendMessage((byte)'D', BackendMessageKind.DataRow, new ReadOnlySequence<byte>(owner.Memory), 1),
+            ref transferred, ref reservation
+        );
         Assert.Null(transferred);
         Assert.Null(reservation);
         Assert.True(await reader.ReadAsync());
@@ -174,7 +223,10 @@ public sealed class MovementOwnershipTests
 
     private sealed class TestOwner(bool blockDispose = false) : IMemoryOwner<byte>
     {
-        private readonly byte[] _bytes = Row(Int64(7)).AsSpan(5).ToArray();
+        private readonly byte[] _bytes = Row(Int64(7))
+            .AsSpan(5)
+            .ToArray();
+
         private readonly TaskCompletionSource _entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly ManualResetEventSlim? _resume = blockDispose ? new ManualResetEventSlim() : null;
         private int _disposals;

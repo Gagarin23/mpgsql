@@ -16,14 +16,26 @@ internal sealed class TestConnection : IDisposable
     private readonly ReadOnlySequence<byte>?[] _rowStorage = new ReadOnlySequence<byte>?[8];
     private readonly NetworkStream _stream;
 
-    private TestConnection(string host,
-        int port)
+    private TestConnection(
+        string host,
+        int port
+    )
     {
-        _client = new TcpClient {NoDelay = true};
+        _client = new TcpClient
+        {
+            NoDelay = true
+        };
         try
         {
-            _client.ConnectAsync(host,
-                port).WaitAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult();
+            _client
+                .ConnectAsync
+                (
+                    host,
+                    port
+                )
+                .WaitAsync(TimeSpan.FromSeconds(10))
+                .GetAwaiter()
+                .GetResult();
             _stream = _client.GetStream();
             _stream.ReadTimeout = 10_000;
             _stream.WriteTimeout = 10_000;
@@ -49,19 +61,27 @@ internal sealed class TestConnection : IDisposable
         return Read(out _);
     }
 
-    public static TestConnection Open(string host,
+    public static TestConnection Open(
+        string host,
         int port,
         string user,
         string password,
-        string database)
+        string database
+    )
     {
-        var connection = new TestConnection(host,
-            port);
+        var connection = new TestConnection
+        (
+            host,
+            port
+        );
         try
         {
-            connection.Startup(user,
+            connection.Startup
+            (
+                user,
                 password,
-                database);
+                database
+            );
             return connection;
         }
         catch
@@ -73,8 +93,11 @@ internal sealed class TestConnection : IDisposable
 
     public void Append<T>(T message) where T : struct, IFrontendMessage<T>
     {
-        FrontendMessageWriter.Write(in message,
-            _output);
+        FrontendMessageWriter.Write
+        (
+            in message,
+            _output
+        );
     }
 
     public void Flush()
@@ -91,8 +114,11 @@ internal sealed class TestConnection : IDisposable
 
     public BackendMessage Expect(BackendMessageKind kind)
     {
-        return Expect(kind,
-            out _);
+        return Expect
+        (
+            kind,
+            out _
+        );
     }
 
     public BackendMessage ExpectCopyDataOrDone()
@@ -117,8 +143,10 @@ internal sealed class TestConnection : IDisposable
         }
     }
 
-    public BackendMessage Expect(BackendMessageKind kind,
-        out IndexedDataRow row)
+    public BackendMessage Expect(
+        BackendMessageKind kind,
+        out IndexedDataRow row
+    )
     {
         while (true)
         {
@@ -179,10 +207,13 @@ internal sealed class TestConnection : IDisposable
         header.CopyTo(packet);
         _stream.ReadExactly(packet.AsSpan(5));
         var input = new ReadOnlySequence<byte>(packet);
-        if (!BackendMessageReader.TryRead(ref input,
+        if (!BackendMessageReader.TryRead
+            (
+                ref input,
                 _rowStorage,
                 out var message,
-                out row) || !input.IsEmpty)
+                out row
+            ) || !input.IsEmpty)
         {
             throw new InvalidDataException("The codec did not consume the complete live server packet.");
         }
@@ -199,12 +230,20 @@ internal sealed class TestConnection : IDisposable
         }
     }
 
-    private void Startup(string user,
+    private void Startup(
+        string user,
         string password,
-        string database)
+        string database
+    )
     {
-        Send(FrontendMessage.Startup(user,
-            database));
+        Send
+        (
+            FrontendMessage.Startup
+            (
+                user,
+                database
+            )
+        );
         TestScram? scram = null;
         var authenticated = false;
         while (true)
@@ -248,13 +287,27 @@ internal sealed class TestConnection : IDisposable
                         }
                         Authentication = "SCRAM-SHA-256";
                         scram = new TestScram(user);
-                        Send(FrontendMessage.SaslInitialResponse("SCRAM-SHA-256",
-                            scram.First()));
+                        Send
+                        (
+                            FrontendMessage.SaslInitialResponse
+                            (
+                                "SCRAM-SHA-256",
+                                scram.First()
+                            )
+                        );
                         break;
                     case AuthenticationMethod.SaslContinue:
-                        Send(FrontendMessage.SaslResponse((scram ?? throw new InvalidDataException()).Continue(
-                            Encoding.UTF8.GetString(request.Data.ToArray()),
-                            password)));
+                        Send
+                        (
+                            FrontendMessage.SaslResponse
+                            (
+                                (scram ?? throw new InvalidDataException()).Continue
+                                (
+                                    Encoding.UTF8.GetString(request.Data.ToArray()),
+                                    password
+                                )
+                            )
+                        );
                         break;
                     case AuthenticationMethod.SaslFinal:
                         (scram ?? throw new InvalidDataException()).Verify(Encoding.UTF8.GetString(request.Data.ToArray()));

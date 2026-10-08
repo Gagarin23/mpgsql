@@ -19,10 +19,14 @@ internal readonly struct TimeClrCodec : IBinaryCodec<TimeOnly>
     }
     public static TimeOnly Read(ReadOnlySpan<byte> payload)
     {
-        return TimeCodec.Read(payload).ToTimeOnly();
+        return TimeCodec
+            .Read(payload)
+            .ToTimeOnly();
     }
     public static TimeOnly Read(ReadOnlySequence<byte> payload)
     {
-        return TimeCodec.Read(payload).ToTimeOnly();
+        return TimeCodec
+            .Read(payload)
+            .ToTimeOnly();
     }
 }

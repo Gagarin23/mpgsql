@@ -38,7 +38,14 @@ public sealed class StartupAuthenticationTests
     {
         var tail = Packet('N', "SNOTICE\0Mafter startup\0\0"u8.ToArray());
         using var stream = new Transcript(Join(Auth(0), Key(), Packet('S', "client_encoding\0UTF8\0"u8.ToArray()), Ready(), tail), fragment);
-        using var transport = new SocketTransport(new TcpClient(), stream, new MpgsqlSessionOptions {Username = "test", SslMode = MpgsqlSslMode.Disable});
+        using var transport = new SocketTransport
+        (
+            new TcpClient(), stream, new MpgsqlSessionOptions
+            {
+                Username = "test",
+                SslMode = MpgsqlSslMode.Disable
+            }
+        );
         await transport.StartupAsync(Token);
         Assert.Equal(Startup(), stream.Written.ToArray());
         Assert.Equal(123, transport.BackendKey!.Value.ProcessId);
@@ -53,7 +60,15 @@ public sealed class StartupAuthenticationTests
         byte[] salt = [1, 2, 3, 4];
         var password = "pаss😀";
         using var stream = new Transcript(Join(Auth(md5 ? 5 : 3, md5 ? salt : null), Auth(0), Key(), Ready()), 1);
-        using var transport = new SocketTransport(new TcpClient(), stream, new MpgsqlSessionOptions {Username = "test", Password = password, SslMode = MpgsqlSslMode.Disable});
+        using var transport = new SocketTransport
+        (
+            new TcpClient(), stream, new MpgsqlSessionOptions
+            {
+                Username = "test",
+                Password = password,
+                SslMode = MpgsqlSslMode.Disable
+            }
+        );
         await transport.StartupAsync(Token);
         var response = password;
         if (md5)
@@ -87,8 +102,11 @@ public sealed class StartupAuthenticationTests
     {
         var scram = new ScramAuthentication("nonce");
         Assert.Equal("n,,n=,r=nonce"u8.ToArray(), scram.First());
-        Assert.Equal("c=biws,r=nonceServer,p=vA58x2pSRSMXykJYvUI5yVPRE6oqqEi0iub4OsBB8jI="u8.ToArray(),
-            scram.Continue("r=nonceServer,s=AAAA,i=4096", "x\u200By"));
+        Assert.Equal
+        (
+            "c=biws,r=nonceServer,p=vA58x2pSRSMXykJYvUI5yVPRE6oqqEi0iub4OsBB8jI="u8.ToArray(),
+            scram.Continue("r=nonceServer,s=AAAA,i=4096", "x\u200By")
+        );
         scram.Verify("v=nHBKVuAzTDh+0UnVR5PDxsBTqlzg1McqxNNpypmHuJ0=");
         Assert.True(scram.Completed);
         Assert.Throws<InvalidDataException>(() => scram.Continue("r=nonceServer,s=AAAA,i=4096", "password"));
@@ -109,8 +127,10 @@ public sealed class StartupAuthenticationTests
             set => throw new NotSupportedException();
         }
 
-        public override int Read(byte[] buffer, int offset,
-            int count)
+        public override int Read(
+            byte[] buffer, int offset,
+            int count
+        )
         {
             return _read.Read(buffer, offset, Math.Min(count, fragment));
         }
@@ -119,8 +139,10 @@ public sealed class StartupAuthenticationTests
             cancellationToken.ThrowIfCancellationRequested();
             return new ValueTask<int>(_read.Read(buffer.Span[..Math.Min(buffer.Length, fragment)]));
         }
-        public override void Write(byte[] buffer, int offset,
-            int count)
+        public override void Write(
+            byte[] buffer, int offset,
+            int count
+        )
         {
             Written.Write(buffer, offset, count);
         }

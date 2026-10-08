@@ -7,20 +7,33 @@ public sealed class UpperLifecycleTests
 {
     private static async Task Sync(ScriptedSession wire)
     {
-        while (!Tags(await wire.ReadOutputAsync()).Contains('S')) { }
+        while (!Tags(await wire.ReadOutputAsync())
+                   .Contains('S')) { }
     }
 
     [Fact]
     public async Task DuplicateFactorySessionIsRejectedWithoutClosingItsExistingLease()
     {
         await using var wire = new ScriptedSession();
-        await using var source = new MpgsqlDataSource(_ => ValueTask.FromResult(wire.Session),
-            (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions {MaxConnections = 2});
+        await using var source = new MpgsqlDataSource
+        (
+            _ => ValueTask.FromResult(wire.Session),
+            (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions
+            {
+                MaxConnections = 2
+            }
+        );
         await using var connection = await source.OpenConnectionAsync(TestContext.Current.CancellationToken);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => source.OpenConnectionAsync(TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<InvalidOperationException>
+        (() => source
+            .OpenConnectionAsync(TestContext.Current.CancellationToken)
+            .AsTask()
+        );
         Assert.False(wire.Session.Completion.IsCompleted);
         await using var command = connection.CreateCommand("select 3::bigint");
-        var result = command.ExecuteScalarAsync<long>(TestContext.Current.CancellationToken).AsTask();
+        var result = command
+            .ExecuteScalarAsync<long>(TestContext.Current.CancellationToken)
+            .AsTask();
         await Sync(wire);
         await wire.WriteAsync(Join(Query(3), Ready()));
         Assert.Equal(3, (await result).Value);
@@ -40,25 +53,37 @@ public sealed class UpperLifecycleTests
     public async Task OwnerDisposalCanDrainWhileReaderMovementIsWaiting()
     {
         await using var wire = new ScriptedSession();
-        await using var source = new MpgsqlDataSource(_ => ValueTask.FromResult(wire.Session),
-            (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions {MaxConnections = 1});
+        await using var source = new MpgsqlDataSource
+        (
+            _ => ValueTask.FromResult(wire.Session),
+            (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions
+            {
+                MaxConnections = 1
+            }
+        );
         await using var connection = await source.OpenConnectionAsync(TestContext.Current.CancellationToken);
         var command = connection.CreateCommand("select delayed");
-        var opening = command.ExecuteReaderValueTaskAsync(cancellationToken: TestContext.Current.CancellationToken).AsTask();
+        var opening = command
+            .ExecuteReaderValueTaskAsync(cancellationToken: TestContext.Current.CancellationToken)
+            .AsTask();
         await Sync(wire);
         await wire.WriteAsync(Join(Begin(20), Row(Int64(0))));
         var reader = await opening;
         Assert.True(await reader.ReadAsync(TestContext.Current.CancellationToken));
         var moving = reader.ReadAsync(TestContext.Current.CancellationToken);
         Assert.False(moving.IsCompleted);
-        var disposing = command.DisposeAsync().AsTask();
+        var disposing = command
+            .DisposeAsync()
+            .AsTask();
         Assert.False(disposing.IsCompleted);
         await wire.WriteAsync(Join(Row(Int64(1)), Command(), Ready()));
         await disposing.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         await Assert.ThrowsAsync<ObjectDisposedException>(() => moving.WaitAsync(TestTimeout, TestContext.Current.CancellationToken));
         await reader.DisposeAsync();
         await using var next = connection.CreateCommand("select 2::bigint");
-        var result = next.ExecuteScalarAsync<long>(TestContext.Current.CancellationToken).AsTask();
+        var result = next
+            .ExecuteScalarAsync<long>(TestContext.Current.CancellationToken)
+            .AsTask();
         await Sync(wire);
         await wire.WriteAsync(Join(Query(2), Ready()));
         Assert.Equal(2, (await result).Value);
@@ -72,17 +97,29 @@ public sealed class UpperLifecycleTests
         await using var a = new ScriptedSession();
         await using var b = new ScriptedSession();
         var calls = 0;
-        await using var source = new MpgsqlDataSource(async token =>
-        {
-            var number = Interlocked.Increment(ref calls);
-            firstFactory.TrySetResult();
-            await continueFactory.Task.WaitAsync(token);
-            return number == 1 ? a.Session : b.Session;
-        }, (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions {MaxConnections = 2});
-        var one = source.OpenConnectionAsync(TestContext.Current.CancellationToken).AsTask();
+        await using var source = new MpgsqlDataSource
+        (
+            async token =>
+            {
+                var number = Interlocked.Increment(ref calls);
+                firstFactory.TrySetResult();
+                await continueFactory.Task.WaitAsync(token);
+                return number == 1 ? a.Session : b.Session;
+            }, (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions
+            {
+                MaxConnections = 2
+            }
+        );
+        var one = source
+            .OpenConnectionAsync(TestContext.Current.CancellationToken)
+            .AsTask();
         await firstFactory.Task.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
-        var two = source.OpenConnectionAsync(TestContext.Current.CancellationToken).AsTask();
-        var three = source.OpenConnectionAsync(TestContext.Current.CancellationToken).AsTask();
+        var two = source
+            .OpenConnectionAsync(TestContext.Current.CancellationToken)
+            .AsTask();
+        var three = source
+            .OpenConnectionAsync(TestContext.Current.CancellationToken)
+            .AsTask();
         Assert.Equal(2, calls);
         Assert.False(three.IsCompleted);
         continueFactory.TrySetResult();
@@ -102,10 +139,20 @@ public sealed class UpperLifecycleTests
     {
         await using var wire = new ScriptedSession();
         var calls = 0;
-        await using var source = new MpgsqlDataSource(_ => ++calls == 1
-            ? ValueTask.FromException<MpgsqlMessageSession>(new IOException("startup failed"))
-            : ValueTask.FromResult(wire.Session), (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions {MaxConnections = 1});
-        await Assert.ThrowsAsync<MpgsqlException>(() => source.OpenConnectionAsync(TestContext.Current.CancellationToken).AsTask());
+        await using var source = new MpgsqlDataSource
+        (
+            _ => ++calls == 1
+                ? ValueTask.FromException<MpgsqlMessageSession>(new IOException("startup failed"))
+                : ValueTask.FromResult(wire.Session), (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions
+            {
+                MaxConnections = 1
+            }
+        );
+        await Assert.ThrowsAsync<MpgsqlException>
+        (() => source
+            .OpenConnectionAsync(TestContext.Current.CancellationToken)
+            .AsTask()
+        );
         await using var connection = await source.OpenConnectionAsync(TestContext.Current.CancellationToken);
         Assert.Equal(2, calls);
     }
@@ -116,11 +163,19 @@ public sealed class UpperLifecycleTests
         await using var a = new ScriptedSession();
         await using var b = new ScriptedSession();
         var calls = 0;
-        await using var source = new MpgsqlDataSource(_ => ValueTask.FromResult(++calls == 1 ? a.Session : b.Session),
-            (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions {MaxConnections = 1});
+        await using var source = new MpgsqlDataSource
+        (
+            _ => ValueTask.FromResult(++calls == 1 ? a.Session : b.Session),
+            (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions
+            {
+                MaxConnections = 1
+            }
+        );
         var connection = await source.OpenConnectionAsync(TestContext.Current.CancellationToken);
         await using var command = connection.CreateCommand("begin");
-        var pending = command.ExecuteNonQuery64Async(TestContext.Current.CancellationToken).AsTask();
+        var pending = command
+            .ExecuteNonQuery64Async(TestContext.Current.CancellationToken)
+            .AsTask();
         await Sync(a);
         await a.WriteAsync(Join(Packet('1'), Packet('2'), Packet('n'), Command("BEGIN"), Ready(status)));
         Assert.Equal(-1, await pending);
@@ -137,8 +192,15 @@ public sealed class UpperLifecycleTests
         await using var a = new ScriptedSession(true);
         await using var b = new ScriptedSession();
         var calls = 0;
-        await using var source = new MpgsqlDataSource(_ => ValueTask.FromResult(++calls == 1 ? a.Session : b.Session),
-            (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions {MaxConnections = 1, RecoveryTimeout = TimeSpan.FromMilliseconds(100)});
+        await using var source = new MpgsqlDataSource
+        (
+            _ => ValueTask.FromResult(++calls == 1 ? a.Session : b.Session),
+            (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions
+            {
+                MaxConnections = 1,
+                RecoveryTimeout = TimeSpan.FromMilliseconds(100)
+            }
+        );
         var connection = await source.OpenConnectionAsync(TestContext.Current.CancellationToken);
         var batch = connection.CreateBatch();
         batch.BatchCommands.Add(new MpgsqlBatchCommand("select first"));
@@ -146,11 +208,18 @@ public sealed class UpperLifecycleTests
         var later = new MpgsqlBatchCommand("select $1");
         later.Parameters.Add(MpgsqlParameterValue.Int64Array(payload));
         batch.BatchCommands.Add(later);
-        var opening = batch.ExecuteReaderValueTaskAsync(cancellationToken: TestContext.Current.CancellationToken).AsTask();
+        var opening = batch
+            .ExecuteReaderValueTaskAsync(cancellationToken: TestContext.Current.CancellationToken)
+            .AsTask();
         var held = await a.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
         await a.WriteAsync(Join(Begin(20), Row(Int64(0))));
         var reader = await opening;
-        var error = await Assert.ThrowsAsync<MpgsqlException>(() => reader.DisposeAsync().AsTask().WaitAsync(TestTimeout, TestContext.Current.CancellationToken));
+        var error = await Assert.ThrowsAsync<MpgsqlException>
+        (() => reader
+            .DisposeAsync()
+            .AsTask()
+            .WaitAsync(TestTimeout, TestContext.Current.CancellationToken)
+        );
         Assert.IsType<TimeoutException>(error.InnerException);
         payload[0] = 99;
         a.Outgoing.Reader.AdvanceTo(held.Buffer.End);
@@ -169,12 +238,20 @@ public sealed class UpperLifecycleTests
         await using var a = new ScriptedSession();
         await using var b = new ScriptedSession();
         var calls = 0;
-        await using var source = new MpgsqlDataSource(_ => ValueTask.FromResult(++calls == 1 ? a.Session : b.Session),
-            (_, _) => ValueTask.FromException(new IOException("cancel channel failed")), new MpgsqlDataSourceOptions {MaxConnections = 1});
+        await using var source = new MpgsqlDataSource
+        (
+            _ => ValueTask.FromResult(++calls == 1 ? a.Session : b.Session),
+            (_, _) => ValueTask.FromException(new IOException("cancel channel failed")), new MpgsqlDataSourceOptions
+            {
+                MaxConnections = 1
+            }
+        );
         var connection = await source.OpenConnectionAsync(TestContext.Current.CancellationToken);
         var command = connection.CreateCommand("select slow");
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        var opening = command.ExecuteReaderValueTaskAsync(cancellationToken: request.Token).AsTask();
+        var opening = command
+            .ExecuteReaderValueTaskAsync(cancellationToken: request.Token)
+            .AsTask();
         await Sync(a);
         request.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => opening.WaitAsync(TestTimeout, TestContext.Current.CancellationToken));
@@ -190,21 +267,31 @@ public sealed class UpperLifecycleTests
     {
         await using var wire = new ScriptedSession();
         var cancels = 0;
-        await using var source = new MpgsqlDataSource(_ => ValueTask.FromResult(wire.Session),
+        await using var source = new MpgsqlDataSource
+        (
+            _ => ValueTask.FromResult(wire.Session),
             (_, _) =>
             {
                 cancels++;
                 return ValueTask.CompletedTask;
-            }, new MpgsqlDataSourceOptions {MaxConnections = 1});
+            }, new MpgsqlDataSourceOptions
+            {
+                MaxConnections = 1
+            }
+        );
         await using var connection = await source.OpenConnectionAsync(TestContext.Current.CancellationToken);
         await using var first = connection.CreateCommand("select 1::bigint");
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        var result = first.ExecuteScalarAsync<long>(request.Token).AsTask();
+        var result = first
+            .ExecuteScalarAsync<long>(request.Token)
+            .AsTask();
         await Sync(wire);
         await wire.WriteAsync(Join(Query(1), Ready()));
         Assert.Equal(1, (await result).Value);
         await using var second = connection.CreateCommand("select 2::bigint");
-        var next = second.ExecuteScalarAsync<long>(TestContext.Current.CancellationToken).AsTask();
+        var next = second
+            .ExecuteScalarAsync<long>(TestContext.Current.CancellationToken)
+            .AsTask();
         await Sync(wire);
         request.Cancel();
         await wire.WriteAsync(Join(Query(2), Ready()));

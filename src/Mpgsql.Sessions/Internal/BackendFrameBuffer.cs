@@ -23,11 +23,13 @@ internal sealed class BackendFrameBuffer : IDisposable
         _owner = null;
     }
 
-    internal bool TryRead(ref ReadOnlySequence<byte> input,
+    internal bool TryRead(
+        ref ReadOnlySequence<byte> input,
         bool discardRows,
         out BackendMessage message,
         out IMemoryOwner<byte>? owner,
-        out int skippedColumns)
+        out int skippedColumns
+    )
     {
         message = default;
         owner = null;
@@ -38,7 +40,8 @@ internal sealed class BackendFrameBuffer : IDisposable
         {
             if (discardRows && message.Kind == BackendMessageKind.DataRow)
             {
-                skippedColumns = message.GetDataRow().Count;
+                skippedColumns = message.GetDataRow()
+                    .Count;
                 message = default;
             }
             return true;
@@ -46,10 +49,18 @@ internal sealed class BackendFrameBuffer : IDisposable
 
         if (_headerBytes < 5)
         {
-            var size = (int)Math.Min(5 - _headerBytes,
-                input.Length);
-            input.Slice(0,
-                size).CopyTo(_header.AsSpan(_headerBytes));
+            var size = (int)Math.Min
+            (
+                5 - _headerBytes,
+                input.Length
+            );
+            input
+                .Slice
+                (
+                    0,
+                    size
+                )
+                .CopyTo(_header.AsSpan(_headerBytes));
             input = input.Slice(size);
             _headerBytes += size;
             if (_headerBytes != 5)
@@ -82,20 +93,35 @@ internal sealed class BackendFrameBuffer : IDisposable
         if (discardRows && _header[0] == (byte)'D' && !_skipping)
         {
             _skip.Reset();
-            _skip.Feed(_owner!.Memory.Span.Slice(5,
-                _written - 5));
+            _skip.Feed
+            (
+                _owner!.Memory.Span.Slice
+                (
+                    5,
+                    _written - 5
+                )
+            );
             _owner.Dispose();
             _owner = null;
             _skipping = true;
         }
 
-        var available = (int)Math.Min(_size - _written,
-            input.Length);
-        var bytes = input.Slice(0,
-            available);
+        var available = (int)Math.Min
+        (
+            _size - _written,
+            input.Length
+        );
+        var bytes = input.Slice
+        (
+            0,
+            available
+        );
         if (_skipping)
         {
-            foreach (var segment in bytes) _skip.Feed(segment.Span);
+            foreach (var segment in bytes)
+            {
+                _skip.Feed(segment.Span);
+            }
         }
         else
         {
@@ -119,8 +145,11 @@ internal sealed class BackendFrameBuffer : IDisposable
         else
         {
             var frame = new ReadOnlySequence<byte>(_owner!.Memory[.._size]);
-            if (!BackendMessageReader.TryReadForSession(ref frame,
-                    out message) || !frame.IsEmpty)
+            if (!BackendMessageReader.TryReadForSession
+                (
+                    ref frame,
+                    out message
+                ) || !frame.IsEmpty)
             {
                 throw new InvalidDataException("Incomplete assembled backend frame.");
             }

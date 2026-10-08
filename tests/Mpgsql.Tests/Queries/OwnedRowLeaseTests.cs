@@ -9,7 +9,14 @@ public sealed class OwnedRowLeaseTests
 {
     private static BackendMessage Message(params byte[]?[] values)
     {
-        return new BackendMessage((byte)'D', BackendMessageKind.DataRow, new ReadOnlySequence<byte>(Row(values).AsMemory(5)), values.Length);
+        return new BackendMessage
+        (
+            (byte)'D', BackendMessageKind.DataRow, new ReadOnlySequence<byte>
+            (
+                Row(values)
+                    .AsMemory(5)
+            ), values.Length
+        );
     }
 
     [Fact]
@@ -49,7 +56,13 @@ public sealed class OwnedRowLeaseTests
         Assert.True(await budget.ReserveAsync(14, batch, TestContext.Current.CancellationToken));
         var pool = new RowStoragePool();
         var row = pool.Rent(new BackendMessage((byte)'D', BackendMessageKind.DataRow, new ReadOnlySequence<byte>(owner.Memory), 1), owner, budget);
-        await Task.WhenAll(Enumerable.Range(0, 64).Select(_ => Task.Run(row.Dispose, TestContext.Current.CancellationToken)))
+        await Task
+            .WhenAll
+            (
+                Enumerable
+                    .Range(0, 64)
+                    .Select(_ => Task.Run(row.Dispose, TestContext.Current.CancellationToken))
+            )
             .WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         Assert.Equal(1, owner.Disposals);
         Assert.Equal(0, budget.Used);
@@ -63,7 +76,9 @@ public sealed class OwnedRowLeaseTests
     public void NullEmptyFieldOffsetsAndRepeatedRentalPreserveBytes()
     {
         var pool = new RowStoragePool();
-        for (var iteration = 0; iteration < 64; iteration++)
+        for (var iteration = 0;
+             iteration < 64;
+             iteration++)
         {
             byte[] value = [(byte)iteration, 1, 2, 3];
             using var row = pool.Rent(Message(null, [], Int64(iteration), value, null), null, null);
@@ -81,12 +96,22 @@ public sealed class OwnedRowLeaseTests
     public void ReusedStorageHandlesChangingFieldCountsAndNullEmptyValues(int fields)
     {
         var pool = new RowStoragePool();
-        for (var iteration = 0; iteration < 9; iteration++)
+        for (var iteration = 0;
+             iteration < 9;
+             iteration++)
         {
-            foreach (var count in new[] {fields, 1, 0, fields})
+            foreach (var count in new[]
+                     {
+                         fields,
+                         1,
+                         0,
+                         fields
+                     })
             {
                 var values = new byte[]?[count];
-                for (var field = 0; field < count; field++)
+                for (var field = 0;
+                     field < count;
+                     field++)
                 {
                     values[field] = ((iteration + field) % 3) switch
                     {
@@ -96,7 +121,9 @@ public sealed class OwnedRowLeaseTests
                     };
                 }
                 using var row = pool.Rent(Message(values), null, null);
-                for (var field = 0; field < count; field++)
+                for (var field = 0;
+                     field < count;
+                     field++)
                 {
                     if (values[field] is { } expected)
                     {
@@ -115,9 +142,11 @@ public sealed class OwnedRowLeaseTests
     [Theory, InlineData(0, 0, 0, 8), InlineData(255, 255, 255, 254), InlineData(0, 0, 0, 0)]
     // field extends past the frame
     // illegal negative field length
-     // trailing byte after an empty field
-    public void InitializationFailureLeavesFrameOwnershipWithTheCaller(byte a, byte b,
-        byte c, byte d)
+    // trailing byte after an empty field
+    public void InitializationFailureLeavesFrameOwnershipWithTheCaller(
+        byte a, byte b,
+        byte c, byte d
+    )
     {
         var pool = new RowStoragePool();
         var owner = new CountingOwner([0, 1, a, b, c, d, 99]);
@@ -134,14 +163,18 @@ public sealed class OwnedRowLeaseTests
     {
         var pool = new RowStoragePool();
         var message = Message(Int64(42));
-        for (var i = 0; i < 64; i++)
+        for (var i = 0;
+             i < 64;
+             i++)
         {
             var warm = pool.Rent(message, null, null);
             _ = warm[0];
             warm.Dispose();
         }
         var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 1000; i++)
+        for (var i = 0;
+             i < 1000;
+             i++)
         {
             var row = pool.Rent(message, null, null);
             _ = row[0];

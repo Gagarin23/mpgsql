@@ -53,14 +53,21 @@ public class TcpSharedSyncBenchmarks
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var workers = new Task<long>[_profile.Callers];
-        for (var worker = 0; worker < workers.Length; worker++)
+        for (var worker = 0;
+             worker < workers.Length;
+             worker++)
         {
             workers[worker] = WorkAsync(worker);
         }
         gate.SetResult();
-        var values = await Task.WhenAll(workers).ConfigureAwait(false);
+        var values = await Task
+            .WhenAll(workers)
+            .ConfigureAwait(false);
         long sum = 0;
-        foreach (var value in values) sum += value;
+        foreach (var value in values)
+        {
+            sum += value;
+        }
         return sum;
 
         async Task<long> WorkAsync(int worker)
@@ -68,9 +75,13 @@ public class TcpSharedSyncBenchmarks
             var slow = _profile.Mixed && worker % 8 == 0;
             long checksum = 0;
             await gate.Task.ConfigureAwait(false);
-            for (var i = worker; i < 256; i += _profile.Callers)
+            for (var i = worker;
+                 i < 256;
+                 i += _profile.Callers)
             {
-                checksum += await _fixture.ReadAsync(worker, slow).ConfigureAwait(false);
+                checksum += await _fixture
+                    .ReadAsync(worker, slow)
+                    .ConfigureAwait(false);
             }
             return checksum;
         }
@@ -89,16 +100,23 @@ public class TcpSharedSyncBenchmarks
             await using var fixture = await TcpComparisonFixture.CreateAsync(ComparisonDriver.Mpgsql, profile, 8);
             var before = fixture.Peer.Counters();
             var workers = new Task[profile.Callers];
-            for (var worker = 0; worker < workers.Length; worker++)
+            for (var worker = 0;
+                 worker < workers.Length;
+                 worker++)
             {
                 workers[worker] = Work(worker);
             }
-            await Task.WhenAll(workers).WaitAsync(TimeSpan.FromSeconds(60));
+            await Task
+                .WhenAll(workers)
+                .WaitAsync(TimeSpan.FromSeconds(60));
             var after = fixture.Peer.Counters();
             var requests = profile.Callers * 2;
-            TcpComparisonVerification.Check(after.Queries - before.Queries == requests
-                                            && after.Syncs - before.Syncs >= (requests + 7) / 8 && after.Syncs - before.Syncs <= requests,
-                "Shared profile query/Sync counts");
+            TcpComparisonVerification.Check
+            (
+                after.Queries - before.Queries == requests
+                && after.Syncs - before.Syncs >= (requests + 7) / 8 && after.Syncs - before.Syncs <= requests,
+                "Shared profile query/Sync counts"
+            );
             fixture.CheckIdle();
             TcpComparisonVerification.Check(await fixture.ReadAsync(0, false) == 1, "Shared profile following probe");
             fixture.CheckIdle();
@@ -108,10 +126,16 @@ public class TcpSharedSyncBenchmarks
             {
                 var slow = profile.Mixed && worker % 8 == 0;
                 var scenario = slow ? QueryScenario.Slow : QueryScenario.One;
-                for (var repeat = 0; repeat < 2; repeat++)
+                for (var repeat = 0;
+                     repeat < 2;
+                     repeat++)
                 {
-                    await using var reader = await fixture.Mpgsql!.Source.ExecuteReaderAsync(scenario.Sql,
-                        fixture.Catalog.Inputs[fixture.Catalog.Index(scenario)][worker]);
+                    await using var reader = await fixture.Mpgsql!.Source.ExecuteReaderAsync
+                    (
+                        scenario.Sql,
+                        fixture
+                            .Catalog.Inputs[fixture.Catalog.Index(scenario)][worker]
+                    );
                     TcpComparisonVerification.Check(reader.QueryIndex == 0, "Shared logical QueryIndex");
                     var sum = await TcpQueryOperations.ConsumeAsync(reader, scenario, fixture.Mpgsql.Buffers[worker]);
                     TcpComparisonVerification.Check(sum == scenario.Expected(worker), "Shared caller identity/row count");

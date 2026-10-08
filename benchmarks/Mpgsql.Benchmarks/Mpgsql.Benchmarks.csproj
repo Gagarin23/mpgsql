@@ -31,6 +31,6 @@
         </Reference>
     </ItemGroup>
     <ItemGroup>
-      <None Remove="Queries\QueryRunMetadata.cs~" />
+        <None Remove="Queries\QueryRunMetadata.cs~"/>
     </ItemGroup>
 </Project>

@@ -11,8 +11,18 @@ internal static class PayloadValidationChecks
     internal static void Run(TestConnection connection)
     {
         var cases = new List<(TypeOid Oid, byte[] Payload)>();
-        foreach (var oid in new[] {TypeOid.Text, TypeOid.Json, TypeOid.Jsonb, TypeOid.Xml})
-        foreach (var bytes in new byte[][] {[0x80], [65, 0, 66]})
+        foreach (var oid in new[]
+                 {
+                     TypeOid.Text,
+                     TypeOid.Json,
+                     TypeOid.Jsonb,
+                     TypeOid.Xml
+                 })
+        foreach (var bytes in new byte[][]
+                 {
+                     [0x80],
+                     [65, 0, 66]
+                 })
         {
             var payload = new byte[bytes.Length + (oid == TypeOid.Jsonb ? 1 : 0)];
             switch (oid)
@@ -28,15 +38,45 @@ internal static class PayloadValidationChecks
         var timePayload = new byte[TimeArrayConverter.GetByteCount(times)];
         TimeArrayConverter.Write(times, timePayload);
         cases.Add((TypeOid.TimeArray, timePayload));
-        var number = new PgNumeric(0, 0, PgNumericSign.Positive, new ushort[] {10000});
+        var number = new PgNumeric
+        (
+            0, 0, PgNumericSign.Positive, new ushort[]
+            {
+                10000
+            }
+        );
         var numericPayload = new byte[NumericConverter.GetByteCount(number)];
         NumericConverter.Write(number, numericPayload);
         cases.Add((TypeOid.Numeric, numericPayload));
         foreach (var (oid, payload) in cases)
         {
-            connection.Append(FrontendMessage.Parse("select $1", parameterTypes: new[] {(uint)oid}));
-            connection.Append(FrontendMessage.Bind(parameters: new ReadOnlyMemory<byte>?[] {payload},
-                parameterFormats: new[] {FormatCode.Binary}, resultFormats: new[] {FormatCode.Binary}));
+            connection.Append
+            (
+                FrontendMessage.Parse
+                (
+                    "select $1", parameterTypes: new[]
+                    {
+                        (uint)oid
+                    }
+                )
+            );
+            connection.Append
+            (
+                FrontendMessage.Bind
+                (
+                    parameters: new ReadOnlyMemory<byte>?[]
+                    {
+                        payload
+                    },
+                    parameterFormats: new[]
+                    {
+                        FormatCode.Binary
+                    }, resultFormats: new[]
+                    {
+                        FormatCode.Binary
+                    }
+                )
+            );
             connection.Append(FrontendMessage.Describe(StatementOrPortal.Portal));
             connection.Append(FrontendMessage.Execute());
             connection.Append(FrontendMessage.Sync());
@@ -47,7 +87,9 @@ internal static class PayloadValidationChecks
             {
                 throw new InvalidDataException($"Unexpected {oid} payload rejection: {sqlState}.");
             }
-            if (connection.Expect(BackendMessageKind.ReadyForQuery).GetTransactionStatus() != TransactionStatus.Idle)
+            if (connection
+                    .Expect(BackendMessageKind.ReadyForQuery)
+                    .GetTransactionStatus() != TransactionStatus.Idle)
             {
                 throw new InvalidDataException("Value rejection did not recover at Sync.");
             }

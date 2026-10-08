@@ -17,9 +17,17 @@ public sealed class MpgsqlDataReader : DbDataReader
     private readonly MpgsqlResultReader _reader;
     private readonly MpgsqlTypeMapper? _typeMapper;
     private Task? _close;
-    private bool _prefetched, _hasRows, _positioned, _closed, _complete;
-    internal MpgsqlDataReader(MpgsqlResultReader reader, QueryExecution execution,
-        MpgsqlConnection connection, CommandBehavior behavior)
+
+    private bool _prefetched,
+        _hasRows,
+        _positioned,
+        _closed,
+        _complete;
+
+    internal MpgsqlDataReader(
+        MpgsqlResultReader reader, QueryExecution execution,
+        MpgsqlConnection connection, CommandBehavior behavior
+    )
     {
         _reader = reader;
         _execution = execution;
@@ -58,14 +66,18 @@ public sealed class MpgsqlDataReader : DbDataReader
     {
         ArgumentNullException.ThrowIfNull(name);
         var columns = _reader.Columns.Span;
-        for (var i = 0; i < columns.Length; i++)
+        for (var i = 0;
+             i < columns.Length;
+             i++)
         {
             if (columns[i].Name == name)
             {
                 return i;
             }
         }
-        for (var i = 0; i < columns.Length; i++)
+        for (var i = 0;
+             i < columns.Length;
+             i++)
         {
             if (string.Equals(columns[i].Name, name, StringComparison.OrdinalIgnoreCase))
             {
@@ -124,7 +136,9 @@ public sealed class MpgsqlDataReader : DbDataReader
         ArgumentNullException.ThrowIfNull(values);
         CheckRow();
         var count = Math.Min(values.Length, FieldCount);
-        for (var i = 0; i < count; i++)
+        for (var i = 0;
+             i < count;
+             i++)
         {
             values[i] = GetValue(i);
         }
@@ -189,9 +203,11 @@ public sealed class MpgsqlDataReader : DbDataReader
         CheckRow();
         return _reader.GetNullableInt64Array(ordinal);
     }
-    public override long GetBytes(int ordinal, long dataOffset,
+    public override long GetBytes(
+        int ordinal, long dataOffset,
         byte[]? buffer, int bufferOffset,
-        int length)
+        int length
+    )
     {
         if (_reader.Columns.Span[ordinal].DataTypeOid != (uint)TypeOid.Bytea)
         {
@@ -211,13 +227,17 @@ public sealed class MpgsqlDataReader : DbDataReader
         }
         else
         {
-            bytes.Slice(dataOffset, count).CopyTo(destination);
+            bytes
+                .Slice(dataOffset, count)
+                .CopyTo(destination);
         }
         return count;
     }
-    public override long GetChars(int ordinal, long dataOffset,
+    public override long GetChars(
+        int ordinal, long dataOffset,
         char[]? buffer, int bufferOffset,
-        int length)
+        int length
+    )
     {
         var value = GetString(ordinal);
         if (buffer is null)
@@ -226,12 +246,16 @@ public sealed class MpgsqlDataReader : DbDataReader
         }
         ValidateCopy(dataOffset, value.Length, buffer.Length, bufferOffset, length);
         var count = (int)Math.Min(length, value.Length - dataOffset);
-        value.AsSpan((int)dataOffset, count).CopyTo(buffer.AsSpan(bufferOffset, count));
+        value
+            .AsSpan((int)dataOffset, count)
+            .CopyTo(buffer.AsSpan(bufferOffset, count));
         return count;
     }
-    private static void ValidateCopy(long offset, long total,
+    private static void ValidateCopy(
+        long offset, long total,
         int capacity, int destinationOffset,
-        int length)
+        int length
+    )
     {
         if (offset < 0 || offset > total)
         {
@@ -256,11 +280,13 @@ public sealed class MpgsqlDataReader : DbDataReader
     }
     public override Task<bool> ReadAsync(CancellationToken cancellationToken)
     {
-        return ReadValueTaskAsync(cancellationToken).AsTask();
+        return ReadValueTaskAsync(cancellationToken)
+            .AsTask();
     }
     public override Task<bool> NextResultAsync(CancellationToken cancellationToken)
     {
-        return NextResultValueTaskAsync(cancellationToken).AsTask();
+        return NextResultValueTaskAsync(cancellationToken)
+            .AsTask();
     }
     public ValueTask<bool> ReadValueTaskAsync(CancellationToken cancellationToken = default)
     {
@@ -300,12 +326,14 @@ public sealed class MpgsqlDataReader : DbDataReader
     private async ValueTask<bool> CancelMovementAsync(CancellationToken token)
     {
         _execution.Cancel(token);
-        await FailAsync(new OperationCanceledException(token)).ConfigureAwait(false);
+        await FailAsync(new OperationCanceledException(token))
+            .ConfigureAwait(false);
         return false;
     }
     private async ValueTask<bool> FailCancelledMovementAsync()
     {
-        await FailAsync(new OperationCanceledException()).ConfigureAwait(false);
+        await FailAsync(new OperationCanceledException())
+            .ConfigureAwait(false);
         return false;
     }
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
@@ -321,7 +349,8 @@ public sealed class MpgsqlDataReader : DbDataReader
         }
         catch (Exception error)
         {
-            await FailAsync(error).ConfigureAwait(false);
+            await FailAsync(error)
+                .ConfigureAwait(false);
             return false;
         }
     }
@@ -331,7 +360,8 @@ public sealed class MpgsqlDataReader : DbDataReader
         ObjectDisposedException.ThrowIf(_closed, this);
         if (cancellationToken.IsCancellationRequested)
         {
-            return await CancelMovementAsync(cancellationToken).ConfigureAwait(false);
+            return await CancelMovementAsync(cancellationToken)
+                .ConfigureAwait(false);
         }
         if (_complete)
         {
@@ -343,25 +373,35 @@ public sealed class MpgsqlDataReader : DbDataReader
             _prefetched = _positioned = false;
             // The session reader already drains the current result in NextResultAsync.
             // Do not perform a second movement just to rediscover CommandComplete.
-            var next = await _reader.NextResultAsync().ConfigureAwait(false);
+            var next = await _reader
+                .NextResultAsync()
+                .ConfigureAwait(false);
             _execution.ThrowIfCancelled();
             _complete = !next;
             _hasRows = false;
             if (next)
             {
-                _prefetched = _hasRows = await _reader.ReadAsync().ConfigureAwait(false);
+                _prefetched = _hasRows = await _reader
+                    .ReadAsync()
+                    .ConfigureAwait(false);
             }
             return next;
         }
         catch (Exception error)
         {
-            await FailAsync(error).ConfigureAwait(false);
+            await FailAsync(error)
+                .ConfigureAwait(false);
             return false;
         }
     }
     private async ValueTask FailAsync(Exception error)
     {
-        try { await _execution.FinishAsync(true).ConfigureAwait(false); }
+        try
+        {
+            await _execution
+                .FinishAsync(true)
+                .ConfigureAwait(false);
+        }
         catch { }
         ExceptionDispatchInfo.Throw(_execution.Map(error));
     }
@@ -397,12 +437,19 @@ public sealed class MpgsqlDataReader : DbDataReader
     }
     private async Task CloseCoreAsync()
     {
-        try { await _reader.DisposeAsync().ConfigureAwait(false); }
+        try
+        {
+            await _reader
+                .DisposeAsync()
+                .ConfigureAwait(false);
+        }
         finally
         {
             if (_closeConnection)
             {
-                await _connection.CloseAsync().ConfigureAwait(false);
+                await _connection
+                    .CloseAsync()
+                    .ConfigureAwait(false);
             }
         }
     }
@@ -416,7 +463,8 @@ public sealed class MpgsqlDataReader : DbDataReader
     }
     public override async ValueTask DisposeAsync()
     {
-        await CloseAsync().ConfigureAwait(false);
+        await CloseAsync()
+            .ConfigureAwait(false);
         GC.SuppressFinalize(this);
     }
     public override DataTable? GetSchemaTable()

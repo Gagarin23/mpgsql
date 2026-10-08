@@ -9,33 +9,83 @@ public sealed class ResponsePrefixTests
     public async Task OrdinaryQueriesBeforeAndAfterPreparedOperationsKeepEveryIndex()
     {
         await using var wire = new ScriptedSession();
-        var statement = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
+        var statement = wire.Session.CreatePreparedStatement
+        (
+            "select $1", new uint[]
+            {
+                20
+            }
+        );
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         var sends = new List<Task>();
         var responses = new List<byte[]>();
-        for (var i = 0; i < 8; i++)
+        for (var i = 0;
+             i < 8;
+             i++)
         {
-            sends.Add(batch.SendQueryAsync("select ordinary").AsTask());
+            sends.Add
+            (
+                batch
+                    .SendQueryAsync("select ordinary")
+                    .AsTask()
+            );
             responses.Add(Query(i + 1));
         }
-        sends.Add(batch.SendPrepareAsync(statement).AsTask());
-        sends.Add(batch.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(99)}).AsTask());
+        sends.Add
+        (
+            batch
+                .SendPrepareAsync(statement)
+                .AsTask()
+        );
+        sends.Add
+        (
+            batch
+                .SendQueryAsync
+                (
+                    statement, new[]
+                    {
+                        MpgsqlParameterValue.Int64(99)
+                    }
+                )
+                .AsTask()
+        );
         responses.Add(Packet('1'));
         responses.Add(Join(Packet('2'), Description(20), Row(Int64(99)), Command()));
-        for (var i = 0; i < 4; i++)
+        for (var i = 0;
+             i < 4;
+             i++)
         {
-            sends.Add(batch.SendQueryAsync("select following").AsTask());
+            sends.Add
+            (
+                batch
+                    .SendQueryAsync("select following")
+                    .AsTask()
+            );
             responses.Add(Query(201 + i));
         }
-        sends.Add(batch.SendCloseAsync(statement).AsTask());
-        sends.Add(batch.SendSyncAsync().AsTask());
+        sends.Add
+        (
+            batch
+                .SendCloseAsync(statement)
+                .AsTask()
+        );
+        sends.Add
+        (
+            batch
+                .SendSyncAsync()
+                .AsTask()
+        );
         responses.Add(Packet('3'));
         responses.Add(Ready());
-        await Task.WhenAll(sends).WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
+        await Task
+            .WhenAll(sends)
+            .WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         await wire.ReadOutputAsync();
         await wire.WriteAsync(Join([.. responses]), 1);
         await using var reader = await batch.ReadResultsAsync();
-        for (var i = 0; i < 13; i++)
+        for (var i = 0;
+             i < 13;
+             i++)
         {
             Assert.Equal(i, reader.QueryIndex);
             Assert.True(await reader.ReadAsync());
@@ -53,7 +103,13 @@ public sealed class ResponsePrefixTests
     public async Task PublicationAfterConsumedAdministrativeResponsesKeepsTheNextQueryIndex()
     {
         await using var wire = new ScriptedSession();
-        var statement = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
+        var statement = wire.Session.CreatePreparedStatement
+        (
+            "select $1", new uint[]
+            {
+                20
+            }
+        );
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         await batch.SendPrepareAsync(statement);
         await batch.SendQueryAsync("select first");
@@ -63,20 +119,35 @@ public sealed class ResponsePrefixTests
         Assert.True(await reader.ReadAsync());
         Assert.Equal(1, reader.GetInt64(0));
         Assert.False(await reader.ReadAsync());
-        var next = reader.NextResultAsync().AsTask();
+        var next = reader
+            .NextResultAsync()
+            .AsTask();
         Assert.False(next.IsCompleted);
 
         var sends = new[]
         {
-            batch.SendQueryAsync("select second").AsTask(),
-            batch.SendQueryAsync("select third").AsTask(), batch.SendCloseAsync(statement).AsTask(),
-            batch.SendSyncAsync().AsTask()
+            batch
+                .SendQueryAsync("select second")
+                .AsTask(),
+            batch
+                .SendQueryAsync("select third")
+                .AsTask(),
+            batch
+                .SendCloseAsync(statement)
+                .AsTask(),
+            batch
+                .SendSyncAsync()
+                .AsTask()
         };
-        await Task.WhenAll(sends).WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
+        await Task
+            .WhenAll(sends)
+            .WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         await wire.ReadOutputAsync();
         await wire.WriteAsync(Join(Query(2), Query(3), Packet('3'), Ready()), 1);
         Assert.True(await next.WaitAsync(TestTimeout, TestContext.Current.CancellationToken));
-        for (var i = 1; i < 3; i++)
+        for (var i = 1;
+             i < 3;
+             i++)
         {
             Assert.Equal(i, reader.QueryIndex);
             Assert.True(await reader.ReadAsync());
@@ -93,18 +164,45 @@ public sealed class ResponsePrefixTests
     public async Task ErrorInOrdinarySequenceKeepsItsIndexAndFailsSkippedPreparation(int failedIndex)
     {
         await using var wire = new ScriptedSession();
-        var statement = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
+        var statement = wire.Session.CreatePreparedStatement
+        (
+            "select $1", new uint[]
+            {
+                20
+            }
+        );
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         var sends = new List<Task>();
-        for (var i = 0; i < 16; i++)
+        for (var i = 0;
+             i < 16;
+             i++)
         {
-            sends.Add(batch.SendQueryAsync("select ordinary").AsTask());
+            sends.Add
+            (
+                batch
+                    .SendQueryAsync("select ordinary")
+                    .AsTask()
+            );
         }
-        sends.Add(batch.SendPrepareAsync(statement).AsTask());
-        sends.Add(batch.SendSyncAsync().AsTask());
-        await Task.WhenAll(sends).WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
+        sends.Add
+        (
+            batch
+                .SendPrepareAsync(statement)
+                .AsTask()
+        );
+        sends.Add
+        (
+            batch
+                .SendSyncAsync()
+                .AsTask()
+        );
+        await Task
+            .WhenAll(sends)
+            .WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         await wire.ReadOutputAsync();
-        for (var i = 0; i < failedIndex; i++)
+        for (var i = 0;
+             i < failedIndex;
+             i++)
         {
             await wire.WriteAsync(Query(i));
         }
@@ -112,12 +210,21 @@ public sealed class ResponsePrefixTests
         Assert.False(batch.Completion.IsCompleted);
         Assert.False(statement.Prepared.IsCompleted);
         await wire.WriteAsync(Ready());
-        var error = await Assert.ThrowsAsync<MpgsqlServerException>(() => batch.Completion.WaitAsync(TestTimeout,
-            TestContext.Current.CancellationToken));
+        var error = await Assert.ThrowsAsync<MpgsqlServerException>
+        (() => batch.Completion.WaitAsync
+            (
+                TestTimeout,
+                TestContext.Current.CancellationToken
+            )
+        );
         Assert.Equal(failedIndex, error.QueryIndex);
         Assert.Equal(TransactionStatus.Idle, error.TransactionStatus);
         Assert.Same(error, await Assert.ThrowsAsync<MpgsqlServerException>(() => statement.Prepared));
-        await Assert.ThrowsAsync<MpgsqlServerException>(() => batch.ReadResultsAsync().AsTask());
+        await Assert.ThrowsAsync<MpgsqlServerException>
+        (() => batch
+            .ReadResultsAsync()
+            .AsTask()
+        );
         Assert.Equal(0, wire.Session.TrackedStatementCount);
         await FollowingQueryAsync(wire);
     }

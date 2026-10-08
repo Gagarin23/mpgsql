@@ -9,13 +9,26 @@ public sealed class Int32ConvertersTests
     public void LiteralPayloadsArraysBuffersAndSegmentBoundaries()
     {
         var value = -123456789;
-        ConverterAssertions.CheckScalar(value, "f8a432eb", Int32Converter.GetByteCount, Int32Converter.Write,
-            Int32Converter.Write, Int32Converter.Read, Int32Converter.Read);
-        ConverterAssertions.CheckNullableScalar(Int32Converter.Write, Int32Converter.Write,
-            Int32Converter.GetByteCount, Int32Converter.ReadNullable, Int32Converter.ReadNullable);
-        ConverterAssertions.CheckArray(new[] {value, value}, (uint)TypeOid.Int32, "f8a432eb",
+        ConverterAssertions.CheckScalar
+        (
+            value, "f8a432eb", Int32Converter.GetByteCount, Int32Converter.Write,
+            Int32Converter.Write, Int32Converter.Read, Int32Converter.Read
+        );
+        ConverterAssertions.CheckNullableScalar
+        (
+            Int32Converter.Write, Int32Converter.Write,
+            Int32Converter.GetByteCount, Int32Converter.ReadNullable, Int32Converter.ReadNullable
+        );
+        ConverterAssertions.CheckArray
+        (
+            new[]
+            {
+                value,
+                value
+            }, (uint)TypeOid.Int32, "f8a432eb",
             Int32ArrayConverter.GetByteCount, Int32ArrayConverter.Write, Int32ArrayConverter.Write,
-            Int32ArrayConverter.Read, Int32ArrayConverter.Read, Int32ArrayConverter.Read, Int32ArrayConverter.Read);
+            Int32ArrayConverter.Read, Int32ArrayConverter.Read, Int32ArrayConverter.Read, Int32ArrayConverter.Read
+        );
         ConverterAssertions.CheckNullableArray<int, Int32Codec>(value, "f8a432eb");
     }
     [Fact]

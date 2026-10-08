@@ -6,10 +6,12 @@ namespace Mpgsql;
 public sealed class MpgsqlServerException : Exception
 {
 
-    internal MpgsqlServerException(DiagnosticMessage diagnostics,
+    internal MpgsqlServerException(
+        DiagnosticMessage diagnostics,
         int? queryIndex,
         TransactionStatus? status,
-        Exception? innerException = null)
+        Exception? innerException = null
+    )
         : base(diagnostics.Message ?? "PostgreSQL reported an error.", innerException)
     {
         (Diagnostics, QueryIndex, TransactionStatus) = (diagnostics, queryIndex, status);

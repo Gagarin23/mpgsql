@@ -5,8 +5,10 @@ namespace Mpgsql.Benchmarks.Queries;
 internal static class FrontendFrameParser
 {
     // The tag is outside the Int32 length; that length includes its own four bytes.
-    internal static bool TryRead(ref ReadOnlySequence<byte> input, out byte tag,
-        out ReadOnlySequence<byte> payload, out ReadOnlySequence<byte> frame)
+    internal static bool TryRead(
+        ref ReadOnlySequence<byte> input, out byte tag,
+        out ReadOnlySequence<byte> payload, out ReadOnlySequence<byte> frame
+    )
     {
         tag = default;
         payload = default;

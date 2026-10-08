@@ -27,8 +27,11 @@ internal sealed class DiscardedDataRow
         {
             if (_valueRemaining > 0)
             {
-                var size = Math.Min(_valueRemaining,
-                    input.Length);
+                var size = Math.Min
+                (
+                    _valueRemaining,
+                    input.Length
+                );
                 input = input[size..];
                 _valueRemaining -= size;
                 continue;
@@ -57,8 +60,11 @@ internal sealed class DiscardedDataRow
                 {
                     throw new InvalidDataException("Invalid discarded DataRow value length.");
                 }
-                _valueRemaining = Math.Max(0,
-                    length);
+                _valueRemaining = Math.Max
+                (
+                    0,
+                    length
+                );
                 _fieldsRemaining--;
             }
             _prefix = 0;

@@ -23,8 +23,23 @@ internal static class TlsHandshakeChecks
         var san = new SubjectAlternativeNameBuilder();
         san.AddDnsName("localhost");
         leafRequest.CertificateExtensions.Add(san.Build());
-        leafRequest.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(new OidCollection {new Oid("1.3.6.1.5.5.7.3.1")}, true));
-        using var issued = leafRequest.Create(root, DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddHours(1), new byte[] {1});
+        leafRequest.CertificateExtensions.Add
+        (
+            new X509EnhancedKeyUsageExtension
+            (
+                new OidCollection
+                {
+                    new Oid("1.3.6.1.5.5.7.3.1")
+                }, true
+            )
+        );
+        using var issued = leafRequest.Create
+        (
+            root, DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddHours(1), new byte[]
+            {
+                1
+            }
+        );
         using var ephemeral = issued.CopyWithPrivateKey(leafKey);
         // Schannel needs an imported key container; Dispose removes this temporary key.
         using var leaf = X509CertificateLoader.LoadPkcs12(ephemeral.Export(X509ContentType.Pkcs12), null, X509KeyStorageFlags.Exportable);
@@ -41,9 +56,11 @@ internal static class TlsHandshakeChecks
         finally { File.Delete(path); }
         Console.WriteLine("PASS native TLS: complete SSLRequest/startup/CancelRequest, custom CA, VerifyFull hostname and trust rejection, VerifyCA, Require.");
     }
-    private static async Task CheckAsync(MpgsqlSslMode mode, string host,
+    private static async Task CheckAsync(
+        MpgsqlSslMode mode, string host,
         string? root, X509Certificate2 certificate,
-        bool succeeds)
+        bool succeeds
+    )
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var token = deadline.Token;
@@ -51,7 +68,14 @@ internal static class TlsHandshakeChecks
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         var server = ServeAsync();
-        var settings = new MpgsqlConnectionStringBuilder {Host = host, Port = port, Username = "tls", SslMode = mode, RootCertificate = root};
+        var settings = new MpgsqlConnectionStringBuilder
+        {
+            Host = host,
+            Port = port,
+            Username = "tls",
+            SslMode = mode,
+            RootCertificate = root
+        };
         await using var connection = new MpgsqlConnection(settings.ConnectionString);
         try
         {
@@ -78,13 +102,43 @@ internal static class TlsHandshakeChecks
             using var stream = client.GetStream();
             var request = new byte[8];
             await stream.ReadExactlyAsync(request, token);
-            if (!request.AsSpan().SequenceEqual(new byte[] {0, 0, 0, 8, 4, 210, 22, 47}))
+            if (!request
+                    .AsSpan()
+                    .SequenceEqual
+                    (
+                        new byte[]
+                        {
+                            0,
+                            0,
+                            0,
+                            8,
+                            4,
+                            210,
+                            22,
+                            47
+                        }
+                    ))
             {
                 throw new InvalidDataException("SSLRequest bytes.");
             }
-            await stream.WriteAsync(new[] {(byte)'S'}, token);
+            await stream.WriteAsync
+            (
+                new[]
+                {
+                    (byte)'S'
+                }, token
+            );
             using var ssl = new SslStream(stream, true);
-            try { await ssl.AuthenticateAsServerAsync(new SslServerAuthenticationOptions {ServerCertificate = certificate}, token); }
+            try
+            {
+                await ssl.AuthenticateAsServerAsync
+                (
+                    new SslServerAuthenticationOptions
+                    {
+                        ServerCertificate = certificate
+                    }, token
+                );
+            }
             catch (Exception error) when (!succeeds && error is IOException or AuthenticationException) { return; }
             if (!succeeds)
             {
@@ -95,26 +149,87 @@ internal static class TlsHandshakeChecks
             var startup = new byte[BinaryPrimitives.ReadInt32BigEndian(length) - 4];
             await ssl.ReadExactlyAsync(startup, token);
             byte[] expected = [0, 3, 0, 0, .. Encoding.UTF8.GetBytes("user\0tls\0database\0tls\0client_encoding\0UTF8\0application_name\0Mpgsql\0\0")];
-            if (!startup.AsSpan().SequenceEqual(expected))
+            if (!startup
+                    .AsSpan()
+                    .SequenceEqual(expected))
             {
                 throw new InvalidDataException("TLS startup bytes.");
             }
             byte[] response = [82, 0, 0, 0, 8, 0, 0, 0, 0, 75, 0, 0, 0, 12, 0, 0, 0, 1, 0, 0, 0, 2, 90, 0, 0, 0, 5, 73];
-            foreach (var value in response) await ssl.WriteAsync(new[] {value}, token);
+            foreach (var value in response)
+            {
+                await ssl.WriteAsync
+                (
+                    new[]
+                    {
+                        value
+                    }, token
+                );
+            }
             using (var cancelClient = await listener.AcceptTcpClientAsync(token))
             using (var cancelStream = cancelClient.GetStream())
             {
                 await cancelStream.ReadExactlyAsync(request, token);
-                if (!request.AsSpan().SequenceEqual(new byte[] {0, 0, 0, 8, 4, 210, 22, 47}))
+                if (!request
+                        .AsSpan()
+                        .SequenceEqual
+                        (
+                            new byte[]
+                            {
+                                0,
+                                0,
+                                0,
+                                8,
+                                4,
+                                210,
+                                22,
+                                47
+                            }
+                        ))
                 {
                     throw new InvalidDataException("Cancel SSLRequest bytes.");
                 }
-                await cancelStream.WriteAsync(new[] {(byte)'S'}, token);
+                await cancelStream.WriteAsync
+                (
+                    new[]
+                    {
+                        (byte)'S'
+                    }, token
+                );
                 using var cancelTls = new SslStream(cancelStream, true);
-                await cancelTls.AuthenticateAsServerAsync(new SslServerAuthenticationOptions {ServerCertificate = certificate}, token);
+                await cancelTls.AuthenticateAsServerAsync
+                (
+                    new SslServerAuthenticationOptions
+                    {
+                        ServerCertificate = certificate
+                    }, token
+                );
                 var cancel = new byte[16];
                 await cancelTls.ReadExactlyAsync(cancel, token);
-                if (!cancel.AsSpan().SequenceEqual(new byte[] {0, 0, 0, 16, 4, 210, 22, 46, 0, 0, 0, 1, 0, 0, 0, 2}))
+                if (!cancel
+                        .AsSpan()
+                        .SequenceEqual
+                        (
+                            new byte[]
+                            {
+                                0,
+                                0,
+                                0,
+                                16,
+                                4,
+                                210,
+                                22,
+                                46,
+                                0,
+                                0,
+                                0,
+                                1,
+                                0,
+                                0,
+                                0,
+                                2
+                            }
+                        ))
                 {
                     throw new InvalidDataException("CancelRequest bytes.");
                 }

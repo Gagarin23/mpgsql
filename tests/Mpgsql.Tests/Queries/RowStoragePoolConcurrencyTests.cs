@@ -11,47 +11,80 @@ public sealed class RowStoragePoolConcurrencyTests
     public async Task ConcurrentRentalsAndReturnsKeepEveryOutstandingLeaseDistinct()
     {
         var pool = new RowStoragePool();
-        var workers = Enumerable.Range(0, 8).Select(worker => Task.Run(async () =>
-        {
-            for (var iteration = 0; iteration < 128; iteration++)
-            {
-                var rows = new OwnedRow[16];
-                var owners = new CountingOwner[16];
-                var expected = new byte[16][];
-                try
-                {
-                    for (var i = 0; i < rows.Length; i++)
+        var workers = Enumerable
+            .Range(0, 8)
+            .Select
+            (worker => Task.Run
+                (
+                    async () =>
                     {
-                        expected[i] = Int64(worker * 100000L + iteration * 16 + i);
-                        owners[i] = new CountingOwner(Row(expected[i], null, []).AsSpan(5).ToArray());
-                        rows[i] = pool.Rent(new BackendMessage((byte)'D', BackendMessageKind.DataRow,
-                            new ReadOnlySequence<byte>(owners[i].Memory), 3), owners[i], null);
-                    }
-                    // Other workers can release and reacquire storage while these leases stay live.
-                    await Task.Yield();
-                    for (var i = 0; i < rows.Length; i++)
-                    {
-                        Assert.Equal(expected[i], rows[i][0]!.Value.ToArray());
-                        Assert.Null(rows[i][1]);
-                        Assert.True(rows[i][2]!.Value.IsEmpty);
-                    }
-                }
-                finally
-                {
-                    for (var i = rows.Length - 1; i >= 0; i--)
-                    {
-                        rows[i].Dispose();
-                    }
-                }
-                for (var i = 0; i < rows.Length; i++)
-                {
-                    rows[i].Dispose();
-                    Assert.Equal(1, owners[i].Disposals);
-                    Assert.Throws<ObjectDisposedException>(() => rows[i][0]);
-                }
-            }
-        }, TestContext.Current.CancellationToken)).ToArray();
-        await Task.WhenAll(workers).WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
+                        for (var iteration = 0;
+                             iteration < 128;
+                             iteration++)
+                        {
+                            var rows = new OwnedRow[16];
+                            var owners = new CountingOwner[16];
+                            var expected = new byte[16][];
+                            try
+                            {
+                                for (var i = 0;
+                                     i < rows.Length;
+                                     i++)
+                                {
+                                    expected[i] = Int64(worker * 100000L + iteration * 16 + i);
+                                    owners[i] = new CountingOwner
+                                    (
+                                        Row(expected[i], null, [])
+                                            .AsSpan(5)
+                                            .ToArray()
+                                    );
+                                    rows[i] = pool.Rent
+                                    (
+                                        new BackendMessage
+                                        (
+                                            (byte)'D', BackendMessageKind.DataRow,
+                                            new ReadOnlySequence<byte>(owners[i].Memory), 3
+                                        ), owners[i], null
+                                    );
+                                }
+                                // Other workers can release and reacquire storage while these leases stay live.
+                                await Task.Yield();
+                                for (var i = 0;
+                                     i < rows.Length;
+                                     i++)
+                                {
+                                    Assert.Equal(expected[i], rows[i][0]!.Value.ToArray());
+                                    Assert.Null(rows[i][1]);
+                                    Assert.True(rows[i][2]!.Value.IsEmpty);
+                                }
+                            }
+                            finally
+                            {
+                                for (var i = rows.Length - 1;
+                                     i >= 0;
+                                     i--)
+                                {
+                                    rows[i]
+                                        .Dispose();
+                                }
+                            }
+                            for (var i = 0;
+                                 i < rows.Length;
+                                 i++)
+                            {
+                                rows[i]
+                                    .Dispose();
+                                Assert.Equal(1, owners[i].Disposals);
+                                Assert.Throws<ObjectDisposedException>(() => rows[i][0]);
+                            }
+                        }
+                    }, TestContext.Current.CancellationToken
+                )
+            )
+            .ToArray();
+        await Task
+            .WhenAll(workers)
+            .WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -61,14 +94,24 @@ public sealed class RowStoragePoolConcurrencyTests
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         var pool = new RowStoragePool();
         var budget = new RowBufferBudget(14);
-        var owner = new CountingOwner(Row(Int64(7)).AsSpan(5).ToArray(), true);
+        var owner = new CountingOwner
+        (
+            Row(Int64(7))
+                .AsSpan(5)
+                .ToArray(), true
+        );
         Assert.True(await budget.ReserveAsync(owner.Memory.Length, batch, TestContext.Current.CancellationToken));
         var row = pool.Rent(new BackendMessage((byte)'D', BackendMessageKind.DataRow, new ReadOnlySequence<byte>(owner.Memory), 1), owner, budget);
         var stale = row;
         Assert.Throws<IOException>(row.Dispose);
         Assert.Equal(1, owner.Disposals);
         Assert.Equal(0, budget.Used);
-        var following = new CountingOwner(Row(Int64(99)).AsSpan(5).ToArray());
+        var following = new CountingOwner
+        (
+            Row(Int64(99))
+                .AsSpan(5)
+                .ToArray()
+        );
         Assert.True(await budget.ReserveAsync(following.Memory.Length, batch, TestContext.Current.CancellationToken));
         var next = pool.Rent(new BackendMessage((byte)'D', BackendMessageKind.DataRow, new ReadOnlySequence<byte>(following.Memory), 1), following, budget);
         stale.Dispose();

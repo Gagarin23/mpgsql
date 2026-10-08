@@ -8,26 +8,41 @@ internal sealed class TcpMpgsqlFixture : IAsyncDisposable
     private readonly object _gate = new object();
     private readonly List<MpgsqlTcpTransport> _transports = [];
     private long _observed;
-    private TcpMpgsqlFixture(QueryCatalog catalog, int connections,
+    private TcpMpgsqlFixture(
+        QueryCatalog catalog, int connections,
         int inFlight, long budget,
-        int syncGroupSize, int syncTimeoutMs)
+        int syncGroupSize, int syncTimeoutMs
+    )
     {
         Catalog = catalog;
         Peer = new TcpQueryPeer(new TcpQueryCatalog(catalog));
-        Buffers = [.. catalog.Inputs[0].Select(_ => new byte[catalog.Scenarios.Max(x => x.ByteaBytes)])];
-        Source = new MpgsqlMultiplexingDataSource(async token =>
-        {
-            var transport = await MpgsqlTcpTransport.OpenAsync(Peer.Port, token).ConfigureAwait(false);
-            lock (_gate)
+        Buffers =
+        [
+            .. catalog
+                .Inputs[0]
+                .Select(_ => new byte[catalog.Scenarios.Max(x => x.ByteaBytes)])
+        ];
+        Source = new MpgsqlMultiplexingDataSource
+        (
+            async token =>
             {
-                _transports.Add(transport);
+                var transport = await MpgsqlTcpTransport
+                    .OpenAsync(Peer.Port, token)
+                    .ConfigureAwait(false);
+                lock (_gate)
+                {
+                    _transports.Add(transport);
+                }
+                return transport.Session;
+            }, new MpgsqlMultiplexingOptions
+            {
+                MaxConnections = connections,
+                MaxInFlightPerConnection = inFlight,
+                MaxBufferedRowBytesPerConnection = budget,
+                SyncGroupSize = syncGroupSize,
+                SyncGroupTimeout = TimeSpan.FromMilliseconds(syncTimeoutMs)
             }
-            return transport.Session;
-        }, new MpgsqlMultiplexingOptions
-        {
-            MaxConnections = connections, MaxInFlightPerConnection = inFlight, MaxBufferedRowBytesPerConnection = budget,
-            SyncGroupSize = syncGroupSize, SyncGroupTimeout = TimeSpan.FromMilliseconds(syncTimeoutMs)
-        });
+        );
     }
     internal QueryCatalog Catalog { get; }
     internal TcpQueryPeer Peer { get; }
@@ -42,38 +57,61 @@ internal sealed class TcpMpgsqlFixture : IAsyncDisposable
         {
             await ClientSource.DisposeAsync();
         }
-        await Source.DisposeAsync().ConfigureAwait(false);
-        foreach (var transport in _transports) await transport.DisposeAsync().ConfigureAwait(false);
-        await Peer.DisposeAsync().ConfigureAwait(false);
+        await Source
+            .DisposeAsync()
+            .ConfigureAwait(false);
+        foreach (var transport in _transports)
+        {
+            await transport
+                .DisposeAsync()
+                .ConfigureAwait(false);
+        }
+        await Peer
+            .DisposeAsync()
+            .ConfigureAwait(false);
     }
     internal async ValueTask<MpgsqlConnection> OpenClientConnectionAsync()
     {
-        ClientSource ??= new MpgsqlDataSource(async token =>
-        {
-            var transport = await MpgsqlTcpTransport.OpenAsync(Peer.Port, token);
-            lock (_gate)
+        ClientSource ??= new MpgsqlDataSource
+        (
+            async token =>
             {
-                _transports.Add(transport);
-                Transports = [.. _transports];
-            }
-            return transport.Session;
-        }, (_, _) => ValueTask.CompletedTask);
+                var transport = await MpgsqlTcpTransport.OpenAsync(Peer.Port, token);
+                lock (_gate)
+                {
+                    _transports.Add(transport);
+                    Transports = [.. _transports];
+                }
+                return transport.Session;
+            }, (_, _) => ValueTask.CompletedTask
+        );
         return await ClientSource.OpenConnectionAsync();
     }
-    internal static async Task<TcpMpgsqlFixture> CreateAsync(QueryCatalog catalog, int connections = 1,
+    internal static async Task<TcpMpgsqlFixture> CreateAsync(
+        QueryCatalog catalog, int connections = 1,
         int inFlight = 1, long budget = 8 * 1024 * 1024,
         int syncGroupSize = 1, int syncTimeoutMs = 1,
-        bool multiplexing = true)
+        bool multiplexing = true
+    )
     {
         var fixture = new TcpMpgsqlFixture(catalog, connections, inFlight, budget, syncGroupSize, syncTimeoutMs);
         var leases = new PooledSession[multiplexing ? connections * inFlight : 0];
         try
         {
-            for (var i = 0; i < leases.Length; i++)
+            for (var i = 0;
+                 i < leases.Length;
+                 i++)
             {
-                leases[i] = await fixture.Source.AcquireAsync(default).ConfigureAwait(false);
-                await using var group = leases[i].Session.CreateBatch();
-                await group.SendQueryAsync(catalog.Scenarios[0].Sql, catalog.Inputs[0][0]);
+                leases[i] = await fixture
+                    .Source.AcquireAsync(default)
+                    .ConfigureAwait(false);
+                await using var group = leases[i]
+                    .Session.CreateBatch();
+                await group.SendQueryAsync
+                (
+                    catalog.Scenarios[0].Sql, catalog
+                        .Inputs[0][0]
+                );
                 await group.SendSyncAsync();
                 await using var reader = await group.ReadResultsAsync();
                 await TcpQueryOperations.ConsumeAsync(reader, catalog.Scenarios[0], fixture.Buffers[0]);
@@ -82,7 +120,9 @@ internal sealed class TcpMpgsqlFixture : IAsyncDisposable
         }
         catch
         {
-            await fixture.DisposeAsync().ConfigureAwait(false);
+            await fixture
+                .DisposeAsync()
+                .ConfigureAwait(false);
             throw;
         }
         finally
@@ -91,7 +131,9 @@ internal sealed class TcpMpgsqlFixture : IAsyncDisposable
             {
                 if (lease is not null)
                 {
-                    await fixture.Source.ReleaseRequestAsync(lease).ConfigureAwait(false);
+                    await fixture
+                        .Source.ReleaseRequestAsync(lease)
+                        .ConfigureAwait(false);
                 }
             }
         }
@@ -105,7 +147,10 @@ internal sealed class TcpMpgsqlFixture : IAsyncDisposable
     internal void Observe()
     {
         long current = 0;
-        foreach (var transport in Transports) current = Math.Max(current, transport.Session.BufferedRowBytes);
+        foreach (var transport in Transports)
+        {
+            current = Math.Max(current, transport.Session.BufferedRowBytes);
+        }
         long previous;
         do
         {
@@ -114,7 +159,8 @@ internal sealed class TcpMpgsqlFixture : IAsyncDisposable
             {
                 return;
             }
-        } while (Interlocked.CompareExchange(ref _observed, current, previous) != previous);
+        }
+        while (Interlocked.CompareExchange(ref _observed, current, previous) != previous);
     }
     internal void ResetObservation()
     {

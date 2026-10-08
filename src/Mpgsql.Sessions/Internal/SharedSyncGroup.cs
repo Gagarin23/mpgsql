@@ -61,7 +61,10 @@ internal sealed class SharedSyncGroup(MpgsqlQueryBatch boundary)
         {
             if (_members is { } members)
             {
-                foreach (var batch in members) batch.SealPublished();
+                foreach (var batch in members)
+                {
+                    batch.SealPublished();
+                }
             }
         }
     }
@@ -81,8 +84,10 @@ internal sealed class SharedSyncGroup(MpgsqlQueryBatch boundary)
         }
     }
 
-    internal void Accept(BackendMessage message, ref IMemoryOwner<byte>? owner,
-        ref RowBufferBudget? reservation)
+    internal void Accept(
+        BackendMessage message, ref IMemoryOwner<byte>? owner,
+        ref RowBufferBudget? reservation
+    )
     {
         lock (_gate)
         {
@@ -135,7 +140,10 @@ internal sealed class SharedSyncGroup(MpgsqlQueryBatch boundary)
         }
         if (members is not null)
         {
-            foreach (var batch in members) session.ReleaseBatch(batch);
+            foreach (var batch in members)
+            {
+                session.ReleaseBatch(batch);
+            }
         }
     }
 
@@ -147,7 +155,10 @@ internal sealed class SharedSyncGroup(MpgsqlQueryBatch boundary)
             _recovery = true;
             if (_members is { } members)
             {
-                foreach (var batch in members) batch.Fail(error);
+                foreach (var batch in members)
+                {
+                    batch.Fail(error);
+                }
             }
             _members = null;
             _published.Clear();

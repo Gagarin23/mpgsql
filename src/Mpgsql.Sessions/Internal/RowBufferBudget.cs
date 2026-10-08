@@ -6,7 +6,12 @@ namespace Mpgsql.Internal;
 internal sealed class RowBufferBudget(long limit) : IValueTaskSource<bool>
 {
     private readonly Lock _gate = new Lock();
-    private ManualResetValueTaskSourceCore<bool> _changed = new ManualResetValueTaskSourceCore<bool> {RunContinuationsAsynchronously = true};
+
+    private ManualResetValueTaskSourceCore<bool> _changed = new ManualResetValueTaskSourceCore<bool>
+    {
+        RunContinuationsAsynchronously = true
+    };
+
     private bool _pending;
     private CancellationToken _token;
     private long _used;
@@ -32,9 +37,11 @@ internal sealed class RowBufferBudget(long limit) : IValueTaskSource<bool>
             return _changed.GetStatus(token);
         }
     }
-    void IValueTaskSource<bool>.OnCompleted(Action<object?> continuation, object? state,
+    void IValueTaskSource<bool>.OnCompleted(
+        Action<object?> continuation, object? state,
         short token,
-        ValueTaskSourceOnCompletedFlags flags)
+        ValueTaskSourceOnCompletedFlags flags
+    )
     {
         lock (_gate)
         {
@@ -50,8 +57,10 @@ internal sealed class RowBufferBudget(long limit) : IValueTaskSource<bool>
         return used != 0 && bytes > limit - used;
     }
 
-    internal async ValueTask<bool> ReserveAsync(long bytes, MpgsqlQueryBatch batch,
-        CancellationToken token)
+    internal async ValueTask<bool> ReserveAsync(
+        long bytes, MpgsqlQueryBatch batch,
+        CancellationToken token
+    )
     {
         while (true)
         {
@@ -92,7 +101,9 @@ internal sealed class RowBufferBudget(long limit) : IValueTaskSource<bool>
             }
             if (reserved)
             {
-                wait.GetAwaiter().GetResult();
+                wait
+                    .GetAwaiter()
+                    .GetResult();
                 return true;
             }
             // Queued rows must be consumable before the receiver waits for their reservations.

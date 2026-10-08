@@ -24,9 +24,15 @@ public sealed class MpgsqlConnectionStringBuilder : DbConnectionStringBuilder
         get => base.ConnectionString;
         set
         {
-            var parsed = new DbConnectionStringBuilder {ConnectionString = value};
+            var parsed = new DbConnectionStringBuilder
+            {
+                ConnectionString = value
+            };
             var canonical = new DbConnectionStringBuilder();
-            foreach (string key in parsed.Keys) canonical[Key(key)] = parsed[key];
+            foreach (string key in parsed.Keys)
+            {
+                canonical[Key(key)] = parsed[key];
+            }
             base.ConnectionString = canonical.ConnectionString;
         }
     }
@@ -109,14 +115,23 @@ public sealed class MpgsqlConnectionStringBuilder : DbConnectionStringBuilder
 
     private static string Key(string key)
     {
-        return key.Trim().ToLowerInvariant() switch
-        {
-            "host"                                 => "Host", "port"                 => "Port", "username" or "user id" => "Username", "password" => "Password",
-            "database"                             => "Database", "application name" => "Application Name", "ssl mode"  => "Ssl Mode",
-            "root certificate"                     => "Root Certificate", "timeout"  => "Timeout", "command timeout"    => "Command Timeout",
-            "max pool size" or "maximum pool size" => "Max Pool Size",
-            _                                      => throw new ArgumentException($"Unsupported connection setting '{key}'.", nameof(key))
-        };
+        return key
+                .Trim()
+                .ToLowerInvariant() switch
+            {
+                "host"                                 => "Host",
+                "port"                                 => "Port",
+                "username" or "user id"                => "Username",
+                "password"                             => "Password",
+                "database"                             => "Database",
+                "application name"                     => "Application Name",
+                "ssl mode"                             => "Ssl Mode",
+                "root certificate"                     => "Root Certificate",
+                "timeout"                              => "Timeout",
+                "command timeout"                      => "Command Timeout",
+                "max pool size" or "maximum pool size" => "Max Pool Size",
+                _                                      => throw new ArgumentException($"Unsupported connection setting '{key}'.", nameof(key))
+            };
     }
     public override bool ContainsKey(string keyword)
     {
@@ -145,8 +160,15 @@ public sealed class MpgsqlConnectionStringBuilder : DbConnectionStringBuilder
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxPoolSize);
         var options = new MpgsqlSessionOptions
         {
-            Host = Host, Port = Port, Username = Username, Password = base.ContainsKey("Password") ? Password : null, Database = Database,
-            ApplicationName = ApplicationName, SslMode = SslMode, RootCertificate = RootCertificate, ConnectTimeout = TimeSpan.FromSeconds(Timeout)
+            Host = Host,
+            Port = Port,
+            Username = Username,
+            Password = base.ContainsKey("Password") ? Password : null,
+            Database = Database,
+            ApplicationName = ApplicationName,
+            SslMode = SslMode,
+            RootCertificate = RootCertificate,
+            ConnectTimeout = TimeSpan.FromSeconds(Timeout)
         };
         options.Validate();
         return options;

@@ -42,10 +42,14 @@ public sealed class SessionWaiterTests
         await using var source = new MpgsqlMultiplexingDataSource(_ => ValueTask.FromResult(wire.Session));
         var session = new PooledSession(wire.Session);
         var failure = new IOException("factory failure");
-        for (var i = 0; i < 128; i++)
+        for (var i = 0;
+             i < 128;
+             i++)
         {
             var waiter = new SessionWaiter(source, TestContext.Current.CancellationToken);
-            var pending = waiter.WaitAsync().AsTask();
+            var pending = waiter
+                .WaitAsync()
+                .AsTask();
             var success = Task.Run(() => waiter.TrySetResult(session), TestContext.Current.CancellationToken);
             var failed = Task.Run(() => waiter.TrySetException(failure), TestContext.Current.CancellationToken);
             var outcomes = await Task.WhenAll(success, failed);
@@ -69,7 +73,9 @@ public sealed class SessionWaiterTests
         var waiter = new SessionWaiter(source, TestContext.Current.CancellationToken);
         var pending = waiter.WaitAsync();
         var resumed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        pending.GetAwaiter().UnsafeOnCompleted(() => resumed.SetResult(_publishing));
+        pending
+            .GetAwaiter()
+            .UnsafeOnCompleted(() => resumed.SetResult(_publishing));
         var session = new PooledSession(wire.Session);
         _publishing = true;
         try { Assert.True(waiter.TrySetResult(session)); }

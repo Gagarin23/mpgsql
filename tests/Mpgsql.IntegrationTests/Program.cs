@@ -30,31 +30,43 @@ try
 
     if (Environment.GetEnvironmentVariable("MPGSQL_TEST_UPPER_ONLY") == "1")
     {
-        await AdoNetChecks.RunAsync(host, port, user, password, database,
-            Environment.GetEnvironmentVariable("MPGSQL_TEST_CANCEL_MAPPING_ONCE") == "1");
-        await UpperApiChecks.RunAsync(host, port, user, password, database,
+        await AdoNetChecks.RunAsync
+        (
+            host, port, user, password, database,
+            Environment.GetEnvironmentVariable("MPGSQL_TEST_CANCEL_MAPPING_ONCE") == "1"
+        );
+        await UpperApiChecks.RunAsync
+        (
+            host, port, user, password, database,
             Environment.GetEnvironmentVariable("MPGSQL_TEST_POOL_MODE") == "transaction",
-            Environment.GetEnvironmentVariable("MPGSQL_TEST_ACTIVE_TERMINAL_EOF_ONLY") == "1");
+            Environment.GetEnvironmentVariable("MPGSQL_TEST_ACTIVE_TERMINAL_EOF_ONLY") == "1"
+        );
         return;
     }
 
     TestConnection connection;
     try
     {
-        connection = TestConnection.Open(host,
+        connection = TestConnection.Open
+        (
+            host,
             port,
             user,
             password,
-            database);
+            database
+        );
     }
     catch (ServerFailure error) when (requestedDatabase is null && database != "postgres" && error.SqlState == "3D000")
     {
         database = "postgres";
-        connection = TestConnection.Open(host,
+        connection = TestConnection.Open
+        (
+            host,
             port,
             user,
             password,
-            database);
+            database
+        );
     }
 
     using (connection)

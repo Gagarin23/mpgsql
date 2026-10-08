@@ -5,13 +5,23 @@ namespace Mpgsql.IntegrationTests;
 // Opt-in: creates and removes uniquely named roles on the disposable PostgreSQL fixture.
 internal static class UnicodeAuthenticationChecks
 {
-    internal static async Task RunAsync(string host, int port,
+    internal static async Task RunAsync(
+        string host, int port,
         string user, string password,
-        string database)
+        string database
+    )
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
         var token = deadline.Token;
-        var settings = new MpgsqlConnectionStringBuilder {Host = host, Port = port, Username = user, Password = password, Database = database, SslMode = MpgsqlSslMode.Disable};
+        var settings = new MpgsqlConnectionStringBuilder
+        {
+            Host = host,
+            Port = port,
+            Username = user,
+            Password = password,
+            Database = database,
+            SslMode = MpgsqlSslMode.Disable
+        };
         await using var admin = new MpgsqlConnection(settings.ConnectionString);
         await admin.OpenAsync(token);
         await using var command = admin.CreateCommand("set password_encryption = 'scram-sha-256'");
@@ -19,7 +29,9 @@ internal static class UnicodeAuthenticationChecks
         string[] passwords = ["I\u00ADX\u00AA\u00A0Я", "x\u200By", "\u00AD", "\u0340", "\u1D2C", "\u0627x\u0627", "Я😀", "a\u0007"];
         foreach (var candidate in passwords)
         {
-            var role = "mpgsql_unicode_" + Guid.NewGuid().ToString("N");
+            var role = "mpgsql_unicode_" + Guid
+                .NewGuid()
+                .ToString("N");
             command.CommandText = "create role " + role + " login password '" + candidate.Replace("'", "''", StringComparison.Ordinal) + "'";
             await command.ExecuteNonQueryAsync(token);
             try

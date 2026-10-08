@@ -39,76 +39,118 @@ internal static partial class Int64ArraySimdBaseline
 
     /// <summary>Writes directly into the destination, returning the payload size.</summary>
     /// <remarks>Checks capacity and rejects overlapping storage before changing the destination.</remarks>
-    public static int Write(ReadOnlyMemory<long> value,
-        Span<byte> destination)
+    public static int Write(
+        ReadOnlyMemory<long> value,
+        Span<byte> destination
+    )
     {
         var size = GetByteCount(value);
         if (destination.Length < size)
         {
-            throw new ArgumentException("The destination is too small for the bigint[] payload.",
-                nameof(destination));
+            throw new ArgumentException
+            (
+                "The destination is too small for the bigint[] payload.",
+                nameof(destination)
+            );
         }
         var source = value.Span;
         destination = destination[..size];
-        RequireSeparateStorage(MemoryMarshal.AsBytes(source),
-            destination);
-        WriteCore(source,
-            destination);
+        RequireSeparateStorage
+        (
+            MemoryMarshal.AsBytes(source),
+            destination
+        );
+        WriteCore
+        (
+            source,
+            destination
+        );
         return size;
     }
 
     /// <summary>Reserves the complete payload and advances only the written region.</summary>
-    public static void Write(ReadOnlyMemory<long> value,
-        IBufferWriter<byte> destination)
+    public static void Write(
+        ReadOnlyMemory<long> value,
+        IBufferWriter<byte> destination
+    )
     {
         ArgumentNullException.ThrowIfNull(destination);
         var size = GetByteCount(value);
-        Write(value,
-            destination.GetSpan(size));
+        Write
+        (
+            value,
+            destination.GetSpan(size)
+        );
         destination.Advance(size);
     }
 
     /// <summary>Returns independently owned memory with one long[] allocation for a nonempty array.</summary>
     public static ReadOnlyMemory<long> Read(ReadOnlySpan<byte> payload)
     {
-        var count = ReadHeader(payload,
+        var count = ReadHeader
+        (
+            payload,
             out var headerSize,
-            out var nullable);
+            out var nullable
+        );
         if (nullable && payload.Length - headerSize != (long)RecordSize * count)
         {
-            ValidateNullableRecords(payload[headerSize..],
-                count);
+            ValidateNullableRecords
+            (
+                payload[headerSize..],
+                count
+            );
         }
         if (count == 0)
         {
             return ReadOnlyMemory<long>.Empty;
         }
         var result = GC.AllocateUninitializedArray<long>(count);
-        ReadRecords(payload[headerSize..],
-            result);
+        ReadRecords
+        (
+            payload[headerSize..],
+            result
+        );
         return result;
     }
 
     /// <summary>Decodes into reusable storage without allocating; returns the element count.</summary>
     /// <remarks>On an invalid element prefix, part of the destination may have been written.</remarks>
-    public static int Read(ReadOnlySpan<byte> payload,
-        Span<long> destination)
+    public static int Read(
+        ReadOnlySpan<byte> payload,
+        Span<long> destination
+    )
     {
-        var count = ReadHeader(payload,
+        var count = ReadHeader
+        (
+            payload,
             out var headerSize,
-            out var nullable);
+            out var nullable
+        );
         if (nullable && payload.Length - headerSize != (long)RecordSize * count)
         {
-            ValidateNullableRecords(payload[headerSize..],
-                count);
+            ValidateNullableRecords
+            (
+                payload[headerSize..],
+                count
+            );
         }
-        RequireCapacity(count,
-            destination.Length);
+        RequireCapacity
+        (
+            count,
+            destination.Length
+        );
         destination = destination[..count];
-        RequireSeparateStorage(payload,
-            MemoryMarshal.AsBytes(destination));
-        ReadRecords(payload[headerSize..],
-            destination);
+        RequireSeparateStorage
+        (
+            payload,
+            MemoryMarshal.AsBytes(destination)
+        );
+        ReadRecords
+        (
+            payload[headerSize..],
+            destination
+        );
         return count;
     }
 
@@ -120,81 +162,132 @@ internal static partial class Int64ArraySimdBaseline
             return Read(payload.FirstSpan);
         }
         var reader = new SequenceReader<byte>(payload);
-        var count = ReadHeader(ref reader,
-            out var nullable);
+        var count = ReadHeader
+        (
+            ref reader,
+            out var nullable
+        );
         if (nullable && reader.Remaining != (long)RecordSize * count)
         {
-            ValidateNullableRecords(reader,
-                count);
+            ValidateNullableRecords
+            (
+                reader,
+                count
+            );
         }
         if (count == 0)
         {
             return ReadOnlyMemory<long>.Empty;
         }
         var result = GC.AllocateUninitializedArray<long>(count);
-        ReadSegmentedRecords(ref reader,
-            result);
+        ReadSegmentedRecords
+        (
+            ref reader,
+            result
+        );
         return result;
     }
 
     /// <summary>Reads segmented input into reusable storage without a payload copy or allocation.</summary>
     /// <remarks>On an invalid element prefix, part of the destination may have been written.</remarks>
-    public static int Read(ReadOnlySequence<byte> payload,
-        Span<long> destination)
+    public static int Read(
+        ReadOnlySequence<byte> payload,
+        Span<long> destination
+    )
     {
         if (payload.IsSingleSegment)
         {
-            return Read(payload.FirstSpan,
-                destination);
+            return Read
+            (
+                payload.FirstSpan,
+                destination
+            );
         }
         var reader = new SequenceReader<byte>(payload);
-        var count = ReadHeader(ref reader,
-            out var nullable);
+        var count = ReadHeader
+        (
+            ref reader,
+            out var nullable
+        );
         if (nullable && reader.Remaining != (long)RecordSize * count)
         {
-            ValidateNullableRecords(reader,
-                count);
+            ValidateNullableRecords
+            (
+                reader,
+                count
+            );
         }
-        RequireCapacity(count,
-            destination.Length);
+        RequireCapacity
+        (
+            count,
+            destination.Length
+        );
         destination = destination[..count];
         var outputBytes = MemoryMarshal.AsBytes(destination);
         foreach (var segment in payload)
         {
-            RequireSeparateStorage(segment.Span,
-                outputBytes);
+            RequireSeparateStorage
+            (
+                segment.Span,
+                outputBytes
+            );
         }
-        ReadSegmentedRecords(ref reader,
-            destination);
+        ReadSegmentedRecords
+        (
+            ref reader,
+            destination
+        );
         return count;
     }
 
-    private static void WriteCore(ReadOnlySpan<long> source,
-        Span<byte> destination)
+    private static void WriteCore(
+        ReadOnlySpan<long> source,
+        Span<byte> destination
+    )
     {
         // Int32 ndim, Int32 flags, UInt32 element OID, then Int32 count/lower bound per dimension.
-        BinaryPrimitives.WriteInt32BigEndian(destination,
+        BinaryPrimitives.WriteInt32BigEndian
+        (
+            destination,
             source.IsEmpty
                 ? 0
-                : 1);
-        BinaryPrimitives.WriteInt32BigEndian(destination[4..],
-            0);
-        BinaryPrimitives.WriteUInt32BigEndian(destination[8..],
-            ElementTypeOid);
+                : 1
+        );
+        BinaryPrimitives.WriteInt32BigEndian
+        (
+            destination[4..],
+            0
+        );
+        BinaryPrimitives.WriteUInt32BigEndian
+        (
+            destination[8..],
+            ElementTypeOid
+        );
         if (source.IsEmpty)
         {
             return;
         }
-        BinaryPrimitives.WriteInt32BigEndian(destination[12..],
-            source.Length);
-        BinaryPrimitives.WriteInt32BigEndian(destination[16..],
-            1);
-        WriteRecords(source,
-            destination[HeaderSize..]);
+        BinaryPrimitives.WriteInt32BigEndian
+        (
+            destination[12..],
+            source.Length
+        );
+        BinaryPrimitives.WriteInt32BigEndian
+        (
+            destination[16..],
+            1
+        );
+        WriteRecords
+        (
+            source,
+            destination[HeaderSize..]
+        );
     }
 
-    private static int ReadHeader(ref SequenceReader<byte> reader,
-        out bool nullable)
+    private static int ReadHeader(
+        ref SequenceReader<byte> reader,
+        out bool nullable
+    )
     {
         var payloadLength = reader.Remaining;
         if (!reader.TryReadBigEndian(out int dimensions) || !reader.TryReadBigEndian(out int flags) ||
@@ -202,28 +295,36 @@ internal static partial class Int64ArraySimdBaseline
         {
             throw new InvalidDataException("Truncated PostgreSQL array header.");
         }
-        nullable = ValidateArrayType(dimensions,
+        nullable = ValidateArrayType
+        (
+            dimensions,
             flags,
-            unchecked((uint)oid));
+            unchecked((uint)oid)
+        );
         var count = 0;
         var lowerBound = 0;
         if (dimensions == 1 && (!reader.TryReadBigEndian(out count) || !reader.TryReadBigEndian(out lowerBound)))
         {
             throw new InvalidDataException("Truncated PostgreSQL array dimension.");
         }
-        ValidateBoundsAndLength(count,
+        ValidateBoundsAndLength
+        (
+            count,
             lowerBound,
             dimensions == 0
                 ? EmptyHeaderSize
                 : HeaderSize,
             payloadLength,
-            nullable);
+            nullable
+        );
         return count;
     }
 
-    private static int ReadHeader(ReadOnlySpan<byte> payload,
+    private static int ReadHeader(
+        ReadOnlySpan<byte> payload,
         out int headerSize,
-        out bool nullable)
+        out bool nullable
+    )
     {
         if (payload.Length < EmptyHeaderSize)
         {
@@ -232,9 +333,12 @@ internal static partial class Int64ArraySimdBaseline
         var dimensions = BinaryPrimitives.ReadInt32BigEndian(payload);
         var flags = BinaryPrimitives.ReadInt32BigEndian(payload[4..]);
         var oid = BinaryPrimitives.ReadUInt32BigEndian(payload[8..]);
-        nullable = ValidateArrayType(dimensions,
+        nullable = ValidateArrayType
+        (
+            dimensions,
             flags,
-            oid);
+            oid
+        );
         headerSize = dimensions == 0 ? EmptyHeaderSize : HeaderSize;
         if (payload.Length < headerSize)
         {
@@ -242,18 +346,23 @@ internal static partial class Int64ArraySimdBaseline
         }
         var count = dimensions == 0 ? 0 : BinaryPrimitives.ReadInt32BigEndian(payload[12..]);
         var lowerBound = dimensions == 0 ? 0 : BinaryPrimitives.ReadInt32BigEndian(payload[16..]);
-        ValidateBoundsAndLength(count,
+        ValidateBoundsAndLength
+        (
+            count,
             lowerBound,
             headerSize,
             payload.Length,
-            nullable);
+            nullable
+        );
         return count;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool ValidateArrayType(int dimensions,
+    private static bool ValidateArrayType(
+        int dimensions,
         int flags,
-        uint oid)
+        uint oid
+    )
     {
         if ((uint)dimensions > 6 || (uint)flags > 1 || oid != ElementTypeOid)
         {
@@ -267,11 +376,13 @@ internal static partial class Int64ArraySimdBaseline
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void ValidateBoundsAndLength(int count,
+    private static void ValidateBoundsAndLength(
+        int count,
         int lowerBound,
         int headerSize,
         long payloadLength,
-        bool nullable)
+        bool nullable
+    )
     {
         // PostgreSQL requires lowerBound + count to fit Int32, including the exclusive upper bound.
         if (count < 0 || (long)lowerBound + count > int.MaxValue)
@@ -288,10 +399,14 @@ internal static partial class Int64ArraySimdBaseline
         }
     }
 
-    private static void ValidateNullableRecords(ReadOnlySpan<byte> records,
-        int count)
+    private static void ValidateNullableRecords(
+        ReadOnlySpan<byte> records,
+        int count
+    )
     {
-        for (var i = 0; i < count; i++)
+        for (var i = 0;
+             i < count;
+             i++)
         {
             if (records.Length < 4)
             {
@@ -310,10 +425,14 @@ internal static partial class Int64ArraySimdBaseline
         }
     }
 
-    private static void ValidateNullableRecords(SequenceReader<byte> reader,
-        int count)
+    private static void ValidateNullableRecords(
+        SequenceReader<byte> reader,
+        int count
+    )
     {
-        for (var i = 0; i < count; i++)
+        for (var i = 0;
+             i < count;
+             i++)
         {
             if (!reader.TryReadBigEndian(out int length))
             {
@@ -344,21 +463,32 @@ internal static partial class Int64ArraySimdBaseline
         }
     }
 
-    private static void ReadSegmentedRecords(ref SequenceReader<byte> reader,
-        Span<long> destination)
+    private static void ReadSegmentedRecords(
+        ref SequenceReader<byte> reader,
+        Span<long> destination
+    )
     {
         var written = 0;
         while (written < destination.Length)
         {
             // Decode whole records within a segment through the same contiguous fast path.
-            var count = Math.Min(reader.UnreadSpan.Length / RecordSize,
-                destination.Length - written);
+            var count = Math.Min
+            (
+                reader.UnreadSpan.Length / RecordSize,
+                destination.Length - written
+            );
             if (count != 0)
             {
                 var byteCount = count * RecordSize;
-                ReadRecords(reader.UnreadSpan[..byteCount],
-                    destination.Slice(written,
-                        count));
+                ReadRecords
+                (
+                    reader.UnreadSpan[..byteCount],
+                    destination.Slice
+                    (
+                        written,
+                        count
+                    )
+                );
                 reader.Advance(byteCount);
                 written += count;
             }
@@ -375,23 +505,33 @@ internal static partial class Int64ArraySimdBaseline
         }
     }
 
-    private static void RequireCapacity(int count,
-        int capacity)
+    private static void RequireCapacity(
+        int count,
+        int capacity
+    )
     {
         if (capacity < count)
         {
-            throw new ArgumentException("The destination is too small for the bigint[] elements.",
-                "destination");
+            throw new ArgumentException
+            (
+                "The destination is too small for the bigint[] elements.",
+                "destination"
+            );
         }
     }
 
-    private static void RequireSeparateStorage(ReadOnlySpan<byte> source,
-        Span<byte> destination)
+    private static void RequireSeparateStorage(
+        ReadOnlySpan<byte> source,
+        Span<byte> destination
+    )
     {
         if (source.Overlaps(destination))
         {
-            throw new ArgumentException("Array input and output storage must not overlap.",
-                "destination");
+            throw new ArgumentException
+            (
+                "Array input and output storage must not overlap.",
+                "destination"
+            );
         }
     }
 }
@@ -400,8 +540,10 @@ internal static partial class Int64ArraySimdBaseline
 {
     private static bool CanShuffle => BitConverter.IsLittleEndian && (Ssse3.IsSupported || AdvSimd.Arm64.IsSupported);
 
-    private static void WriteRecords(ReadOnlySpan<long> source,
-        Span<byte> destination)
+    private static void WriteRecords(
+        ReadOnlySpan<long> source,
+        Span<byte> destination
+    )
     {
         var i = 0;
         var offset = 0;
@@ -409,7 +551,9 @@ internal static partial class Int64ArraySimdBaseline
         {
             // Four host-endian longs (32 bytes) become four [BE length=8][BE long] records (48 bytes).
             // 255 selects zero; the OR constants insert ready big-endian prefixes in the same pass.
-            var firstMask = Vector128.Create(255,
+            var firstMask = Vector128.Create
+            (
+                255,
                 255,
                 255,
                 255,
@@ -424,8 +568,11 @@ internal static partial class Int64ArraySimdBaseline
                 255,
                 255,
                 255,
-                255);
-            var middleLeftMask = Vector128.Create(15,
+                255
+            );
+            var middleLeftMask = Vector128.Create
+            (
+                15,
                 14,
                 13,
                 12,
@@ -440,8 +587,11 @@ internal static partial class Int64ArraySimdBaseline
                 255,
                 255,
                 255,
-                255);
-            var middleRightMask = Vector128.Create(255,
+                255
+            );
+            var middleRightMask = Vector128.Create
+            (
+                255,
                 255,
                 255,
                 255,
@@ -456,8 +606,11 @@ internal static partial class Int64ArraySimdBaseline
                 7,
                 6,
                 5,
-                4);
-            var lastMask = Vector128.Create(3,
+                4
+            );
+            var lastMask = Vector128.Create
+            (
+                3,
                 2,
                 1,
                 0,
@@ -472,59 +625,123 @@ internal static partial class Int64ArraySimdBaseline
                 11,
                 10,
                 9,
-                8);
-            var firstPrefix = Vector128.Create(0x08000000u,
-                0u,
-                0u,
-                0x08000000u).AsByte();
-            var middlePrefix = Vector128.Create(0u,
-                0u,
-                0x08000000u,
-                0u).AsByte();
-            var lastPrefix = Vector128.Create(0u,
-                0x08000000u,
-                0u,
-                0u).AsByte();
+                8
+            );
+            var firstPrefix = Vector128
+                .Create
+                (
+                    0x08000000u,
+                    0u,
+                    0u,
+                    0x08000000u
+                )
+                .AsByte();
+            var middlePrefix = Vector128
+                .Create
+                (
+                    0u,
+                    0u,
+                    0x08000000u,
+                    0u
+                )
+                .AsByte();
+            var lastPrefix = Vector128
+                .Create
+                (
+                    0u,
+                    0x08000000u,
+                    0u,
+                    0u
+                )
+                .AsByte();
             ref var input = ref MemoryMarshal.GetReference(source);
             ref var output = ref MemoryMarshal.GetReference(destination);
-            for (; i <= source.Length - 4; i += 4, offset += 4 * RecordSize)
+            for (;
+                 i <= source.Length - 4;
+                 i += 4, offset += 4 * RecordSize)
             {
                 // Public entry points have checked complete capacity. No load/store crosses this block.
-                var left = Vector128.LoadUnsafe(ref input,
-                    (nuint)i).AsByte();
-                var right = Vector128.LoadUnsafe(ref input,
-                    (nuint)(i + 2)).AsByte();
-                (Vector128.Shuffle(left,
-                    firstMask) | firstPrefix).StoreUnsafe(ref output,
-                    (nuint)offset);
-                (Vector128.Shuffle(left,
-                        middleLeftMask) | Vector128.Shuffle(right,
-                        middleRightMask) | middlePrefix)
-                    .StoreUnsafe(ref output,
-                        (nuint)(offset + 16));
-                (Vector128.Shuffle(right,
-                    lastMask) | lastPrefix).StoreUnsafe(ref output,
-                    (nuint)(offset + 32));
+                var left = Vector128
+                    .LoadUnsafe
+                    (
+                        ref input,
+                        (nuint)i
+                    )
+                    .AsByte();
+                var right = Vector128
+                    .LoadUnsafe
+                    (
+                        ref input,
+                        (nuint)(i + 2)
+                    )
+                    .AsByte();
+                (Vector128.Shuffle
+                (
+                    left,
+                    firstMask
+                ) | firstPrefix).StoreUnsafe
+                (
+                    ref output,
+                    (nuint)offset
+                );
+                (Vector128.Shuffle
+                    (
+                        left,
+                        middleLeftMask
+                    ) | Vector128.Shuffle
+                    (
+                        right,
+                        middleRightMask
+                    ) | middlePrefix)
+                    .StoreUnsafe
+                    (
+                        ref output,
+                        (nuint)(offset + 16)
+                    );
+                (Vector128.Shuffle
+                (
+                    right,
+                    lastMask
+                ) | lastPrefix).StoreUnsafe
+                (
+                    ref output,
+                    (nuint)(offset + 32)
+                );
             }
         }
-        for (; i < source.Length; i++, offset += RecordSize)
+        for (;
+             i < source.Length;
+             i++, offset += RecordSize)
         {
-            BinaryPrimitives.WriteInt32BigEndian(destination[offset..],
-                sizeof(long));
-            BinaryPrimitives.WriteInt64BigEndian(destination[(offset + 4)..],
-                source[i]);
+            BinaryPrimitives.WriteInt32BigEndian
+            (
+                destination[offset..],
+                sizeof(long)
+            );
+            BinaryPrimitives.WriteInt64BigEndian
+            (
+                destination[(offset + 4)..],
+                source[i]
+            );
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void ReadRecords(ReadOnlySpan<byte> source,
-        Span<long> destination)
+    private static void ReadRecords(
+        ReadOnlySpan<byte> source,
+        Span<long> destination
+    )
     {
         var i = CanShuffle && destination.Length >= 4
-            ? ReadVectorRecords(source,
-                destination)
+            ? ReadVectorRecords
+            (
+                source,
+                destination
+            )
             : 0;
-        for (var offset = i * RecordSize; i < destination.Length; i++, offset += RecordSize)
+        for (var offset = i * RecordSize;
+             i < destination.Length;
+             i++, offset += RecordSize)
         {
             destination[i] = ReadRecord(source[offset..]);
         }
@@ -540,10 +757,14 @@ internal static partial class Int64ArraySimdBaseline
         return BinaryPrimitives.ReadInt64BigEndian(source[4..]);
     }
 
-    private static int ReadVectorRecords(ReadOnlySpan<byte> source,
-        Span<long> destination)
+    private static int ReadVectorRecords(
+        ReadOnlySpan<byte> source,
+        Span<long> destination
+    )
     {
-        var firstLeftMask = Vector128.Create(11,
+        var firstLeftMask = Vector128.Create
+        (
+            11,
             10,
             9,
             8,
@@ -558,8 +779,11 @@ internal static partial class Int64ArraySimdBaseline
             255,
             255,
             255,
-            255);
-        var firstRightMask = Vector128.Create(255,
+            255
+        );
+        var firstRightMask = Vector128.Create
+        (
+            255,
             255,
             255,
             255,
@@ -574,8 +798,11 @@ internal static partial class Int64ArraySimdBaseline
             3,
             2,
             1,
-            0);
-        var lastLeftMask = Vector128.Create(255,
+            0
+        );
+        var lastLeftMask = Vector128.Create
+        (
+            255,
             255,
             255,
             255,
@@ -590,8 +817,11 @@ internal static partial class Int64ArraySimdBaseline
             255,
             255,
             255,
-            255);
-        var lastRightMask = Vector128.Create(3,
+            255
+        );
+        var lastRightMask = Vector128.Create
+        (
+            3,
             2,
             1,
             0,
@@ -606,37 +836,77 @@ internal static partial class Int64ArraySimdBaseline
             11,
             10,
             9,
-            8);
+            8
+        );
         ref var input = ref MemoryMarshal.GetReference(source);
         ref var output = ref MemoryMarshal.GetReference(destination);
         var i = 0;
-        for (var offset = 0; i <= destination.Length - 4; i += 4, offset += 4 * RecordSize)
+        for (var offset = 0;
+             i <= destination.Length - 4;
+             i += 4, offset += 4 * RecordSize)
         {
-            var first = Vector128.LoadUnsafe(ref input,
-                (nuint)offset);
-            var middle = Vector128.LoadUnsafe(ref input,
-                (nuint)(offset + 16));
-            var last = Vector128.LoadUnsafe(ref input,
-                (nuint)(offset + 32));
+            var first = Vector128.LoadUnsafe
+            (
+                ref input,
+                (nuint)offset
+            );
+            var middle = Vector128.LoadUnsafe
+            (
+                ref input,
+                (nuint)(offset + 16)
+            );
+            var last = Vector128.LoadUnsafe
+            (
+                ref input,
+                (nuint)(offset + 32)
+            );
             // Prefix validation stays mandatory, including the lengths embedded inside SIMD blocks.
-            var invalid = first.AsUInt32().GetElement(0) ^ 0x08000000u |
-                          first.AsUInt32().GetElement(3) ^ 0x08000000u |
-                          middle.AsUInt32().GetElement(2) ^ 0x08000000u |
-                          last.AsUInt32().GetElement(1) ^ 0x08000000u;
+            var invalid = first
+                              .AsUInt32()
+                              .GetElement(0) ^ 0x08000000u |
+                          first
+                              .AsUInt32()
+                              .GetElement(3) ^ 0x08000000u |
+                          middle
+                              .AsUInt32()
+                              .GetElement(2) ^ 0x08000000u |
+                          last
+                              .AsUInt32()
+                              .GetElement(1) ^ 0x08000000u;
             if (invalid != 0)
             {
                 throw new InvalidDataException("A non-NULL bigint[] element must have length 8.");
             }
-            (Vector128.Shuffle(first,
-                    firstLeftMask) | Vector128.Shuffle(middle,
-                    firstRightMask))
-                .AsInt64().StoreUnsafe(ref output,
-                    (nuint)i);
-            (Vector128.Shuffle(middle,
-                    lastLeftMask) | Vector128.Shuffle(last,
-                    lastRightMask))
-                .AsInt64().StoreUnsafe(ref output,
-                    (nuint)(i + 2));
+            (Vector128.Shuffle
+                (
+                    first,
+                    firstLeftMask
+                ) | Vector128.Shuffle
+                (
+                    middle,
+                    firstRightMask
+                ))
+                .AsInt64()
+                .StoreUnsafe
+                (
+                    ref output,
+                    (nuint)i
+                );
+            (Vector128.Shuffle
+                (
+                    middle,
+                    lastLeftMask
+                ) | Vector128.Shuffle
+                (
+                    last,
+                    lastRightMask
+                ))
+                .AsInt64()
+                .StoreUnsafe
+                (
+                    ref output,
+                    (nuint)(i + 2)
+                );
         }
         return i;
     }

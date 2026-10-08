@@ -27,10 +27,12 @@ internal sealed class ConverterCase<TM, TN> : ConverterCase
     private TM _mResult = default!;
     private TN _nResult = default!;
 
-    internal ConverterCase(string name, uint oid,
+    internal ConverterCase(
+        string name, uint oid,
         TM mValue, TN nValue,
         Action<TM, IBufferWriter<byte>> write, Func<ReadOnlySequence<byte>, TM> read,
-        bool array)
+        bool array
+    )
     {
         _mValue = mValue;
         _nValue = nValue;
@@ -62,7 +64,12 @@ internal sealed class ConverterCase<TM, TN> : ConverterCase
             _output.Reset();
             _write(_read(new ReadOnlySequence<byte>(nBytes)), _output);
             Check(input, _output.WrittenSpan, name + " Mpgsql cross-read", array);
-            foreach (var segmentSize in new[] {1, 7, 4096})
+            foreach (var segmentSize in new[]
+                     {
+                         1,
+                         7,
+                         4096
+                     })
             {
                 _output.Reset();
                 _write(_read(NpgsqlArrayVerification.Sequence(input, segmentSize)), _output);
@@ -99,8 +106,10 @@ internal sealed class ConverterCase<TM, TN> : ConverterCase
         return PayloadLength;
     }
 
-    private static void Check(ReadOnlySpan<byte> expected, ReadOnlySpan<byte> actual,
-        string name, bool array)
+    private static void Check(
+        ReadOnlySpan<byte> expected, ReadOnlySpan<byte> actual,
+        string name, bool array
+    )
     {
         // Npgsql sets the array "has NULLs" flag conservatively. PostgreSQL
         // accepts either flag for arrays without NULLs. Check every other byte.
@@ -117,18 +126,22 @@ internal sealed class ConverterCase<TM, TN> : ConverterCase
             if (ndimExpected == 0 && expected.Length == 12 && ndimActual == 1 && actual.Length == 20
                 && BinaryPrimitives.ReadInt32BigEndian(actual[12..]) == 0
                 && BinaryPrimitives.ReadInt32BigEndian(actual[16..]) == 1
-                && expected[8..12].SequenceEqual(actual[8..12]))
+                && expected[8..12]
+                    .SequenceEqual(actual[8..12]))
             {
                 return;
             }
             if (ndimExpected == 0 && ndimActual == 0 && expected.Length == 12 && actual.Length == 12)
             {
-                if (expected[8..].SequenceEqual(actual[8..]))
+                if (expected[8..]
+                    .SequenceEqual(actual[8..]))
                 {
                     return;
                 }
             }
-            else if (expected[..4].SequenceEqual(actual[..4]) && expected[8..].SequenceEqual(actual[8..]))
+            else if (expected[..4]
+                         .SequenceEqual(actual[..4]) && expected[8..]
+                         .SequenceEqual(actual[8..]))
             {
                 return;
             }
@@ -137,9 +150,12 @@ internal sealed class ConverterCase<TM, TN> : ConverterCase
         {
             return;
         }
-        throw new InvalidDataException($"{name}: converter payloads differ ({expected.Length} / {actual.Length} bytes). " +
-                                       $"Expected {Convert.ToHexString(expected[..Math.Min(64, expected.Length)])}; " +
-                                       $"actual {Convert.ToHexString(actual[..Math.Min(64, actual.Length)])}.");
+        throw new InvalidDataException
+        (
+            $"{name}: converter payloads differ ({expected.Length} / {actual.Length} bytes). " +
+            $"Expected {Convert.ToHexString(expected[..Math.Min(64, expected.Length)])}; " +
+            $"actual {Convert.ToHexString(actual[..Math.Min(64, actual.Length)])}."
+        );
     }
 
     public override void Dispose()

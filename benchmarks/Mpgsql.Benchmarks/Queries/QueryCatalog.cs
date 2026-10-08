@@ -3,19 +3,26 @@ namespace Mpgsql.Benchmarks.Queries;
 internal sealed class QueryCatalog
 {
 
-    internal QueryCatalog(QueryScenario[] scenarios, int workers,
-        bool mixed = false)
+    internal QueryCatalog(
+        QueryScenario[] scenarios, int workers,
+        bool mixed = false
+    )
     {
         Scenarios = scenarios;
         Replies = new byte[scenarios.Length][][];
         Inputs = new MpgsqlParameterValue[scenarios.Length][][];
-        for (var i = 0; i < scenarios.Length; i++)
+        for (var i = 0;
+             i < scenarios.Length;
+             i++)
         {
             Replies[i] = new byte[workers][];
             Inputs[i] = new MpgsqlParameterValue[workers][];
-            for (var worker = 0; worker < workers; worker++)
+            for (var worker = 0;
+                 worker < workers;
+                 worker++)
             {
-                Inputs[i][worker] = scenarios[i].Parameters(worker);
+                Inputs[i][worker] = scenarios[i]
+                    .Parameters(worker);
                 if (mixed && scenarios[i] == QueryScenario.Slow && worker % 8 != 0)
                 {
                     Replies[i][worker] = [];

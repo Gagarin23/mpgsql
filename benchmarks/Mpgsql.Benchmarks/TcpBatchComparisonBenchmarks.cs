@@ -31,11 +31,24 @@ public class TcpBatchComparisonBenchmarks
     {
         _catalog = new QueryCatalog([QueryScenario.One], 16);
         _n = await TcpNpgsqlFixture.CreateAsync(_catalog, exclusive: true);
-        _batch = new NpgsqlBatch(_n.Connection) {Timeout = 0, EnableErrorBarriers = false};
-        for (var worker = 0; worker < 16; worker++)
+        _batch = new NpgsqlBatch(_n.Connection)
+        {
+            Timeout = 0,
+            EnableErrorBarriers = false
+        };
+        for (var worker = 0;
+             worker < 16;
+             worker++)
         {
             var command = new NpgsqlBatchCommand(QueryScenario.One.Sql);
-            command.Parameters.Add(new NpgsqlParameter<long> {NpgsqlDbType = NpgsqlDbType.Bigint, TypedValue = worker + 1L});
+            command.Parameters.Add
+            (
+                new NpgsqlParameter<long>
+                {
+                    NpgsqlDbType = NpgsqlDbType.Bigint,
+                    TypedValue = worker + 1L
+                }
+            );
             _batch.BatchCommands.Add(command);
         }
     }
@@ -43,24 +56,46 @@ public class TcpBatchComparisonBenchmarks
     [Benchmark(Baseline = true)]
     public async Task<long> MpgsqlSharedSync()
     {
-        await using var batch = _m!.Transports[0].Session.CreateBatch();
+        await using var batch = _m!
+            .Transports[0]
+            .Session.CreateBatch();
         var sends = new Task[17];
-        for (var i = 0; i < 16; i++)
+        for (var i = 0;
+             i < 16;
+             i++)
         {
-            sends[i] = batch.SendQueryAsync(QueryScenario.One.Sql, _catalog.Inputs[0][i]).AsTask();
+            sends[i] = batch
+                .SendQueryAsync
+                (
+                    QueryScenario.One.Sql, _catalog
+                        .Inputs[0][i]
+                )
+                .AsTask();
         }
-        sends[16] = batch.SendSyncAsync().AsTask();
-        await Task.WhenAll(sends).ConfigureAwait(false);
-        await using var reader = await batch.ReadResultsAsync().ConfigureAwait(false);
-        var sum = await TcpQueryOperations.ConsumeAsync(reader, QueryScenario.One, _m.Buffers[0]).ConfigureAwait(false);
+        sends[16] = batch
+            .SendSyncAsync()
+            .AsTask();
+        await Task
+            .WhenAll(sends)
+            .ConfigureAwait(false);
+        await using var reader = await batch
+            .ReadResultsAsync()
+            .ConfigureAwait(false);
+        var sum = await TcpQueryOperations
+            .ConsumeAsync(reader, QueryScenario.One, _m.Buffers[0])
+            .ConfigureAwait(false);
         await batch.Completion.ConfigureAwait(false);
         return sum;
     }
     [Benchmark]
     public async Task<long> NpgsqlBatch()
     {
-        await using var reader = await _batch!.ExecuteReaderAsync().ConfigureAwait(false);
-        return await TcpQueryOperations.ConsumeAsync(reader, QueryScenario.One, _n!.Buffers[0]).ConfigureAwait(false);
+        await using var reader = await _batch!
+            .ExecuteReaderAsync()
+            .ConfigureAwait(false);
+        return await TcpQueryOperations
+            .ConsumeAsync(reader, QueryScenario.One, _n!.Buffers[0])
+            .ConfigureAwait(false);
     }
     [GlobalCleanup]
     public async Task Cleanup()

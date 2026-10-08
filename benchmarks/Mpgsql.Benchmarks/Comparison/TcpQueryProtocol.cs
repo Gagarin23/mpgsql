@@ -12,7 +12,11 @@ internal sealed class TcpQueryProtocol(TcpQueryCatalog catalog, bool verifyPaylo
     private static readonly byte[] TransactionReady = QueryWire.Frame('Z', [(byte)'T']);
     private static readonly byte[] Begin = ControlReply("BEGIN", 'T');
     private static readonly byte[] Rollback = ControlReply("ROLLBACK", 'I');
-    private int _phase, _scenario, _worker;
+
+    private int _phase,
+        _scenario,
+        _worker;
+
     private bool _recovering;
     private bool _transaction;
     internal long Queries { get; private set; }
@@ -30,13 +34,16 @@ internal sealed class TcpQueryProtocol(TcpQueryCatalog catalog, bool verifyPaylo
         switch ((char)tag)
         {
             case 'P' when _phase == 0:
-                if (!reader.CStringBytes().IsEmpty)
+                if (!reader.CStringBytes()
+                        .IsEmpty)
                 {
                     throw new InvalidDataException("Named statements are outside this unprepared baseline.");
                 }
                 var sql = reader.CStringBytes();
                 _scenario = -1;
-                for (var i = 0; i < catalog.Queries.Scenarios.Length; i++)
+                for (var i = 0;
+                     i < catalog.Queries.Scenarios.Length;
+                     i++)
                 {
                     if (QueryWire.Equal(sql, catalog.Queries.Scenarios[i].SqlUtf8))
                     {
@@ -49,11 +56,14 @@ internal sealed class TcpQueryProtocol(TcpQueryCatalog catalog, bool verifyPaylo
                     throw new InvalidDataException("Unknown TCP transcript SQL: " + Encoding.UTF8.GetString(sql.ToArray()));
                 }
                 int types = reader.Count();
-                if (types != catalog.Queries.Inputs[_scenario][0].Length)
+                if (types != catalog
+                        .Queries.Inputs[_scenario][0].Length)
                 {
                     throw new InvalidDataException("Parse parameter count.");
                 }
-                for (var i = 0; i < types; i++)
+                for (var i = 0;
+                     i < types;
+                     i++)
                 {
                     if (reader.UInt32() != (i == 0 ? 20U : 17U))
                     {
@@ -64,12 +74,16 @@ internal sealed class TcpQueryProtocol(TcpQueryCatalog catalog, bool verifyPaylo
                 result = TcpQueryCatalog.ParseComplete;
                 break;
             case 'B' when _phase == 1:
-                if (!reader.CStringBytes().IsEmpty || !reader.CStringBytes().IsEmpty)
+                if (!reader.CStringBytes()
+                        .IsEmpty || !reader.CStringBytes()
+                        .IsEmpty)
                 {
                     throw new InvalidDataException("Expected unnamed portal and statement.");
                 }
                 int formats = reader.Count();
-                for (var i = 0; i < formats; i++)
+                for (var i = 0;
+                     i < formats;
+                     i++)
                 {
                     if (reader.Int16() != 1)
                     {
@@ -77,7 +91,8 @@ internal sealed class TcpQueryProtocol(TcpQueryCatalog catalog, bool verifyPaylo
                     }
                 }
                 int parameters = reader.Count();
-                if (parameters != catalog.Queries.Inputs[_scenario][0].Length || formats is not 1 && formats != parameters)
+                if (parameters != catalog
+                        .Queries.Inputs[_scenario][0].Length || formats is not 1 && formats != parameters)
                 {
                     throw new InvalidDataException("Bind parameter/format count.");
                 }
@@ -116,7 +131,8 @@ internal sealed class TcpQueryProtocol(TcpQueryCatalog catalog, bool verifyPaylo
                 result = TcpQueryCatalog.BindComplete;
                 break;
             case 'D' when _phase == 2:
-                if (reader.Byte() != (byte)'P' || !reader.CStringBytes().IsEmpty)
+                if (reader.Byte() != (byte)'P' || !reader.CStringBytes()
+                        .IsEmpty)
                 {
                     throw new InvalidDataException("Expected unnamed portal Describe.");
                 }
@@ -124,14 +140,16 @@ internal sealed class TcpQueryProtocol(TcpQueryCatalog catalog, bool verifyPaylo
                 result = catalog.Descriptions[_scenario];
                 break;
             case 'E' when _phase == 3:
-                if (!reader.CStringBytes().IsEmpty || reader.Int32() != 0)
+                if (!reader.CStringBytes()
+                        .IsEmpty || reader.Int32() != 0)
                 {
                     throw new InvalidDataException("Expected unlimited unnamed Execute.");
                 }
                 _phase = 0;
                 _recovering = catalog.Queries.Scenarios[_scenario].Error;
                 Queries++;
-                result = catalog.Executions[_scenario][_worker];
+                result = catalog
+                    .Executions[_scenario][_worker];
                 if (result.IsEmpty)
                 {
                     throw new InvalidDataException("Disabled worker/scenario.");
@@ -144,7 +162,12 @@ internal sealed class TcpQueryProtocol(TcpQueryCatalog catalog, bool verifyPaylo
                 result = _transaction ? TransactionReady : QueryWire.Ready;
                 break;
             case 'Q' when _phase == 0: // setup-only transactions pin Npgsql multiplexed leases while warming the pool
-                var control = Encoding.UTF8.GetString(reader.CStringBytes().ToArray());
+                var control = Encoding.UTF8.GetString
+                (
+                    reader
+                        .CStringBytes()
+                        .ToArray()
+                );
                 if (control.StartsWith("BEGIN", StringComparison.Ordinal))
                 {
                     _transaction = true;

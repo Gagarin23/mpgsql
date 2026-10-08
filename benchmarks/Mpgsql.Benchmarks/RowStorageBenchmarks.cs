@@ -24,7 +24,9 @@ public class RowStorageBenchmarks
         var bytes = new byte[checked(2 + Columns * (4 + FieldBytes))];
         BinaryPrimitives.WriteInt16BigEndian(bytes, checked((short)Columns));
         var offset = 2;
-        for (var column = 0; column < Columns; column++)
+        for (var column = 0;
+             column < Columns;
+             column++)
         {
             BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(offset), FieldBytes);
             BinaryPrimitives.WriteInt64BigEndian(bytes.AsSpan(offset + 4), column + 1L);
@@ -32,7 +34,9 @@ public class RowStorageBenchmarks
         }
         _message = new BackendMessage((byte)'D', BackendMessageKind.DataRow, new ReadOnlySequence<byte>(bytes), Columns);
         var expected = Columns * (long)FieldBytes + Columns * (Columns + 1L) / 2;
-        for (var iteration = 0; iteration < 64; iteration++)
+        for (var iteration = 0;
+             iteration < 64;
+             iteration++)
         {
             if (RentReadRelease() != expected)
             {
@@ -46,7 +50,9 @@ public class RowStorageBenchmarks
     {
         using var row = _pool.Rent(_message, null, null);
         long sum = 0;
-        for (var column = 0; column < Columns; column++)
+        for (var column = 0;
+             column < Columns;
+             column++)
         {
             var value = row[column]!.Value;
             sum += value.Length + BinaryPrimitives.ReadInt64BigEndian(value.FirstSpan);

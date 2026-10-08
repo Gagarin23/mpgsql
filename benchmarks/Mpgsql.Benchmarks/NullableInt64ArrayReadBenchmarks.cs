@@ -22,21 +22,44 @@ public class NullableInt64ArrayReadBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        var values = NullableInt64ArrayVerification.Values(Count,
-            NullPercent);
-        using var write = new NpgsqlArrayHarness(Math.Max(20,
-            NullableInt64ArrayConverter.GetByteCount(values)));
-        write.Write(write.NullableOriginal,
-            values);
+        var values = NullableInt64ArrayVerification.Values
+        (
+            Count,
+            NullPercent
+        );
+        using var write = new NpgsqlArrayHarness
+        (
+            Math.Max
+            (
+                20,
+                NullableInt64ArrayConverter.GetByteCount(values)
+            )
+        );
+        write.Write
+        (
+            write.NullableOriginal,
+            values
+        );
         byte[] bytes = [.. write.Output.WrittenSpan];
-        _payload = NpgsqlArrayVerification.Sequence(bytes,
-            ReaderBufferSize);
-        _harness = new NpgsqlArrayHarness(20,
+        _payload = NpgsqlArrayVerification.Sequence
+        (
             bytes,
-            ReaderBufferSize);
+            ReaderBufferSize
+        );
+        _harness = new NpgsqlArrayHarness
+        (
+            20,
+            bytes,
+            ReaderBufferSize
+        );
         _storage = new long?[Count];
-        if (!NpgsqlOriginal().AsSpan().SequenceEqual(values) || !MpgsqlOwned().Span.SequenceEqual(values) ||
-            MpgsqlReusable() != Count || !_storage.AsSpan().SequenceEqual(values))
+        if (!NpgsqlOriginal()
+                .AsSpan()
+                .SequenceEqual(values) || !MpgsqlOwned()
+                .Span.SequenceEqual(values) ||
+            MpgsqlReusable() != Count || !_storage
+                .AsSpan()
+                .SequenceEqual(values))
         {
             throw new InvalidOperationException("Nullable array reading differs from Npgsql 10.0.3.");
         }
@@ -56,18 +79,25 @@ public class NullableInt64ArrayReadBenchmarks
     [Benchmark]
     public int MpgsqlReusable()
     {
-        return NullableInt64ArrayConverter.Read(_payload,
-            _storage);
+        return NullableInt64ArrayConverter.Read
+        (
+            _payload,
+            _storage
+        );
     }
 
     public void CheckReusableAllocations()
     {
-        for (var i = 0; i < 64; i++)
+        for (var i = 0;
+             i < 64;
+             i++)
         {
             MpgsqlReusable();
         }
         var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 64; i++)
+        for (var i = 0;
+             i < 64;
+             i++)
         {
             MpgsqlReusable();
         }

@@ -11,10 +11,22 @@ public sealed class FlushCoalescingTests
         using var input = new BlockingInputMemory(true);
         await using var wire = new ScriptedSession(true);
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        var first = batch.SendQueryAsync("select $1", new[] {MpgsqlParameterValue.Int64Array(input.Memory)}).AsTask();
+        var first = batch
+            .SendQueryAsync
+            (
+                "select $1", new[]
+                {
+                    MpgsqlParameterValue.Int64Array(input.Memory)
+                }
+            )
+            .AsTask();
         await input.Entered.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
-        var second = batch.SendQueryAsync("select 2").AsTask();
-        var sync = batch.SendSyncAsync().AsTask();
+        var second = batch
+            .SendQueryAsync("select 2")
+            .AsTask();
+        var sync = batch
+            .SendSyncAsync()
+            .AsTask();
         input.Resume();
 
         var held = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
@@ -24,11 +36,15 @@ public sealed class FlushCoalescingTests
         Assert.False(second.IsCompleted);
         Assert.False(sync.IsCompleted);
         wire.Outgoing.Reader.AdvanceTo(held.Buffer.End);
-        await Task.WhenAll(first, second, sync).WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
+        await Task
+            .WhenAll(first, second, sync)
+            .WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         input.Revoke();
         await wire.WriteAsync(Join(Query(1), Query(2), Ready()));
         await using var reader = await batch.ReadResultsAsync();
-        for (var i = 0; i < 2; i++)
+        for (var i = 0;
+             i < 2;
+             i++)
         {
             Assert.Equal(i, reader.QueryIndex);
             Assert.True(await reader.ReadAsync());
@@ -46,18 +62,38 @@ public sealed class FlushCoalescingTests
         using var input = new BlockingInputMemory(true);
         await using var wire = new ScriptedSession(true);
         var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        var first = batch.SendQueryAsync("select $1", new[] {MpgsqlParameterValue.Int64Array(input.Memory)}).AsTask();
+        var first = batch
+            .SendQueryAsync
+            (
+                "select $1", new[]
+                {
+                    MpgsqlParameterValue.Int64Array(input.Memory)
+                }
+            )
+            .AsTask();
         await input.Entered.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
-        var second = batch.SendQueryAsync("select 2").AsTask();
-        var sync = batch.SendSyncAsync().AsTask();
+        var second = batch
+            .SendQueryAsync("select 2")
+            .AsTask();
+        var sync = batch
+            .SendSyncAsync()
+            .AsTask();
         input.Resume();
         var held = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
         Assert.Equal("PBDEPBDES", new string(Tags(held.Buffer.ToArray())));
         var cause = new IOException("shared output failure");
         await wire.Outgoing.Reader.CompleteAsync(cause);
         var failure = await Assert.ThrowsAnyAsync<IOException>(() => first.WaitAsync(TestTimeout, TestContext.Current.CancellationToken));
-        foreach (var task in new[] {second, sync, batch.Completion, wire.Session.Completion})
+        foreach (var task in new[]
+                 {
+                     second,
+                     sync,
+                     batch.Completion,
+                     wire.Session.Completion
+                 })
+        {
             Assert.Same(failure, await Assert.ThrowsAnyAsync<IOException>(() => task.WaitAsync(TestTimeout, TestContext.Current.CancellationToken)));
+        }
         Assert.False(wire.Session.IsHealthy);
     }
 }

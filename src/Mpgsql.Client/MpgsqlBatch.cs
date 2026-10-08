@@ -11,7 +11,10 @@ public sealed class MpgsqlBatch : DbBatch
     internal readonly Lock Gate = new Lock();
     private long[] _affectedRows = [];
     private MpgsqlConnection? _connection;
-    private bool _disposed, _timeoutSet;
+
+    private bool _disposed,
+        _timeoutSet;
+
     private QueryExecution? _execution;
     private QueryDefinition[] _queries = [];
     private int _timeout;
@@ -58,7 +61,9 @@ public sealed class MpgsqlBatch : DbBatch
                 }
                 if (!ReferenceEquals(_connection, value))
                 {
-                    for (var i = 0; i < BatchCommands.Count; i++)
+                    for (var i = 0;
+                         i < BatchCommands.Count;
+                         i++)
                     {
                         if (BatchCommands[i].Statement is not null)
                         {
@@ -149,15 +154,18 @@ public sealed class MpgsqlBatch : DbBatch
     }
     protected override async Task<DbDataReader> ExecuteDbDataReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken)
     {
-        return await ExecuteReaderValueTaskAsync(behavior, cancellationToken).ConfigureAwait(false);
+        return await ExecuteReaderValueTaskAsync(behavior, cancellationToken)
+            .ConfigureAwait(false);
     }
     public async new Task<MpgsqlDataReader> ExecuteReaderAsync(CancellationToken cancellationToken = default)
     {
-        return await ExecuteReaderValueTaskAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        return await ExecuteReaderValueTaskAsync(cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
     }
     public async new Task<MpgsqlDataReader> ExecuteReaderAsync(CommandBehavior behavior, CancellationToken cancellationToken = default)
     {
-        return await ExecuteReaderValueTaskAsync(behavior, cancellationToken).ConfigureAwait(false);
+        return await ExecuteReaderValueTaskAsync(behavior, cancellationToken)
+            .ConfigureAwait(false);
     }
     private MpgsqlConnection ValidateConnection()
     {
@@ -176,9 +184,12 @@ public sealed class MpgsqlBatch : DbBatch
         var entered = 0;
         try
         {
-            for (; entered < BatchCommands.Count; entered++)
+            for (;
+                 entered < BatchCommands.Count;
+                 entered++)
             {
-                BatchCommands[entered].Gate.Enter();
+                BatchCommands[entered]
+                    .Gate.Enter();
             }
             IsBusy = true;
         }
@@ -186,7 +197,8 @@ public sealed class MpgsqlBatch : DbBatch
         {
             while (entered != 0)
             {
-                BatchCommands[--entered].Gate.Exit();
+                BatchCommands[--entered]
+                    .Gate.Exit();
             }
         }
     }
@@ -212,9 +224,12 @@ public sealed class MpgsqlBatch : DbBatch
                     _affectedRows = new long[BatchCommands.Count];
                 }
                 Array.Fill(_affectedRows, -1L);
-                for (var i = 0; i < _queries.Length; i++)
+                for (var i = 0;
+                     i < _queries.Length;
+                     i++)
                 {
-                    _queries[i] = BatchCommands[i].Snapshot();
+                    _queries[i] = BatchCommands[i]
+                        .Snapshot();
                     BatchCommands[i].RecordsAffected64 = -1;
                 }
                 execution = _execution = connection.Start(default, _queries, cancellationToken, _timeout, Complete, affectedRows: _affectedRows);
@@ -226,12 +241,27 @@ public sealed class MpgsqlBatch : DbBatch
                 throw;
             }
         }
-        var raw = await execution.OpenReaderAsync().ConfigureAwait(false);
+        var raw = await execution
+            .OpenReaderAsync()
+            .ConfigureAwait(false);
         var reader = new MpgsqlDataReader(raw, execution, connection, behavior);
-        try { reader.Initialize(await raw.ReadAsync().ConfigureAwait(false)); }
+        try
+        {
+            reader.Initialize
+            (
+                await raw
+                    .ReadAsync()
+                    .ConfigureAwait(false)
+            );
+        }
         catch (Exception error)
         {
-            try { await execution.FinishAsync(true).ConfigureAwait(false); }
+            try
+            {
+                await execution
+                    .FinishAsync(true)
+                    .ConfigureAwait(false);
+            }
             catch { }
             ExceptionDispatchInfo.Throw(execution.Map(error));
         }
@@ -243,7 +273,9 @@ public sealed class MpgsqlBatch : DbBatch
         {
             if (_execution is not null && _affectedRows.Length == BatchCommands.Count)
             {
-                for (var i = 0; i < _affectedRows.Length; i++)
+                for (var i = 0;
+                     i < _affectedRows.Length;
+                     i++)
                 {
                     BatchCommands[i].RecordsAffected64 = _affectedRows[i];
                 }
@@ -259,20 +291,28 @@ public sealed class MpgsqlBatch : DbBatch
     }
     public override async Task<int> ExecuteNonQueryAsync(CancellationToken cancellationToken = default)
     {
-        return checked((int)await ExecuteNonQuery64Async(cancellationToken).ConfigureAwait(false));
+        return checked((int)await ExecuteNonQuery64Async(cancellationToken)
+            .ConfigureAwait(false));
     }
     public async ValueTask<long> ExecuteNonQuery64Async(CancellationToken cancellationToken = default)
     {
-        await using var reader = await ExecuteReaderValueTaskAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        await using var reader = await ExecuteReaderValueTaskAsync(cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
         do
         {
-            while (await reader.ReadValueTaskAsync().ConfigureAwait(false)) { }
-        } while (await reader.NextResultValueTaskAsync().ConfigureAwait(false));
+            while (await reader
+                       .ReadValueTaskAsync()
+                       .ConfigureAwait(false)) { }
+        }
+        while (await reader
+                   .NextResultValueTaskAsync()
+                   .ConfigureAwait(false));
         return reader.RecordsAffected64;
     }
     public override async Task<object?> ExecuteScalarAsync(CancellationToken cancellationToken = default)
     {
-        await using var reader = await ExecuteReaderValueTaskAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        await using var reader = await ExecuteReaderValueTaskAsync(cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
         object? result = null;
         var selected = false;
         do
@@ -280,18 +320,26 @@ public sealed class MpgsqlBatch : DbBatch
             if (!selected && reader.IsRowSet)
             {
                 selected = true;
-                if (await reader.ReadValueTaskAsync().ConfigureAwait(false) && reader.FieldCount > 0)
+                if (await reader
+                        .ReadValueTaskAsync()
+                        .ConfigureAwait(false) && reader.FieldCount > 0)
                 {
                     result = reader.GetValue(0);
                 }
             }
-            while (await reader.ReadValueTaskAsync().ConfigureAwait(false)) { }
-        } while (await reader.NextResultValueTaskAsync().ConfigureAwait(false));
+            while (await reader
+                       .ReadValueTaskAsync()
+                       .ConfigureAwait(false)) { }
+        }
+        while (await reader
+                   .NextResultValueTaskAsync()
+                   .ConfigureAwait(false));
         return result;
     }
     public async ValueTask<MpgsqlScalarResult<T>> ExecuteScalarAsync<T>(CancellationToken cancellationToken = default)
     {
-        await using var reader = await ExecuteReaderValueTaskAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        await using var reader = await ExecuteReaderValueTaskAsync(cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
         MpgsqlScalarResult<T> result = default;
         var selected = false;
         do
@@ -299,13 +347,20 @@ public sealed class MpgsqlBatch : DbBatch
             if (!selected && reader.IsRowSet)
             {
                 selected = true;
-                if (await reader.ReadValueTaskAsync().ConfigureAwait(false) && reader.FieldCount > 0)
+                if (await reader
+                        .ReadValueTaskAsync()
+                        .ConfigureAwait(false) && reader.FieldCount > 0)
                 {
                     result = reader.IsDBNull(0) ? new MpgsqlScalarResult<T>(true, default) : new MpgsqlScalarResult<T>(false, reader.GetFieldValue<T>(0));
                 }
             }
-            while (await reader.ReadValueTaskAsync().ConfigureAwait(false)) { }
-        } while (await reader.NextResultValueTaskAsync().ConfigureAwait(false));
+            while (await reader
+                       .ReadValueTaskAsync()
+                       .ConfigureAwait(false)) { }
+        }
+        while (await reader
+                   .NextResultValueTaskAsync()
+                   .ConfigureAwait(false));
         return result;
     }
     public override Task PrepareAsync(CancellationToken cancellationToken = default)
@@ -331,13 +386,18 @@ public sealed class MpgsqlBatch : DbBatch
                 var queries = new QueryDefinition[BatchCommands.Count];
                 if (!close)
                 {
-                    for (var i = 0; i < queries.Length; i++)
+                    for (var i = 0;
+                         i < queries.Length;
+                         i++)
                     {
-                        queries[i] = BatchCommands[i].Snapshot();
+                        queries[i] = BatchCommands[i]
+                            .Snapshot();
                     }
                 }
                 created = new MpgsqlPreparedStatement?[queries.Length];
-                for (var i = 0; i < BatchCommands.Count; i++)
+                for (var i = 0;
+                     i < BatchCommands.Count;
+                     i++)
                 {
                     var command = BatchCommands[i];
                     var query = queries[i];
@@ -351,7 +411,9 @@ public sealed class MpgsqlBatch : DbBatch
                     else if (command.Statement is null)
                     {
                         var oids = new uint[query.Parameters.Length];
-                        for (var j = 0; j < oids.Length; j++)
+                        for (var j = 0;
+                             j < oids.Length;
+                             j++)
                         {
                             oids[j] = query.Parameters.Span[j].PostgresTypeOid;
                         }
@@ -370,12 +432,17 @@ public sealed class MpgsqlBatch : DbBatch
         }
         try
         {
-            await _execution.FinishAsync(false, true).ConfigureAwait(false);
+            await _execution
+                .FinishAsync(false, true)
+                .ConfigureAwait(false);
             if (close)
             {
-                for (var i = 0; i < BatchCommands.Count; i++)
+                for (var i = 0;
+                     i < BatchCommands.Count;
+                     i++)
                 {
-                    BatchCommands[i].Statement?.Dispose();
+                    BatchCommands[i]
+                        .Statement?.Dispose();
                     BatchCommands[i].Statement = null;
                 }
             }
@@ -386,7 +453,9 @@ public sealed class MpgsqlBatch : DbBatch
             // handles available for explicit Unprepare; failed/skipped handles stay local.
             if (!close)
             {
-                for (var i = 0; i < created.Length; i++)
+                for (var i = 0;
+                     i < created.Length;
+                     i++)
                 {
                     if (created[i] is { } statement)
                     {
@@ -428,7 +497,12 @@ public sealed class MpgsqlBatch : DbBatch
     }
     private static async Task ObserveAsync(QueryExecution execution)
     {
-        try { await execution.FinishAsync(true).ConfigureAwait(false); }
+        try
+        {
+            await execution
+                .FinishAsync(true)
+                .ConfigureAwait(false);
+        }
         catch { }
     }
     public override async ValueTask DisposeAsync()
@@ -445,7 +519,9 @@ public sealed class MpgsqlBatch : DbBatch
         }
         if (execution is not null)
         {
-            await execution.FinishAsync(true).ConfigureAwait(false);
+            await execution
+                .FinishAsync(true)
+                .ConfigureAwait(false);
         }
     }
 }

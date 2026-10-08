@@ -8,19 +8,24 @@ public sealed class ExecutionEntryTests
     public async Task DataSourceEntryFailureIsCapturedWithoutOpeningATransport(bool cancelled)
     {
         var opened = 0;
-        await using var source = new MpgsqlMultiplexingDataSource(_ =>
-        {
-            opened++;
-            return ValueTask.FromException<MpgsqlMessageSession>(new InvalidOperationException("Unexpected factory call."));
-        });
+        await using var source = new MpgsqlMultiplexingDataSource
+        (_ =>
+            {
+                opened++;
+                return ValueTask.FromException<MpgsqlMessageSession>(new InvalidOperationException("Unexpected factory call."));
+            }
+        );
         using var request = new CancellationTokenSource();
         if (cancelled)
         {
             request.Cancel();
         }
         // Calling the async API itself must not throw; it returns the failed operation.
-        var operation = source.ExecuteReaderAsync(cancelled ? "select 1" : null!,
-            cancellationToken: request.Token);
+        var operation = source.ExecuteReaderAsync
+        (
+            cancelled ? "select 1" : null!,
+            cancellationToken: request.Token
+        );
         var task = operation.AsTask();
         if (cancelled)
         {
@@ -40,8 +45,11 @@ public sealed class ExecutionEntryTests
     public async Task DisposedCommandOrBatchReturnsAFailedOperationWithoutWriting(bool batchPath)
     {
         await using var wire = new ScriptedSession();
-        await using var source = new MpgsqlDataSource(_ => ValueTask.FromResult(wire.Session),
-            (_, _) => ValueTask.CompletedTask);
+        await using var source = new MpgsqlDataSource
+        (
+            _ => ValueTask.FromResult(wire.Session),
+            (_, _) => ValueTask.CompletedTask
+        );
         await using var connection = await source.OpenConnectionAsync(TestContext.Current.CancellationToken);
         ValueTask<MpgsqlDataReader> operation;
         if (batchPath)
@@ -65,15 +73,29 @@ public sealed class ExecutionEntryTests
     public async Task UncancelableAdmissionIsStillReleasedWhenTheSourceIsDisposed()
     {
         await using var wire = new ScriptedSession();
-        await using var source = new MpgsqlMultiplexingDataSource(_ => ValueTask.FromResult(wire.Session), new MpgsqlMultiplexingOptions {MaxConnections = 1, MaxInFlightPerConnection = 1});
+        await using var source = new MpgsqlMultiplexingDataSource
+        (
+            _ => ValueTask.FromResult(wire.Session), new MpgsqlMultiplexingOptions
+            {
+                MaxConnections = 1,
+                MaxInFlightPerConnection = 1
+            }
+        );
         await using var held = await MultiplexingLease.HoldAsync(wire, source, TestContext.Current.CancellationToken);
 #pragma warning disable xUnit1051 // This case deliberately exercises the uncancelable admission path.
-        var waiting = source.ExecuteReaderAsync("select queued", cancellationToken: CancellationToken.None).AsTask();
+        var waiting = source
+            .ExecuteReaderAsync("select queued", cancellationToken: CancellationToken.None)
+            .AsTask();
 #pragma warning restore xUnit1051
         Assert.False(waiting.IsCompleted);
         Assert.False(wire.HasOutput());
         await source.DisposeAsync();
-        await Assert.ThrowsAsync<ObjectDisposedException>(() => waiting.WaitAsync(TestTimeout,
-            TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ObjectDisposedException>
+        (() => waiting.WaitAsync
+            (
+                TestTimeout,
+                TestContext.Current.CancellationToken
+            )
+        );
     }
 }

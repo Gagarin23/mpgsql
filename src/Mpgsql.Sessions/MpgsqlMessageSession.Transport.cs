@@ -21,8 +21,12 @@ public sealed partial class MpgsqlMessageSession
         SocketTransport? transport = null;
         try
         {
-            transport = await SocketTransport.ConnectAsync(options, deadline.Token).ConfigureAwait(false);
-            await transport.StartupAsync(deadline.Token).ConfigureAwait(false);
+            transport = await SocketTransport
+                .ConnectAsync(options, deadline.Token)
+                .ConfigureAwait(false);
+            await transport
+                .StartupAsync(deadline.Token)
+                .ConfigureAwait(false);
             return new MpgsqlMessageSession(PipeReader.Create(transport.Stream, new StreamPipeReaderOptions(leaveOpen: true)), PipeWriter.Create(transport.Stream, new StreamPipeWriterOptions(leaveOpen: true)), default, transport);
         }
         catch (OperationCanceledException error) when (!cancellationToken.IsCancellationRequested)

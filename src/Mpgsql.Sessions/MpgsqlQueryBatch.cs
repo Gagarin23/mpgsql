@@ -49,8 +49,10 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
     private BatchCompletionSignal _sealed;
     private int _syncQueued;
 
-    internal MpgsqlQueryBatch(MpgsqlMessageSession session,
-        CancellationToken token, bool sharedSync = false)
+    internal MpgsqlQueryBatch(
+        MpgsqlMessageSession session,
+        CancellationToken token, bool sharedSync = false
+    )
     {
         _session = session;
         if (sharedSync)
@@ -58,15 +60,21 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
             _syncGroup = new SharedSyncGroup(this);
         }
         RequestToken = token;
-        _registration = token.UnsafeRegister(static state =>
+        _registration = token.UnsafeRegister
+        (
+            static state =>
             {
                 var batch = (MpgsqlQueryBatch)state!;
-                Volatile.Write(ref batch._discard,
-                    1);
+                Volatile.Write
+                (
+                    ref batch._discard,
+                    1
+                );
                 batch._session.WakeRowBudget();
                 batch._session.ScheduleDiscard(batch);
             },
-            this);
+            this
+        );
     }
     internal TimeSpan RecoveryTimeout { get; set; }
     internal long RecordsAffected => Volatile.Read(ref _affectedRows);
@@ -134,12 +142,19 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
     /// <summary>Discards consumption. Never sends Sync; the sending flow must still call SendSyncAsync.</summary>
     public async ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref _disposed,
-                1) != 0)
+        if (Interlocked.Exchange
+            (
+                ref _disposed,
+                1
+            ) != 0)
         {
             return;
         }
-        try { await DiscardResultsAsync().ConfigureAwait(false); }
+        try
+        {
+            await DiscardResultsAsync()
+                .ConfigureAwait(false);
+        }
         finally { _session.ReleaseBatch(this); }
     }
 
@@ -155,13 +170,18 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
         _syncGroup?.ReleaseMembers(_session);
     }
 
-    public ValueTask SendQueryAsync(string sql,
-        ReadOnlyMemory<MpgsqlParameterValue> parameters = default)
+    public ValueTask SendQueryAsync(
+        string sql,
+        ReadOnlyMemory<MpgsqlParameterValue> parameters = default
+    )
     {
         ThrowForSend();
-        return _session.SendQueryAsync(this,
+        return _session.SendQueryAsync
+        (
+            this,
             sql,
-            parameters);
+            parameters
+        );
     }
 
     internal Task SendQueriesAsync(QueryDefinition[] queries)
@@ -185,8 +205,10 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
     }
 
     /// <summary>Queues binary Bind, portal Describe and unlimited Execute without another Parse or Sync.</summary>
-    public ValueTask SendQueryAsync(MpgsqlPreparedStatement statement,
-        ReadOnlyMemory<MpgsqlParameterValue> parameters = default)
+    public ValueTask SendQueryAsync(
+        MpgsqlPreparedStatement statement,
+        ReadOnlyMemory<MpgsqlParameterValue> parameters = default
+    )
     {
         ThrowForSend();
         return _session.SendQueryAsync(this, statement, parameters);
@@ -209,9 +231,12 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
 
     public async ValueTask<MpgsqlResultReader> ReadResultsAsync()
     {
-        if (Interlocked.CompareExchange(ref _readStarted,
+        if (Interlocked.CompareExchange
+            (
+                ref _readStarted,
                 1,
-                0) != 0)
+                0
+            ) != 0)
         {
             throw new InvalidOperationException("ReadResultsAsync can be called only once per group.");
         }
@@ -223,12 +248,15 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
         {
             RequestToken.ThrowIfCancellationRequested();
             _reader = new MpgsqlResultReader(this);
-            await _reader.InitializeAsync().ConfigureAwait(false);
+            await _reader
+                .InitializeAsync()
+                .ConfigureAwait(false);
             return _reader;
         }
         catch
         {
-            await DisposeAsync().ConfigureAwait(false);
+            await DisposeAsync()
+                .ConfigureAwait(false);
             throw;
         }
     }
@@ -286,9 +314,12 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
 
     internal void SyncQueued()
     {
-        if (Interlocked.CompareExchange(ref _syncQueued,
+        if (Interlocked.CompareExchange
+            (
+                ref _syncQueued,
                 1,
-                0) != 0)
+                0
+            ) != 0)
         {
             throw new InvalidOperationException("SendSyncAsync can be called only once per group.");
         }
@@ -372,14 +403,21 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
 
     private async Task BoundErrorRecoveryAsync()
     {
-        try { await Completion.WaitAsync(RecoveryTimeout).ConfigureAwait(false); }
+        try
+        {
+            await Completion
+                .WaitAsync(RecoveryTimeout)
+                .ConfigureAwait(false);
+        }
         catch (TimeoutException error) { _session.Abort(error); }
         catch { }
     }
 
-    internal void Accept(BackendMessage message,
+    internal void Accept(
+        BackendMessage message,
         ref IMemoryOwner<byte>? owner,
-        ref RowBufferBudget? reservation, bool notifyEnd = true)
+        ref RowBufferBudget? reservation, bool notifyEnd = true
+    )
     {
         lock (_gate)
         {
@@ -410,9 +448,12 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
                 }
                 TransactionStatus = message.GetTransactionStatus();
                 var failure = _error is { } error
-                    ? new MpgsqlServerException(error,
+                    ? new MpgsqlServerException
+                    (
+                        error,
                         _errorIndex,
-                        TransactionStatus.Value)
+                        TransactionStatus.Value
+                    )
                     : null;
                 if (failure is not null)
                 {
@@ -465,18 +506,34 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
                     _columnCount = columns.Length;
                     _hasRows = true;
                     _phase = Phase.Rows;
-                    Publish(new ResultEvent(response.QueryIndex!.Value,
-                        columns, IsRowSet: true));
+                    Publish
+                    (
+                        new ResultEvent
+                        (
+                            response.QueryIndex!.Value,
+                            columns, IsRowSet: true
+                        )
+                    );
                     break;
                 case (Phase.Describe, BackendMessageKind.NoData):
                     _columnCount = 0;
                     _hasRows = false;
                     _phase = Phase.Rows;
-                    Publish(new ResultEvent(response.QueryIndex!.Value,
-                        default));
+                    Publish
+                    (
+                        new ResultEvent
+                        (
+                            response.QueryIndex!.Value,
+                            default
+                        )
+                    );
                     break;
                 case (Phase.Rows, BackendMessageKind.DataRow):
-                    ValidateRow(message.GetDataRow().Count);
+                    ValidateRow
+                    (
+                        message.GetDataRow()
+                            .Count
+                    );
                     if (!DiscardsRows)
                     {
                         var row = _session.OwnRow(message, owner, reservation);
@@ -486,9 +543,15 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
                             _session.RecordRowCopy(message.Payload.Length);
                         }
                         owner = null;
-                        Publish(new ResultEvent(response.QueryIndex!.Value,
-                            default,
-                            row));
+                        Publish
+                        (
+                            new ResultEvent
+                            (
+                                response.QueryIndex!.Value,
+                                default,
+                                row
+                            )
+                        );
                     }
                     else
                     {
@@ -512,10 +575,16 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
                             Volatile.Write(ref _affectedRows, checked(Math.Max(0, _affectedRows) + rows));
                         }
                     }
-                    Publish(new ResultEvent(response.QueryIndex!.Value,
-                        default,
-                        CommandTag: tag,
-                        IsEnd: true), notifyEnd);
+                    Publish
+                    (
+                        new ResultEvent
+                        (
+                            response.QueryIndex!.Value,
+                            default,
+                            CommandTag: tag,
+                            IsEnd: true
+                        ), notifyEnd
+                    );
                     EndResponse();
                     break;
                 default: Unexpected(message.Kind); break;
@@ -673,16 +742,25 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
             {
                 var terminal = error as MpgsqlServerException;
                 // A later connection diagnostic supersedes the group's earlier SQL error.
-                error = new MpgsqlServerException(terminal?.Diagnostics ?? diagnostics, _errorIndex, null,
-                    terminal is null ? error : terminal.InnerException);
+                error = new MpgsqlServerException
+                (
+                    terminal?.Diagnostics ?? diagnostics, _errorIndex, null,
+                    terminal is null ? error : terminal.InnerException
+                );
             }
-            Volatile.Write(ref _discard,
-                1);
+            Volatile.Write
+            (
+                ref _discard,
+                1
+            );
             _syncGroup?.Fail(error);
             _pendingWrite?.FailQueued(error);
             if (_pendingWrites is { } writes)
             {
-                foreach (var work in writes) work.FailQueued(error);
+                foreach (var work in writes)
+                {
+                    work.FailQueued(error);
+                }
             }
             FailPreparations(error);
             DrainEvents();
@@ -699,7 +777,10 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
             _pendingWrite?.Cancel();
             if (_pendingWrites is { } writes)
             {
-                foreach (var work in writes) work.Cancel();
+                foreach (var work in writes)
+                {
+                    work.Cancel();
+                }
             }
             DrainEvents();
             _events.Complete(new OperationCanceledException(RequestToken));
@@ -725,8 +806,11 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
         try { await Completion.ConfigureAwait(false); }
         catch
         {
-            if (Interlocked.Exchange(ref _errorObserved,
-                    1) == 0)
+            if (Interlocked.Exchange
+                (
+                    ref _errorObserved,
+                    1
+                ) == 0)
             {
                 throw;
             }
@@ -735,8 +819,11 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
 
     internal void BeginDiscard()
     {
-        Volatile.Write(ref _discard,
-            1);
+        Volatile.Write
+        (
+            ref _discard,
+            1
+        );
         lock (_gate)
         {
             DrainEvents();
@@ -751,7 +838,8 @@ public sealed class MpgsqlQueryBatch : IAsyncDisposable
         _reader?.ReleaseCurrent();
         if (Volatile.Read(ref _syncQueued) != 0 && !RequestToken.IsCancellationRequested)
         {
-            await ObserveCompletionAsync().ConfigureAwait(false);
+            await ObserveCompletionAsync()
+                .ConfigureAwait(false);
         }
     }
 

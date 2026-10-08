@@ -16,21 +16,50 @@ public sealed class GroupedOutboundTests
     private static async Task<byte[]> ThroughSync(ScriptedSession wire, int count = 1)
     {
         var bytes = new List<byte>();
-        while (Tags([.. bytes]).Count(tag => tag == 'S') < count)
+        while (Tags([.. bytes])
+                   .Count(tag => tag == 'S') < count)
         {
             bytes.AddRange(await wire.ReadOutputAsync());
         }
         return [.. bytes];
     }
 
-    private static void ExpectedQuery(ArrayBufferWriter<byte> destination, string sql,
-        long value)
+    private static void ExpectedQuery(
+        ArrayBufferWriter<byte> destination, string sql,
+        long value
+    )
     {
-        FrontendMessage.Parse(sql, parameterTypes: new uint[] {20}).Write(destination);
-        FrontendMessage.Bind(parameters: new ReadOnlyMemory<byte>?[] {Int64(value)},
-            parameterFormats: new[] {FormatCode.Binary}, resultFormats: new[] {FormatCode.Binary}).Write(destination);
-        FrontendMessage.Describe(StatementOrPortal.Portal).Write(destination);
-        FrontendMessage.Execute().Write(destination);
+        FrontendMessage
+            .Parse
+            (
+                sql, parameterTypes: new uint[]
+                {
+                    20
+                }
+            )
+            .Write(destination);
+        FrontendMessage
+            .Bind
+            (
+                parameters: new ReadOnlyMemory<byte>?[]
+                {
+                    Int64(value)
+                },
+                parameterFormats: new[]
+                {
+                    FormatCode.Binary
+                }, resultFormats: new[]
+                {
+                    FormatCode.Binary
+                }
+            )
+            .Write(destination);
+        FrontendMessage
+            .Describe(StatementOrPortal.Portal)
+            .Write(destination);
+        FrontendMessage
+            .Execute()
+            .Write(destination);
     }
 
     [Theory, InlineData(16), InlineData(257)]
@@ -40,24 +69,52 @@ public sealed class GroupedOutboundTests
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         var queries = new QueryDefinition[count];
         var expected = new ArrayBufferWriter<byte>();
-        for (var i = 0; i < count; i++)
+        for (var i = 0;
+             i < count;
+             i++)
         {
-            queries[i] = new QueryDefinition(Sql, new[] {MpgsqlParameterValue.Int64(i)});
+            queries[i] = new QueryDefinition
+            (
+                Sql, new[]
+                {
+                    MpgsqlParameterValue.Int64(i)
+                }
+            );
             ExpectedQuery(expected, Sql, i);
         }
-        FrontendMessage.Sync().Write(expected);
+        FrontendMessage
+            .Sync()
+            .Write(expected);
         var send = batch.SendQueriesAsync(queries);
-        var sync = batch.SendSyncAsync().AsTask();
+        var sync = batch
+            .SendSyncAsync()
+            .AsTask();
         await using var neighbour = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        var nextSend = neighbour.SendQueryAsync(Sql, new[] {MpgsqlParameterValue.Int64(999)}).AsTask();
-        var nextSync = neighbour.SendSyncAsync().AsTask();
+        var nextSend = neighbour
+            .SendQueryAsync
+            (
+                Sql, new[]
+                {
+                    MpgsqlParameterValue.Int64(999)
+                }
+            )
+            .AsTask();
+        var nextSync = neighbour
+            .SendSyncAsync()
+            .AsTask();
         ExpectedQuery(expected, Sql, 999);
-        FrontendMessage.Sync().Write(expected);
+        FrontendMessage
+            .Sync()
+            .Write(expected);
         Assert.Equal(expected.WrittenSpan.ToArray(), await ThroughSync(wire, 2));
-        await Task.WhenAll(send, sync, nextSend, nextSync).WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
+        await Task
+            .WhenAll(send, sync, nextSend, nextSync)
+            .WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
 
         var responses = new byte[count + 3][];
-        for (var i = 0; i < count; i++)
+        for (var i = 0;
+             i < count;
+             i++)
         {
             responses[i] = Query(i);
         }
@@ -66,7 +123,9 @@ public sealed class GroupedOutboundTests
         responses[count + 2] = Ready();
         await wire.WriteAsync(Join(responses), 7);
         await using var reader = await batch.ReadResultsAsync();
-        for (var i = 0; i < count; i++)
+        for (var i = 0;
+             i < count;
+             i++)
         {
             Assert.Equal(i, reader.QueryIndex);
             Assert.True(await reader.ReadAsync());
@@ -91,25 +150,62 @@ public sealed class GroupedOutboundTests
         using var first = new BlockingInputMemory();
         using var queued = new BlockingInputMemory();
         await using var wire = new ScriptedSession(true);
-        await using var source = new MpgsqlMultiplexingDataSource(_ => ValueTask.FromResult(wire.Session), new MpgsqlMultiplexingOptions {MaxConnections = 1, MaxInFlightPerConnection = 2});
+        await using var source = new MpgsqlMultiplexingDataSource
+        (
+            _ => ValueTask.FromResult(wire.Session), new MpgsqlMultiplexingOptions
+            {
+                MaxConnections = 1,
+                MaxInFlightPerConnection = 2
+            }
+        );
         await using var preceding = partial ? null : wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         Task? precedingSend = null;
         Task? precedingSync = null;
         ReadResult held = default;
         if (preceding is not null)
         {
-            precedingSend = preceding.SendQueryAsync(Sql, new[] {MpgsqlParameterValue.Int64(7)}).AsTask();
-            precedingSync = preceding.SendSyncAsync().AsTask();
+            precedingSend = preceding
+                .SendQueryAsync
+                (
+                    Sql, new[]
+                    {
+                        MpgsqlParameterValue.Int64(7)
+                    }
+                )
+                .AsTask();
+            precedingSync = preceding
+                .SendSyncAsync()
+                .AsTask();
             held = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
         }
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        var pooled = new PooledSession(wire.Session) {Active = 1};
-        var execution = new QueryExecution(source, pooled,
-        [
-            new QueryDefinition(LargeSql, new[] {MpgsqlParameterValue.Int64Array(first.Memory)}),
-            new QueryDefinition("select $1::bigint[]", new[] {MpgsqlParameterValue.Int64Array(queued.Memory)})
-        ], request.Token);
-        var opening = execution.OpenReaderAsync(true).AsTask();
+        var pooled = new PooledSession(wire.Session)
+        {
+            Active = 1
+        };
+        var execution = new QueryExecution
+        (
+            source, pooled,
+            [
+                new QueryDefinition
+                (
+                    LargeSql, new[]
+                    {
+                        MpgsqlParameterValue.Int64Array(first.Memory)
+                    }
+                ),
+                new QueryDefinition
+                (
+                    "select $1::bigint[]", new[]
+                    {
+                        MpgsqlParameterValue.Int64Array(queued.Memory)
+                    }
+                )
+            ], request.Token
+        );
+        var opening = execution
+            .OpenReaderAsync(true)
+            .AsTask();
         if (partial)
         {
             held = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
@@ -121,11 +217,23 @@ public sealed class GroupedOutboundTests
         }
         else
         {
-            Assert.Contains(tags, new[] {"PBDE", "PBDES"});
+            Assert.Contains
+            (
+                tags, new[]
+                {
+                    "PBDE",
+                    "PBDES"
+                }
+            );
         }
         request.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => opening.WaitAsync(TimeSpan.FromSeconds(2),
-            TestContext.Current.CancellationToken));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>
+        (() => opening.WaitAsync
+            (
+                TimeSpan.FromSeconds(2),
+                TestContext.Current.CancellationToken
+            )
+        );
         Assert.Equal(partial ? 1 : 0, first.Reads);
         Assert.Equal(0, queued.Reads);
         first.Revoke();
@@ -139,7 +247,10 @@ public sealed class GroupedOutboundTests
             await Task.WhenAll(precedingSend, precedingSync!);
         }
         await wire.WriteAsync(partial ? Join(Query(11), Ready()) : Join(Query(7), Ready(), Ready()));
-        await execution.FinishAsync(true).AsTask().WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
+        await execution
+            .FinishAsync(true)
+            .AsTask()
+            .WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         Assert.Equal(0, pooled.Active);
         Assert.Equal(0, queued.Reads);
         Assert.True(wire.Session.IsHealthy);
@@ -153,12 +264,28 @@ public sealed class GroupedOutboundTests
         using var queued = new BlockingInputMemory();
         await using var wire = new ScriptedSession(partial);
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        var send = batch.SendQueriesAsync(
-        [
-            new QueryDefinition(partial ? LargeSql : "select $1::bigint[]", new[] {MpgsqlParameterValue.Int64Array(first.Memory)}),
-            new QueryDefinition("select $1::bigint[]", new[] {MpgsqlParameterValue.Int64Array(queued.Memory)})
-        ]);
-        var sync = batch.SendSyncAsync().AsTask();
+        var send = batch.SendQueriesAsync
+        (
+            [
+                new QueryDefinition
+                (
+                    partial ? LargeSql : "select $1::bigint[]", new[]
+                    {
+                        MpgsqlParameterValue.Int64Array(first.Memory)
+                    }
+                ),
+                new QueryDefinition
+                (
+                    "select $1::bigint[]", new[]
+                    {
+                        MpgsqlParameterValue.Int64Array(queued.Memory)
+                    }
+                )
+            ]
+        );
+        var sync = batch
+            .SendSyncAsync()
+            .AsTask();
         if (partial)
         {
             var held = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
@@ -172,8 +299,13 @@ public sealed class GroupedOutboundTests
         try
         {
             await wire.Incoming.Writer.CompleteAsync();
-            await Assert.ThrowsAnyAsync<IOException>(() => wire.Session.Completion.WaitAsync(TestTimeout,
-                TestContext.Current.CancellationToken));
+            await Assert.ThrowsAnyAsync<IOException>
+            (() => wire.Session.Completion.WaitAsync
+                (
+                    TestTimeout,
+                    TestContext.Current.CancellationToken
+                )
+            );
             if (!partial)
             {
                 Assert.False(send.IsCompleted);
@@ -182,7 +314,11 @@ public sealed class GroupedOutboundTests
         finally { first.Resume(); }
         await Assert.ThrowsAnyAsync<IOException>(() => send.WaitAsync(TestTimeout, TestContext.Current.CancellationToken));
         await Assert.ThrowsAnyAsync<IOException>(() => sync.WaitAsync(TestTimeout, TestContext.Current.CancellationToken));
-        await Assert.ThrowsAnyAsync<IOException>(() => batch.ObserveCompletionAsync().AsTask());
+        await Assert.ThrowsAnyAsync<IOException>
+        (() => batch
+            .ObserveCompletionAsync()
+            .AsTask()
+        );
         first.Revoke();
         queued.Revoke();
         Assert.Equal(1, first.Reads);

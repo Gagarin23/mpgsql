@@ -11,8 +11,10 @@ internal sealed class RowStoragePool
     private int _count;
     private RowStorage? _head;
 
-    internal OwnedRow Rent(BackendMessage message, IMemoryOwner<byte>? owner,
-        RowBufferBudget? budget)
+    internal OwnedRow Rent(
+        BackendMessage message, IMemoryOwner<byte>? owner,
+        RowBufferBudget? budget
+    )
     {
         RowStorage? storage;
         lock (_gate)

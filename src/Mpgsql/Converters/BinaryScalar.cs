@@ -22,7 +22,8 @@ internal static class BinaryScalar<T, TCodec> where TCodec : struct, IBinaryCode
         {
             return;
         }
-        var bytes = destination.GetSpan(size)[..size];
+        var bytes = destination
+            .GetSpan(size)[..size];
         TCodec.CheckOverlap(value, bytes);
         TCodec.Write(value, bytes);
         destination.Advance(size);

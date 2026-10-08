@@ -15,7 +15,9 @@ internal static partial class BinaryArray<T, TCodec> where TCodec : struct, IBin
         else
         {
             foreach (var item in source)
+            {
                 elementBytes = checked(elementBytes + TCodec.Measure(item));
+            }
         }
         return ArrayPayload.Measure(source.Length, elementBytes);
     }
@@ -36,7 +38,8 @@ internal static partial class BinaryArray<T, TCodec> where TCodec : struct, IBin
         ArgumentNullException.ThrowIfNull(destination);
         var source = value.Span;
         var size = Measure(source);
-        var bytes = destination.GetSpan(size)[..size];
+        var bytes = destination
+            .GetSpan(size)[..size];
         CheckOverlap(source, bytes);
         WriteCore(source, bytes);
         destination.Advance(size);
@@ -48,7 +51,9 @@ internal static partial class BinaryArray<T, TCodec> where TCodec : struct, IBin
         if (TCodec.MayOverlap)
         {
             foreach (var item in source)
+            {
                 TCodec.CheckOverlap(item, destination);
+            }
         }
     }
 

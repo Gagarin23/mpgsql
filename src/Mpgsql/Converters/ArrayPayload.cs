@@ -14,8 +14,10 @@ internal static class ArrayPayload
         return count == 0 ? EmptyHeaderSize : checked(HeaderSize + 4 * count + elementBytes);
     }
 
-    internal static void WriteHeader(Span<byte> bytes, int count,
-        bool hasNull, uint oid)
+    internal static void WriteHeader(
+        Span<byte> bytes, int count,
+        bool hasNull, uint oid
+    )
     {
         // Int32 ndim, Int32 flags, UInt32 element OID; Int32 count/lower bound for ndim=1.
         BinaryPrimitives.WriteInt32BigEndian(bytes, count == 0 ? 0 : 1);
@@ -29,16 +31,21 @@ internal static class ArrayPayload
         BinaryPrimitives.WriteInt32BigEndian(bytes[16..], 1);
     }
 
-    internal static int ReadHeader(ReadOnlySpan<byte> bytes, uint oid,
-        int fixedSize, out int headerSize)
+    internal static int ReadHeader(
+        ReadOnlySpan<byte> bytes, uint oid,
+        int fixedSize, out int headerSize
+    )
     {
         if (bytes.Length < EmptyHeaderSize)
         {
             throw new InvalidDataException("Truncated PostgreSQL array header.");
         }
         var dimensions = BinaryPrimitives.ReadInt32BigEndian(bytes);
-        ValidateType(dimensions, BinaryPrimitives.ReadInt32BigEndian(bytes[4..]),
-            BinaryPrimitives.ReadUInt32BigEndian(bytes[8..]), oid);
+        ValidateType
+        (
+            dimensions, BinaryPrimitives.ReadInt32BigEndian(bytes[4..]),
+            BinaryPrimitives.ReadUInt32BigEndian(bytes[8..]), oid
+        );
         headerSize = dimensions == 0 ? EmptyHeaderSize : HeaderSize;
         if (bytes.Length < headerSize)
         {
@@ -50,8 +57,10 @@ internal static class ArrayPayload
         return count;
     }
 
-    internal static int ReadHeader(ref SequenceReader<byte> reader, uint oid,
-        int fixedSize)
+    internal static int ReadHeader(
+        ref SequenceReader<byte> reader, uint oid,
+        int fixedSize
+    )
     {
         if (!reader.TryReadBigEndian(out int dimensions) || !reader.TryReadBigEndian(out int flags) ||
             !reader.TryReadBigEndian(out int elementOid))
@@ -59,7 +68,8 @@ internal static class ArrayPayload
             throw new InvalidDataException("Truncated PostgreSQL array header.");
         }
         ValidateType(dimensions, flags, unchecked((uint)elementOid), oid);
-        int count = 0, lowerBound = 0;
+        int count = 0,
+            lowerBound = 0;
         if (dimensions == 1 && (!reader.TryReadBigEndian(out count) || !reader.TryReadBigEndian(out lowerBound)))
         {
             throw new InvalidDataException("Truncated PostgreSQL array dimension.");
@@ -68,8 +78,10 @@ internal static class ArrayPayload
         return count;
     }
 
-    private static void ValidateType(int dimensions, int flags,
-        uint actual, uint expected)
+    private static void ValidateType(
+        int dimensions, int flags,
+        uint actual, uint expected
+    )
     {
         if ((uint)dimensions > 6 || (uint)flags > 1 || actual != expected)
         {
@@ -81,8 +93,10 @@ internal static class ArrayPayload
         }
     }
 
-    private static void ValidateLength(int count, int lowerBound,
-        long remaining, int fixedSize)
+    private static void ValidateLength(
+        int count, int lowerBound,
+        long remaining, int fixedSize
+    )
     {
         if (count < 0 || (long)lowerBound + count > int.MaxValue || remaining < 4L * count ||
             count == 0 && remaining != 0 || fixedSize != 0 && remaining > (4L + fixedSize) * count)

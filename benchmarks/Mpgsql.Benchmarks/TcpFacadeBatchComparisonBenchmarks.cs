@@ -51,13 +51,21 @@ public class TcpFacadeBatchComparisonBenchmarks
     public void PrepareMpgsql()
     {
         MpgsqlBatches = new MpgsqlBatch[PreparedGroupsPerIteration];
-        for (var group = 0; group < MpgsqlBatches.Length; group++)
+        for (var group = 0;
+             group < MpgsqlBatches.Length;
+             group++)
         {
             var batch = _connection!.CreateBatch();
-            for (var worker = 0; worker < QueriesPerGroup; worker++)
+            for (var worker = 0;
+                 worker < QueriesPerGroup;
+                 worker++)
             {
                 var command = new MpgsqlBatchCommand(QueryScenario.One.Sql);
-                foreach (var parameter in _catalog.Inputs[0][worker]) command.Parameters.Add(parameter);
+                foreach (var parameter in _catalog
+                             .Inputs[0][worker])
+                {
+                    command.Parameters.Add(parameter);
+                }
                 batch.BatchCommands.Add(command);
             }
             MpgsqlBatches[group] = batch;
@@ -68,13 +76,28 @@ public class TcpFacadeBatchComparisonBenchmarks
     public void PrepareNpgsql()
     {
         NpgsqlBatches = new NpgsqlBatch[PreparedGroupsPerIteration];
-        for (var group = 0; group < NpgsqlBatches.Length; group++)
+        for (var group = 0;
+             group < NpgsqlBatches.Length;
+             group++)
         {
-            var batch = new NpgsqlBatch(_n!.Connection) {Timeout = 0, EnableErrorBarriers = false};
-            for (var worker = 0; worker < QueriesPerGroup; worker++)
+            var batch = new NpgsqlBatch(_n!.Connection)
+            {
+                Timeout = 0,
+                EnableErrorBarriers = false
+            };
+            for (var worker = 0;
+                 worker < QueriesPerGroup;
+                 worker++)
             {
                 var command = new NpgsqlBatchCommand(QueryScenario.One.Sql);
-                command.Parameters.Add(new NpgsqlParameter<long> {NpgsqlDbType = NpgsqlDbType.Bigint, TypedValue = worker + 1L});
+                command.Parameters.Add
+                (
+                    new NpgsqlParameter<long>
+                    {
+                        NpgsqlDbType = NpgsqlDbType.Bigint,
+                        TypedValue = worker + 1L
+                    }
+                );
                 batch.BatchCommands.Add(command);
             }
             NpgsqlBatches[group] = batch;
@@ -89,8 +112,12 @@ public class TcpFacadeBatchComparisonBenchmarks
         {
             await using (batch.ConfigureAwait(false))
             {
-                await using var reader = await batch.ExecuteReaderValueTaskAsync().ConfigureAwait(false);
-                sum += await TcpQueryOperations.ConsumeAsync(reader, QueryScenario.One, _m!.Buffers[0]).ConfigureAwait(false);
+                await using var reader = await batch
+                    .ExecuteReaderValueTaskAsync()
+                    .ConfigureAwait(false);
+                sum += await TcpQueryOperations
+                    .ConsumeAsync(reader, QueryScenario.One, _m!.Buffers[0])
+                    .ConfigureAwait(false);
             }
         }
         return sum;
@@ -104,8 +131,12 @@ public class TcpFacadeBatchComparisonBenchmarks
         {
             await using (batch.ConfigureAwait(false))
             {
-                await using var reader = await batch.ExecuteReaderAsync().ConfigureAwait(false);
-                sum += await TcpQueryOperations.ConsumeAsync(reader, QueryScenario.One, _n!.Buffers[0]).ConfigureAwait(false);
+                await using var reader = await batch
+                    .ExecuteReaderAsync()
+                    .ConfigureAwait(false);
+                sum += await TcpQueryOperations
+                    .ConsumeAsync(reader, QueryScenario.One, _n!.Buffers[0])
+                    .ConfigureAwait(false);
             }
         }
         return sum;
@@ -114,8 +145,14 @@ public class TcpFacadeBatchComparisonBenchmarks
     [GlobalCleanup]
     public async Task Cleanup()
     {
-        foreach (var batch in MpgsqlBatches) await batch.DisposeAsync();
-        foreach (var batch in NpgsqlBatches) await batch.DisposeAsync();
+        foreach (var batch in MpgsqlBatches)
+        {
+            await batch.DisposeAsync();
+        }
+        foreach (var batch in NpgsqlBatches)
+        {
+            await batch.DisposeAsync();
+        }
         if (_connection is not null)
         {
             await _connection.DisposeAsync();

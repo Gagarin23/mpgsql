@@ -4,12 +4,16 @@ namespace Mpgsql.Benchmarks;
 
 internal static class NullableInt64ArrayVerification
 {
-    internal static long?[] Values(int count,
-        int nullPercent)
+    internal static long?[] Values(
+        int count,
+        int nullPercent
+    )
     {
         var nonNulls = NpgsqlArrayVerification.Values(count);
         var result = new long?[count];
-        for (var i = 0; i < count; i++)
+        for (var i = 0;
+             i < count;
+             i++)
             // Deterministic mixed positions, instead of a single contiguous run of NULLs.
         {
             result[i] = (i * 37L + 17) % 100 < nullPercent ? null : nonNulls[i];
@@ -19,16 +23,47 @@ internal static class NullableInt64ArrayVerification
 
     internal static void Run()
     {
-        foreach (var count in new[] {0, 1, 3, 4, 5, 8, 256, 682, 683, 4096, 65536})
-        foreach (var nullPercent in new[] {0, 50, 100})
+        foreach (var count in new[]
+                 {
+                     0,
+                     1,
+                     3,
+                     4,
+                     5,
+                     8,
+                     256,
+                     682,
+                     683,
+                     4096,
+                     65536
+                 })
+        foreach (var nullPercent in new[]
+                 {
+                     0,
+                     50,
+                     100
+                 })
         {
-            var write = new NullableInt64ArrayWriteBenchmarks {Count = count, NullPercent = nullPercent};
+            var write = new NullableInt64ArrayWriteBenchmarks
+            {
+                Count = count,
+                NullPercent = nullPercent
+            };
             try { write.Setup(); }
             finally { write.Cleanup(); }
-            foreach (var bufferSize in new[] {0, 4096, 8192})
+            foreach (var bufferSize in new[]
+                     {
+                         0,
+                         4096,
+                         8192
+                     })
             {
                 var read = new NullableInt64ArrayReadBenchmarks
-                    {Count = count, NullPercent = nullPercent, ReaderBufferSize = bufferSize};
+                {
+                    Count = count,
+                    NullPercent = nullPercent,
+                    ReaderBufferSize = bufferSize
+                };
                 try { read.Setup(); }
                 finally { read.Cleanup(); }
             }

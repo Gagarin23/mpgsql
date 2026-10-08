@@ -10,12 +10,12 @@ internal sealed class BackendMetadataCache
 {
     private const int DescriptionLimit = 4096;
     private const int CommandLimit = 1024;
-    private byte[]? _descriptionBytes;
-    private int _descriptionLength;
-    private ReadOnlyMemory<RowField> _description;
+    private string? _command;
     private byte[]? _commandBytes;
     private int _commandLength;
-    private string? _command;
+    private ReadOnlyMemory<RowField> _description;
+    private byte[]? _descriptionBytes;
+    private int _descriptionLength;
 
     internal ReadOnlyMemory<RowField> RowDescription(BackendMessage message)
     {
@@ -40,7 +40,7 @@ internal sealed class BackendMetadataCache
         {
             return _command!;
         }
-        string decoded = message.GetCommandTag();
+        var decoded = message.GetCommandTag();
         if (payload.Length <= CommandLimit)
         {
             Store(payload, ref _commandBytes, ref _commandLength, CommandLimit);
@@ -49,7 +49,10 @@ internal sealed class BackendMetadataCache
         return decoded;
     }
 
-    private static bool Matches(ReadOnlySequence<byte> payload, byte[] bytes, int length)
+    private static bool Matches(
+        ReadOnlySequence<byte> payload, byte[] bytes,
+        int length
+    )
     {
         if (payload.Length != length)
         {
@@ -59,7 +62,7 @@ internal sealed class BackendMetadataCache
         {
             return payload.FirstSpan.SequenceEqual(bytes.AsSpan(0, length));
         }
-        int offset = 0;
+        var offset = 0;
         foreach (var segment in payload)
         {
             if (!segment.Span.SequenceEqual(bytes.AsSpan(offset, segment.Length)))
@@ -71,9 +74,12 @@ internal sealed class BackendMetadataCache
         return true;
     }
 
-    private static void Store(ReadOnlySequence<byte> payload, ref byte[]? bytes, ref int length, int limit)
+    private static void Store(
+        ReadOnlySequence<byte> payload, ref byte[]? bytes,
+        ref int length, int limit
+    )
     {
-        int size = (int)payload.Length;
+        var size = (int)payload.Length;
         if (bytes is null || bytes.Length < size)
         {
             bytes = new byte[Math.Min(limit, Math.Max(size, (bytes?.Length ?? 0) * 2))];

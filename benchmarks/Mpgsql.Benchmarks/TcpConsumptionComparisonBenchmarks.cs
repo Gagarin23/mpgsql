@@ -17,10 +17,14 @@ public class TcpConsumptionComparisonBenchmarks
     {
         _scenario = Case switch
         {
-            "ScalarEmpty"      => QueryScenario.Empty, "ScalarNull"          => QueryScenario.NullValue,
-            "ScalarOne"        => QueryScenario.One, "ScalarRows128"         => QueryScenario.ScalarMany,
-            "NonQuery"         => QueryScenario.NonQuery, "ReturningRows128" => QueryScenario.ReturningRows,
-            "EarlyDispose4096" => QueryScenario.Many, _                      => throw new ArgumentException("Unknown consumption case.")
+            "ScalarEmpty"      => QueryScenario.Empty,
+            "ScalarNull"       => QueryScenario.NullValue,
+            "ScalarOne"        => QueryScenario.One,
+            "ScalarRows128"    => QueryScenario.ScalarMany,
+            "NonQuery"         => QueryScenario.NonQuery,
+            "ReturningRows128" => QueryScenario.ReturningRows,
+            "EarlyDispose4096" => QueryScenario.Many,
+            _                  => throw new ArgumentException("Unknown consumption case.")
         };
         _catalog = new QueryCatalog([_scenario], 1);
     }
@@ -45,17 +49,28 @@ public class TcpConsumptionComparisonBenchmarks
     [Benchmark(Baseline = true)]
     public async Task<long> MpgsqlDataSource()
     {
-        var parameters = _catalog.Inputs[0][0];
+        var parameters = _catalog
+            .Inputs[0][0];
         if (Case is "NonQuery" or "ReturningRows128")
         {
-            return await _m!.Source.ExecuteNonQueryAsync(_scenario.Sql, parameters).ConfigureAwait(false);
+            return await _m!
+                .Source.ExecuteNonQueryAsync(_scenario.Sql, parameters)
+                .ConfigureAwait(false);
         }
         if (Case == "EarlyDispose4096")
         {
-            await using var reader = await _m!.Source.ExecuteReaderAsync(_scenario.Sql, parameters).ConfigureAwait(false);
-            return await reader.ReadAsync().ConfigureAwait(false) ? reader.GetInt64(0)!.Value : 0;
+            await using var reader = await _m!
+                .Source.ExecuteReaderAsync(_scenario.Sql, parameters)
+                .ConfigureAwait(false);
+            return await reader
+                .ReadAsync()
+                .ConfigureAwait(false)
+                ? reader.GetInt64(0)!.Value
+                : 0;
         }
-        var value = await _m!.Source.ExecuteScalarAsync<long>(_scenario.Sql, parameters).ConfigureAwait(false);
+        var value = await _m!
+            .Source.ExecuteScalarAsync<long>(_scenario.Sql, parameters)
+            .ConfigureAwait(false);
         return !value.HasRow ? -2 : value.IsNull ? -1 : value.Value;
     }
     [Benchmark]
@@ -70,17 +85,28 @@ public class TcpConsumptionComparisonBenchmarks
     }
     private async Task<long> ConsumeNpgsql()
     {
-        var command = _n!.Commands[0][0];
+        var command = _n!
+            .Commands[0][0];
         if (Case is "NonQuery" or "ReturningRows128")
         {
-            return await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+            return await command
+                .ExecuteNonQueryAsync()
+                .ConfigureAwait(false);
         }
         if (Case == "EarlyDispose4096")
         {
-            await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
-            return await reader.ReadAsync().ConfigureAwait(false) ? reader.GetInt64(0) : 0;
+            await using var reader = await command
+                .ExecuteReaderAsync()
+                .ConfigureAwait(false);
+            return await reader
+                .ReadAsync()
+                .ConfigureAwait(false)
+                ? reader.GetInt64(0)
+                : 0;
         }
-        var value = await command.ExecuteScalarAsync().ConfigureAwait(false);
+        var value = await command
+            .ExecuteScalarAsync()
+            .ConfigureAwait(false);
         return value is null ? -2 : value is DBNull ? -1 : (long)value;
     }
     [GlobalCleanup]

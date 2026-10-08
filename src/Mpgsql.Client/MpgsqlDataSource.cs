@@ -22,7 +22,10 @@ public sealed class MpgsqlDataSource : DbDataSource
         var builder = new MpgsqlConnectionStringBuilder(connectionString);
         var settings = builder.ToSessionOptions();
         ConnectionString = builder.ConnectionString;
-        Options = (options ?? new MpgsqlDataSourceOptions {MaxConnections = builder.MaxPoolSize}).CopyValidated();
+        Options = (options ?? new MpgsqlDataSourceOptions
+        {
+            MaxConnections = builder.MaxPoolSize
+        }).CopyValidated();
         DefaultCommandTimeout = builder.CommandTimeout;
         OpenTimeout = settings.ConnectTimeout;
         _factory = token => MpgsqlMessageSession.OpenAsync(settings, token);
@@ -31,8 +34,10 @@ public sealed class MpgsqlDataSource : DbDataSource
     }
 
     /// <summary>The factory transfers exclusive ownership of an authenticated, idle UTF8 session.</summary>
-    public MpgsqlDataSource(Func<CancellationToken, ValueTask<MpgsqlMessageSession>> sessionFactory,
-        Func<MpgsqlMessageSession, CancellationToken, ValueTask> sendCancelRequestAsync, MpgsqlDataSourceOptions? options = null)
+    public MpgsqlDataSource(
+        Func<CancellationToken, ValueTask<MpgsqlMessageSession>> sessionFactory,
+        Func<MpgsqlMessageSession, CancellationToken, ValueTask> sendCancelRequestAsync, MpgsqlDataSourceOptions? options = null
+    )
     {
         ArgumentNullException.ThrowIfNull(sessionFactory);
         ArgumentNullException.ThrowIfNull(sendCancelRequestAsync);
@@ -75,18 +80,23 @@ public sealed class MpgsqlDataSource : DbDataSource
         var connection = CreateConnection();
         try
         {
-            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            await connection
+                .OpenAsync(cancellationToken)
+                .ConfigureAwait(false);
             return connection;
         }
         catch
         {
-            await connection.DisposeAsync().ConfigureAwait(false);
+            await connection
+                .DisposeAsync()
+                .ConfigureAwait(false);
             throw;
         }
     }
     protected override async ValueTask<DbConnection> OpenDbConnectionAsync(CancellationToken cancellationToken = default)
     {
-        return await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        return await OpenConnectionAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
     protected override DbConnection OpenDbConnection()
     {
@@ -117,7 +127,9 @@ public sealed class MpgsqlDataSource : DbDataSource
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
         }
-        await _slots.WaitAsync(lifetime).ConfigureAwait(false);
+        await _slots
+            .WaitAsync(lifetime)
+            .ConfigureAwait(false);
         try
         {
             lock (_gate)
@@ -138,7 +150,8 @@ public sealed class MpgsqlDataSource : DbDataSource
             var owned = false;
             try
             {
-                created = await _factory(lifetime).ConfigureAwait(false) ?? throw new InvalidOperationException("The session factory returned null.");
+                created = await _factory(lifetime)
+                    .ConfigureAwait(false) ?? throw new InvalidOperationException("The session factory returned null.");
                 created.ClaimForDataSource(Options.MaxBufferedRowBytesPerConnection);
                 owned = true;
                 lock (_gate)
@@ -154,7 +167,9 @@ public sealed class MpgsqlDataSource : DbDataSource
             {
                 if (created is not null && (owned || !created.IsClaimedForDataSource))
                 {
-                    await created.DisposeAsync().ConfigureAwait(false);
+                    await created
+                        .DisposeAsync()
+                        .ConfigureAwait(false);
                 }
                 throw;
             }
@@ -184,7 +199,9 @@ public sealed class MpgsqlDataSource : DbDataSource
         {
             _all.Remove(session);
         }
-        await session.DisposeAsync().ConfigureAwait(false);
+        await session
+            .DisposeAsync()
+            .ConfigureAwait(false);
     }
     internal ValueTask SendCancelAsync(MpgsqlMessageSession session, CancellationToken token)
     {
@@ -209,7 +226,9 @@ public sealed class MpgsqlDataSource : DbDataSource
         {
             if (close)
             {
-                await session.DisposeAsync().ConfigureAwait(false);
+                await session
+                    .DisposeAsync()
+                    .ConfigureAwait(false);
             }
         }
         finally { _slots.Release(); }
@@ -226,7 +245,10 @@ public sealed class MpgsqlDataSource : DbDataSource
                 }
                 _disposed = true;
                 _lifetime.Cancel();
-                foreach (var session in _all) session.Abort(new ObjectDisposedException(nameof(MpgsqlDataSource)));
+                foreach (var session in _all)
+                {
+                    session.Abort(new ObjectDisposedException(nameof(MpgsqlDataSource)));
+                }
                 _dispose = DisposeCoreAsync();
             }
         }
@@ -242,7 +264,10 @@ public sealed class MpgsqlDataSource : DbDataSource
             }
             _disposed = true;
             _lifetime.Cancel();
-            foreach (var session in _all) session.Abort(new ObjectDisposedException(nameof(MpgsqlDataSource)));
+            foreach (var session in _all)
+            {
+                session.Abort(new ObjectDisposedException(nameof(MpgsqlDataSource)));
+            }
             return new ValueTask(_dispose = DisposeCoreAsync());
         }
     }
@@ -264,6 +289,11 @@ public sealed class MpgsqlDataSource : DbDataSource
             _all.Clear();
             _idle.Clear();
         }
-        foreach (var session in sessions) await session.DisposeAsync().ConfigureAwait(false);
+        foreach (var session in sessions)
+        {
+            await session
+                .DisposeAsync()
+                .ConfigureAwait(false);
+        }
     }
 }

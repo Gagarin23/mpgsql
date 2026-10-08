@@ -22,24 +22,33 @@ public class BuiltinArrayBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _values = Enumerable.Range(0, Count).Select(i => i * 7919 - 1234567).ToArray();
+        _values = Enumerable
+            .Range(0, Count)
+            .Select(i => i * 7919 - 1234567)
+            .ToArray();
         _scratch = new int[Count];
         _bytes = new byte[Int32ArrayConverter.GetByteCount(_values)];
         WriteReference();
         var reference = _bytes.ToArray();
         WriteConverter();
-        if (!reference.AsSpan().SequenceEqual(_bytes))
+        if (!reference
+                .AsSpan()
+                .SequenceEqual(_bytes))
         {
             throw new InvalidOperationException("Array benchmark encoder mismatch.");
         }
         _sequence = SegmentSize == 0 ? new ReadOnlySequence<byte>(_bytes) : NpgsqlArrayVerification.Sequence(_bytes, SegmentSize);
         ReadConverter();
-        if (!_values.AsSpan().SequenceEqual(_scratch))
+        if (!_values
+                .AsSpan()
+                .SequenceEqual(_scratch))
         {
             throw new InvalidOperationException("Array benchmark decoder mismatch.");
         }
         ReadReference();
-        if (!_values.AsSpan().SequenceEqual(_scratch))
+        if (!_values
+                .AsSpan()
+                .SequenceEqual(_scratch))
         {
             throw new InvalidOperationException("Array reference decoder mismatch.");
         }
@@ -82,7 +91,9 @@ public class BuiltinArrayBenchmarks
             BinaryPayload.RequireCapacity(count, _scratch.Length);
             BinaryPayload.RequireSeparate(payload, BinaryPayload.StorageBytes(_scratch.AsSpan(0, count)));
             var offset = headerSize;
-            for (var i = 0; i < count; i++)
+            for (var i = 0;
+                 i < count;
+                 i++)
             {
                 if (BinaryPrimitives.ReadInt32BigEndian(payload[offset..]) != 4)
                 {
@@ -101,7 +112,9 @@ public class BuiltinArrayBenchmarks
         var length = ArrayPayload.ReadHeader(ref reader, 23, 4);
         BinaryPayload.RequireCapacity(length, _scratch.Length);
         BinaryPayload.RequireSeparate(_sequence, _scratch.AsSpan(0, length));
-        for (var i = 0; i < length; i++)
+        for (var i = 0;
+             i < length;
+             i++)
         {
             if (!reader.TryReadBigEndian(out int prefix) || prefix != 4 || !reader.TryReadBigEndian(out int value))
             {

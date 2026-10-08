@@ -15,13 +15,20 @@ internal static class ResultConsumption
                 if (!selected && reader.IsRowSet)
                 {
                     selected = true;
-                    if (await reader.ReadAsync().ConfigureAwait(false))
+                    if (await reader
+                            .ReadAsync()
+                            .ConfigureAwait(false))
                     {
                         result = reader.IsDBNull(0) ? new MpgsqlScalarResult<T>(true, default) : new MpgsqlScalarResult<T>(false, reader.GetFieldValue<T>(0));
                     }
                 }
-                while (await reader.ReadAsync().ConfigureAwait(false)) { }
-            } while (await reader.NextResultAsync().ConfigureAwait(false));
+                while (await reader
+                           .ReadAsync()
+                           .ConfigureAwait(false)) { }
+            }
+            while (await reader
+                       .NextResultAsync()
+                       .ConfigureAwait(false));
             return result;
         }
     }
@@ -34,13 +41,18 @@ internal static class ResultConsumption
             var any = false;
             do
             {
-                while (await reader.ReadAsync().ConfigureAwait(false)) { }
+                while (await reader
+                           .ReadAsync()
+                           .ConfigureAwait(false)) { }
                 if (AffectedRows(reader.CommandTag) is { } count)
                 {
                     total = checked(total + count);
                     any = true;
                 }
-            } while (await reader.NextResultAsync().ConfigureAwait(false));
+            }
+            while (await reader
+                       .NextResultAsync()
+                       .ConfigureAwait(false));
             return any ? total : -1;
         }
     }

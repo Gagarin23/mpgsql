@@ -11,13 +11,26 @@ public sealed class CidrConvertersTests
     public void LiteralPayloadsArraysBuffersAndSegmentBoundaries()
     {
         var value = PgInet.FromIPAddress(IPAddress.Parse("192.0.2.0"), 24);
-        ConverterAssertions.CheckScalar(value, "02180104c0000200", CidrConverter.GetByteCount, CidrConverter.Write,
-            CidrConverter.Write, CidrConverter.Read, CidrConverter.Read);
-        ConverterAssertions.CheckNullableScalar(CidrConverter.Write, CidrConverter.Write,
-            CidrConverter.GetByteCount, CidrConverter.ReadNullable, CidrConverter.ReadNullable);
-        ConverterAssertions.CheckArray(new[] {value, value}, (uint)TypeOid.Cidr, "02180104c0000200",
+        ConverterAssertions.CheckScalar
+        (
+            value, "02180104c0000200", CidrConverter.GetByteCount, CidrConverter.Write,
+            CidrConverter.Write, CidrConverter.Read, CidrConverter.Read
+        );
+        ConverterAssertions.CheckNullableScalar
+        (
+            CidrConverter.Write, CidrConverter.Write,
+            CidrConverter.GetByteCount, CidrConverter.ReadNullable, CidrConverter.ReadNullable
+        );
+        ConverterAssertions.CheckArray
+        (
+            new[]
+            {
+                value,
+                value
+            }, (uint)TypeOid.Cidr, "02180104c0000200",
             CidrArrayConverter.GetByteCount, CidrArrayConverter.Write, CidrArrayConverter.Write,
-            CidrArrayConverter.Read, CidrArrayConverter.Read, CidrArrayConverter.Read, CidrArrayConverter.Read);
+            CidrArrayConverter.Read, CidrArrayConverter.Read, CidrArrayConverter.Read, CidrArrayConverter.Read
+        );
         ConverterAssertions.CheckNullableArray<PgInet, CidrCodec>(value, "02180104c0000200");
     }
     [Fact]

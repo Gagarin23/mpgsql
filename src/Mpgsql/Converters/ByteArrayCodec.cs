@@ -17,7 +17,9 @@ internal readonly struct ByteArrayCodec : IBinaryCodec<byte[]>
     }
     public static int Write(byte[] value, Span<byte> destination)
     {
-        value.AsSpan().CopyTo(destination);
+        value
+            .AsSpan()
+            .CopyTo(destination);
         return value.Length;
     }
     public static byte[] Read(ReadOnlySpan<byte> payload)

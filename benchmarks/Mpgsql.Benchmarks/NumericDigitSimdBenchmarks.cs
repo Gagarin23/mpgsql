@@ -18,14 +18,22 @@ public class NumericDigitSimdBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _value = new PgNumeric(1, 37, PgNumericSign.Negative,
-            Enumerable.Range(0, Count).Select(i => (ushort)(i * 7919 % 10000)).ToArray());
+        _value = new PgNumeric
+        (
+            1, 37, PgNumericSign.Negative,
+            Enumerable
+                .Range(0, Count)
+                .Select(i => (ushort)(i * 7919 % 10000))
+                .ToArray()
+        );
         _scratch = new ushort[Count];
         _payload = new byte[NumericConverter.GetByteCount(_value)];
         WriteScalar();
         var reference = _payload.ToArray();
         WriteSimd();
-        if (!reference.AsSpan().SequenceEqual(_payload))
+        if (!reference
+                .AsSpan()
+                .SequenceEqual(_payload))
         {
             throw new InvalidDataException("Numeric digit encoder mismatch.");
         }
@@ -56,12 +64,14 @@ public class NumericDigitSimdBenchmarks
     [Benchmark(Baseline = true), BenchmarkCategory("Read")]
     public int ReadScalar()
     {
-        return ScalarNumericCodecBaseline.Read(_payload, _scratch.AsMemory()).Digits.Length;
+        return ScalarNumericCodecBaseline.Read(_payload, _scratch.AsMemory())
+            .Digits.Length;
     }
 
     [Benchmark, BenchmarkCategory("Read")]
     public int ReadSimd()
     {
-        return NumericConverter.Read(_payload, _scratch.AsMemory()).Digits.Length;
+        return NumericConverter.Read(_payload, _scratch.AsMemory())
+            .Digits.Length;
     }
 }

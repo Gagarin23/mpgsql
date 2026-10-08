@@ -16,7 +16,9 @@ public sealed class AdoNetTests
     private static async Task<byte[]> Sync(ScriptedSession wire)
     {
         var bytes = new List<byte>();
-        do { bytes.AddRange(await wire.ReadOutputAsync()); } while (!Tags([.. bytes]).Contains('S'));
+        do { bytes.AddRange(await wire.ReadOutputAsync()); }
+        while (!Tags([.. bytes])
+                   .Contains('S'));
         return [.. bytes];
     }
 
@@ -31,7 +33,9 @@ public sealed class AdoNetTests
         var parameter = new MpgsqlParameter<long>(TypeOid.Int64, 7);
         parameter.ParameterName = "value";
         command.Parameters.Add(parameter);
-        for (var i = 0; i < 3; i++)
+        for (var i = 0;
+             i < 3;
+             i++)
         {
             parameter.TypedValue = i + 7;
             var scalar = command.ExecuteScalarAsync(Token);
@@ -111,7 +115,9 @@ public sealed class AdoNetTests
         Assert.Equal(TestWire.Bytes("42 00000027 00 6d706773716c5f70735f3100 0001 0001 0001 00000008 000000000000002b 0001 0001 44 00000006 50 00 45 00000009 00 00000000 53 00000004"), await Sync(wire));
         await wire.WriteAsync(Join(Packet('2'), Description(20), Row(Int64(43)), Command(), Ready()));
         Assert.Equal(43L, await scalar.WaitAsync(TestTimeout, Token));
-        var close = ((MpgsqlCommand)command).UnprepareAsync(Token).AsTask();
+        var close = ((MpgsqlCommand)command)
+            .UnprepareAsync(Token)
+            .AsTask();
         Assert.Equal(TestWire.Bytes("43 00000011 53 6d706773716c5f70735f3100 53 00000004"), await Sync(wire));
         await wire.WriteAsync(Join(Packet('3'), Ready()));
         await close.WaitAsync(TestTimeout, Token);
@@ -122,8 +128,14 @@ public sealed class AdoNetTests
     public async Task PrepareWithoutCommandTimeoutCanExceedRecoveryTimeout()
     {
         await using var wire = new ScriptedSession();
-        await using var source = new MpgsqlDataSource(_ => ValueTask.FromResult(wire.Session),
-            (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions {RecoveryTimeout = TimeSpan.FromMilliseconds(100)});
+        await using var source = new MpgsqlDataSource
+        (
+            _ => ValueTask.FromResult(wire.Session),
+            (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions
+            {
+                RecoveryTimeout = TimeSpan.FromMilliseconds(100)
+            }
+        );
         await using var connection = await source.OpenConnectionAsync(Token);
         await using var command = connection.CreateCommand("select 42::bigint");
         var preparing = command.PrepareAsync(Token);
@@ -133,7 +145,9 @@ public sealed class AdoNetTests
         Assert.True(wire.Session.IsHealthy);
         await wire.WriteAsync(Join(Packet('1'), Ready()));
         await preparing.WaitAsync(TestTimeout, Token);
-        var closing = command.UnprepareAsync(Token).AsTask();
+        var closing = command
+            .UnprepareAsync(Token)
+            .AsTask();
         await Sync(wire);
         await wire.WriteAsync(Join(Packet('3'), Ready()));
         await closing.WaitAsync(TestTimeout, Token);
@@ -143,8 +157,14 @@ public sealed class AdoNetTests
     public async Task AsyncCloseBoundsRecoveryOfAlreadyWaitingPreparation()
     {
         await using var wire = new ScriptedSession();
-        await using var source = new MpgsqlDataSource(_ => ValueTask.FromResult(wire.Session),
-            (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions {RecoveryTimeout = TimeSpan.FromMilliseconds(100)});
+        await using var source = new MpgsqlDataSource
+        (
+            _ => ValueTask.FromResult(wire.Session),
+            (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions
+            {
+                RecoveryTimeout = TimeSpan.FromMilliseconds(100)
+            }
+        );
         await using var connection = await source.OpenConnectionAsync(Token);
         await using var command = connection.CreateCommand("select delayed");
         var preparing = command.PrepareAsync(Token);
@@ -161,8 +181,14 @@ public sealed class AdoNetTests
     public async Task PrepareServerErrorWithoutReadyClosesSessionAtRecoveryDeadline()
     {
         await using var wire = new ScriptedSession();
-        await using var source = new MpgsqlDataSource(_ => ValueTask.FromResult(wire.Session),
-            (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions {RecoveryTimeout = TimeSpan.FromMilliseconds(100)});
+        await using var source = new MpgsqlDataSource
+        (
+            _ => ValueTask.FromResult(wire.Session),
+            (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions
+            {
+                RecoveryTimeout = TimeSpan.FromMilliseconds(100)
+            }
+        );
         await using var connection = await source.OpenConnectionAsync(Token);
         await using var command = connection.CreateCommand("select missing");
         var preparing = command.PrepareAsync(Token);
@@ -178,18 +204,26 @@ public sealed class AdoNetTests
         await using var wire = new ScriptedSession();
         var cancelStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var cancelFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var source = new MpgsqlDataSource(_ => ValueTask.FromResult(wire.Session),
+        await using var source = new MpgsqlDataSource
+        (
+            _ => ValueTask.FromResult(wire.Session),
             (_, _) =>
             {
                 cancelStarted.TrySetResult();
                 return new ValueTask(cancelFinished.Task);
             },
-            new MpgsqlDataSourceOptions {RecoveryTimeout = TimeSpan.FromMilliseconds(200)});
+            new MpgsqlDataSourceOptions
+            {
+                RecoveryTimeout = TimeSpan.FromMilliseconds(200)
+            }
+        );
         await using var connection = await source.OpenConnectionAsync(Token);
         await using var command = connection.CreateCommand("select delayed");
         try
         {
-            var executing = command.ExecuteScalarAsync<long>(Token).AsTask();
+            var executing = command
+                .ExecuteScalarAsync<long>(Token)
+                .AsTask();
             await Sync(wire);
             command.Cancel();
             await cancelStarted.Task.WaitAsync(TestTimeout, Token);
@@ -205,12 +239,15 @@ public sealed class AdoNetTests
     {
         await using var wire = new ScriptedSession();
         var cancelSent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var source = new MpgsqlDataSource(_ => ValueTask.FromResult(wire.Session),
+        await using var source = new MpgsqlDataSource
+        (
+            _ => ValueTask.FromResult(wire.Session),
             (_, _) =>
             {
                 cancelSent.TrySetResult();
                 return ValueTask.CompletedTask;
-            });
+            }
+        );
         await using var connection = await source.OpenConnectionAsync(Token);
         await using var command = connection.CreateCommand("select delayed");
         var opening = command.ExecuteReaderAsync(Token);
@@ -225,7 +262,9 @@ public sealed class AdoNetTests
         await wire.WriteAsync(Join(Error("57014"), Ready()));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reading.WaitAsync(TestTimeout, Token));
         command.CommandText = "select next";
-        var next = command.ExecuteScalarAsync<long>(Token).AsTask();
+        var next = command
+            .ExecuteScalarAsync<long>(Token)
+            .AsTask();
         await Sync(wire);
         await wire.WriteAsync(Join(Query(43), Ready()));
         Assert.Equal(43, (await next.WaitAsync(TestTimeout, Token)).Value);
@@ -260,12 +299,15 @@ public sealed class AdoNetTests
     {
         await using var wire = new ScriptedSession();
         var cancelSent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var source = new MpgsqlDataSource(_ => ValueTask.FromResult(wire.Session),
+        await using var source = new MpgsqlDataSource
+        (
+            _ => ValueTask.FromResult(wire.Session),
             (_, _) =>
             {
                 cancelSent.TrySetResult();
                 return ValueTask.CompletedTask;
-            });
+            }
+        );
         await using var connection = await source.OpenConnectionAsync(Token);
         await using var command = connection.CreateCommand("select $1");
         command.Parameters.Add(MpgsqlParameter.Int64(42));
@@ -278,7 +320,9 @@ public sealed class AdoNetTests
         await wire.WriteAsync(Ready());
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => preparing.WaitAsync(TestTimeout, Token));
         Assert.Throws<InvalidOperationException>(() => command.CommandText = "select changed");
-        var closing = command.UnprepareAsync(Token).AsTask();
+        var closing = command
+            .UnprepareAsync(Token)
+            .AsTask();
         Assert.Equal(TestWire.Bytes("43 00000011 53 6d706773716c5f70735f3100 53 00000004"), await Sync(wire));
         await wire.WriteAsync(Join(Packet('3'), Ready()));
         await closing.WaitAsync(TestTimeout, Token);
@@ -292,13 +336,21 @@ public sealed class AdoNetTests
         await using var wire = new ScriptedSession();
         await using var source = Source(wire);
         await using DbConnection connection = await source.OpenConnectionAsync(Token);
-        var beginning = connection.BeginTransactionAsync(isolation, Token).AsTask();
+        var beginning = connection
+            .BeginTransactionAsync(isolation, Token)
+            .AsTask();
         Assert.Equal("PBDES", new string(Tags(await Sync(wire))));
         await wire.WriteAsync(Join(Packet('1'), Packet('2'), Packet('n'), Command("BEGIN"), Ready('T')));
         var transaction = await beginning.WaitAsync(TestTimeout, Token);
         Assert.Equal(isolation, transaction.IsolationLevel);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => connection.BeginTransactionAsync(Token).AsTask());
-        var disposing = transaction.DisposeAsync().AsTask();
+        await Assert.ThrowsAsync<InvalidOperationException>
+        (() => connection
+            .BeginTransactionAsync(Token)
+            .AsTask()
+        );
+        var disposing = transaction
+            .DisposeAsync()
+            .AsTask();
         await Sync(wire);
         await wire.WriteAsync(Join(Packet('1'), Packet('2'), Packet('n'), Command("ROLLBACK"), Ready()));
         await disposing.WaitAsync(TestTimeout, Token);
@@ -350,11 +402,14 @@ public sealed class AdoNetTests
     {
         await using var wire = new ScriptedSession();
         var cancels = 0;
-        await using var source = new MpgsqlDataSource(_ => ValueTask.FromResult(wire.Session), (_, _) =>
-        {
-            Interlocked.Increment(ref cancels);
-            return ValueTask.CompletedTask;
-        });
+        await using var source = new MpgsqlDataSource
+        (
+            _ => ValueTask.FromResult(wire.Session), (_, _) =>
+            {
+                Interlocked.Increment(ref cancels);
+                return ValueTask.CompletedTask;
+            }
+        );
         await using var connection = await source.OpenConnectionAsync(Token);
         await using var command = connection.CreateCommand("select delayed rows");
         var opening = command.ExecuteReaderAsync(Token);
@@ -405,7 +460,9 @@ public sealed class AdoNetTests
         Assert.NotNull(batch.BatchCommands[0].Statement);
         Assert.Null(batch.BatchCommands[1].Statement);
         Assert.Null(batch.BatchCommands[2].Statement);
-        var unpreparing = batch.UnprepareAsync(Token).AsTask();
+        var unpreparing = batch
+            .UnprepareAsync(Token)
+            .AsTask();
         Assert.Equal("CS", new string(Tags(await Sync(wire))));
         await wire.WriteAsync(Join(Packet('3'), Ready()));
         await unpreparing.WaitAsync(TestTimeout, Token);
@@ -426,7 +483,9 @@ public sealed class AdoNetTests
         await Sync(wire);
         await wire.WriteAsync(Join(Begin(20), Row(Int64(1))));
         var reader = await opening.WaitAsync(TestTimeout, Token);
-        var closing = reader.DisposeAsync().AsTask();
+        var closing = reader
+            .DisposeAsync()
+            .AsTask();
         await wire.WriteAsync(Join(Row(Int64(2)), Command("SELECT 2"), Packet('1'), Packet('2'), Packet('n'), Command("UPDATE 7"), Ready()));
         await closing.WaitAsync(TestTimeout, Token);
         Assert.Equal(7, reader.RecordsAffected);

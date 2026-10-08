@@ -9,12 +9,16 @@ internal readonly struct OwnedRow : IDisposable
     private readonly RowStorage? _storage;
     private readonly long _generation;
 
-    internal OwnedRow(BackendMessage message,
+    internal OwnedRow(
+        BackendMessage message,
         IMemoryOwner<byte>? frameOwner,
-        RowBufferBudget? budget = null) : this(new RowStorage(null), message, frameOwner, budget) { }
+        RowBufferBudget? budget = null
+    ) : this(new RowStorage(null), message, frameOwner, budget) { }
 
-    internal OwnedRow(RowStorage storage, BackendMessage message,
-        IMemoryOwner<byte>? owner, RowBufferBudget? budget)
+    internal OwnedRow(
+        RowStorage storage, BackendMessage message,
+        IMemoryOwner<byte>? owner, RowBufferBudget? budget
+    )
     {
         _storage = storage;
         _generation = storage.BeginLease();
@@ -32,8 +36,11 @@ internal readonly struct OwnedRow : IDisposable
     internal static void ValidateValues(BackendMessage message)
     {
         var reader = new WireReader(message.Payload.Slice(2));
-        var count = message.GetDataRow().Count;
-        for (var i = 0; i < count; i++)
+        var count = message.GetDataRow()
+            .Count;
+        for (var i = 0;
+             i < count;
+             i++)
         {
             reader.SkipValue();
         }

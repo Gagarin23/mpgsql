@@ -10,13 +10,26 @@ public sealed class DateConvertersTests
     public void LiteralPayloadsArraysBuffersAndSegmentBoundaries()
     {
         var value = new PgDate(-1);
-        ConverterAssertions.CheckScalar(value, "ffffffff", DateConverter.GetByteCount, DateConverter.Write,
-            DateConverter.Write, DateConverter.Read, DateConverter.Read);
-        ConverterAssertions.CheckNullableScalar(DateConverter.Write, DateConverter.Write,
-            DateConverter.GetByteCount, DateConverter.ReadNullable, DateConverter.ReadNullable);
-        ConverterAssertions.CheckArray(new[] {value, value}, (uint)TypeOid.Date, "ffffffff",
+        ConverterAssertions.CheckScalar
+        (
+            value, "ffffffff", DateConverter.GetByteCount, DateConverter.Write,
+            DateConverter.Write, DateConverter.Read, DateConverter.Read
+        );
+        ConverterAssertions.CheckNullableScalar
+        (
+            DateConverter.Write, DateConverter.Write,
+            DateConverter.GetByteCount, DateConverter.ReadNullable, DateConverter.ReadNullable
+        );
+        ConverterAssertions.CheckArray
+        (
+            new[]
+            {
+                value,
+                value
+            }, (uint)TypeOid.Date, "ffffffff",
             DateArrayConverter.GetByteCount, DateArrayConverter.Write, DateArrayConverter.Write,
-            DateArrayConverter.Read, DateArrayConverter.Read, DateArrayConverter.Read, DateArrayConverter.Read);
+            DateArrayConverter.Read, DateArrayConverter.Read, DateArrayConverter.Read, DateArrayConverter.Read
+        );
         ConverterAssertions.CheckNullableArray<PgDate, DateCodec>(value, "ffffffff");
     }
     [Fact]

@@ -16,7 +16,8 @@ public static class BackendMessageReader
     public static bool TryRead(
         ref ReadOnlySequence<byte> input,
         out BackendMessage message,
-        int maxMessageLength = DefaultMaxMessageLength)
+        int maxMessageLength = DefaultMaxMessageLength
+    )
     {
         return TryReadFrame(ref input, out message, maxMessageLength, false);
     }
@@ -28,11 +29,16 @@ public static class BackendMessageReader
         return TryReadFrame(ref input, out message, DefaultMaxMessageLength, true);
     }
 
-    private static bool TryReadFrame(ref ReadOnlySequence<byte> input, out BackendMessage message,
-        int maxMessageLength, bool deferRowValues)
+    private static bool TryReadFrame(
+        ref ReadOnlySequence<byte> input, out BackendMessage message,
+        int maxMessageLength, bool deferRowValues
+    )
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(maxMessageLength,
-            4);
+        ArgumentOutOfRangeException.ThrowIfLessThan
+        (
+            maxMessageLength,
+            4
+        );
         message = default;
         var header = new SequenceReader<byte>(input);
         if (!header.TryRead(out var type) || !header.TryReadBigEndian(out int length))
@@ -48,18 +54,27 @@ public static class BackendMessageReader
             return false;
         }
 
-        var payload = input.Slice(header.Position,
-            length - 4);
-        var kind = Validate(type,
+        var payload = input.Slice
+        (
+            header.Position,
+            length - 4
+        );
+        var kind = Validate
+        (
+            type,
             payload,
             default,
             false,
             out var rowCount,
-            deferRowValues);
-        message = new BackendMessage(type,
+            deferRowValues
+        );
+        message = new BackendMessage
+        (
+            type,
             kind,
             payload,
-            rowCount);
+            rowCount
+        );
         input = input.Slice(1L + length);
         return true;
     }
@@ -74,10 +89,14 @@ public static class BackendMessageReader
         Memory<ReadOnlySequence<byte>?> rowValues,
         out BackendMessage message,
         out IndexedDataRow row,
-        int maxMessageLength = DefaultMaxMessageLength)
+        int maxMessageLength = DefaultMaxMessageLength
+    )
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(maxMessageLength,
-            4);
+        ArgumentOutOfRangeException.ThrowIfLessThan
+        (
+            maxMessageLength,
+            4
+        );
         message = default;
         row = default;
         var header = new SequenceReader<byte>(input);
@@ -94,17 +113,26 @@ public static class BackendMessageReader
             return false;
         }
 
-        var payload = input.Slice(header.Position,
-            length - 4);
-        var kind = Validate(type,
+        var payload = input.Slice
+        (
+            header.Position,
+            length - 4
+        );
+        var kind = Validate
+        (
+            type,
             payload,
             rowValues.Span,
             true,
-            out var rowCount);
-        message = new BackendMessage(type,
+            out var rowCount
+        );
+        message = new BackendMessage
+        (
+            type,
             kind,
             payload,
-            rowCount);
+            rowCount
+        );
         if (kind == BackendMessageKind.DataRow)
         {
             row = new IndexedDataRow(rowValues[..rowCount]);
@@ -120,7 +148,8 @@ public static class BackendMessageReader
     public static bool TryReadEncryptionResponse(
         ref ReadOnlySequence<byte> input,
         EncryptionRequestKind request,
-        out bool accepted)
+        out bool accepted
+    )
     {
         if (request is not (EncryptionRequestKind.Ssl or EncryptionRequestKind.Gss))
         {
@@ -142,12 +171,14 @@ public static class BackendMessageReader
         return true;
     }
 
-    private static BackendMessageKind Validate(byte type,
+    private static BackendMessageKind Validate(
+        byte type,
         ReadOnlySequence<byte> payload,
         Span<ReadOnlySequence<byte>?> rowValues,
         bool indexRows,
         out int rowCount,
-        bool deferRowValues = false)
+        bool deferRowValues = false
+    )
     {
         // Known enum values are the wire tags: one dispatch performs classification and validation.
         var kind = (BackendMessageKind)type;
@@ -186,8 +217,11 @@ public static class BackendMessageReader
                 break;
             case BackendMessageKind.ParameterDescription:
                 int parameterCount = reader.Count();
-                reader.RequireElements(parameterCount,
-                    4);
+                reader.RequireElements
+                (
+                    parameterCount,
+                    4
+                );
                 reader.Bytes(parameterCount * 4);
                 break;
             case BackendMessageKind.RowDescription:
@@ -200,9 +234,12 @@ public static class BackendMessageReader
                     reader.RequireElements(rowCount, 4);
                     return kind;
                 }
-                rowCount = ValidateDataRow(ref reader,
+                rowCount = ValidateDataRow
+                (
+                    ref reader,
                     rowValues,
-                    indexRows);
+                    indexRows
+                );
                 break;
             case BackendMessageKind.FunctionCallResponse:
                 reader.SkipValue();
@@ -225,9 +262,14 @@ public static class BackendMessageReader
                     throw new InvalidDataException("Invalid PostgreSQL minor protocol version.");
                 }
                 var optionCount = reader.Int32();
-                reader.RequireElements(optionCount,
-                    1);
-                for (var i = 0; i < optionCount; i++)
+                reader.RequireElements
+                (
+                    optionCount,
+                    1
+                );
+                for (var i = 0;
+                     i < optionCount;
+                     i++)
                 {
                     reader.SkipCString();
                 }
@@ -249,28 +291,40 @@ public static class BackendMessageReader
         return kind;
     }
 
-    private static int ValidateDataRow(ref WireReader reader,
+    private static int ValidateDataRow(
+        ref WireReader reader,
         Span<ReadOnlySequence<byte>?> rowValues,
-        bool indexRows)
+        bool indexRows
+    )
     {
         int count = reader.Count();
-        reader.RequireElements(count,
-            4);
+        reader.RequireElements
+        (
+            count,
+            4
+        );
         if (indexRows)
         {
             if (rowValues.Length < count)
             {
-                throw new ArgumentException("DataRow storage is smaller than the column count.",
-                    nameof(rowValues));
+                throw new ArgumentException
+                (
+                    "DataRow storage is smaller than the column count.",
+                    nameof(rowValues)
+                );
             }
-            for (var i = 0; i < count; i++)
+            for (var i = 0;
+                 i < count;
+                 i++)
             {
                 rowValues[i] = reader.Value();
             }
         }
         else
         {
-            for (var i = 0; i < count; i++)
+            for (var i = 0;
+                 i < count;
+                 i++)
             {
                 reader.SkipValue();
             }
@@ -281,9 +335,14 @@ public static class BackendMessageReader
     private static void ValidateRowDescription(ref WireReader reader)
     {
         int count = reader.Count();
-        reader.RequireElements(count,
-            19); // NUL and the 18 fixed bytes of each field.
-        for (var i = 0; i < count; i++)
+        reader.RequireElements
+        (
+            count,
+            19
+        ); // NUL and the 18 fixed bytes of each field.
+        for (var i = 0;
+             i < count;
+             i++)
         {
             reader.SkipCString();
             reader.UInt32(); // table OID
@@ -303,9 +362,14 @@ public static class BackendMessageReader
             throw new InvalidDataException("Unknown PostgreSQL COPY format.");
         }
         int count = reader.Count();
-        reader.RequireElements(count,
-            2);
-        for (var i = 0; i < count; i++)
+        reader.RequireElements
+        (
+            count,
+            2
+        );
+        for (var i = 0;
+             i < count;
+             i++)
         {
             if (reader.Format() == FormatCode.Binary && format == FormatCode.Text)
             {
@@ -330,7 +394,8 @@ public static class BackendMessageReader
                 break;
             case AuthenticationMethod.Sasl:
                 var count = 0;
-                while (!reader.CStringBytes().IsEmpty)
+                while (!reader.CStringBytes()
+                           .IsEmpty)
                 {
                     count++;
                 }

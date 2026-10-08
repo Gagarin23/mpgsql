@@ -14,10 +14,18 @@ public partial class MpgsqlParameter : DbParameter
     internal MpgsqlParameterCollection? Owner;
     private bool _dirty = true;
     private MpgsqlParameterValue _encodedValue;
-    private string _name = "", _source = "";
-    private bool _nullable, _sourceNull;
+
+    private string _name = "",
+        _source = "";
+
+    private bool _nullable,
+        _sourceNull;
+
     private uint _oid;
-    private byte _precision, _scale;
+
+    private byte _precision,
+        _scale;
+
     private int _size;
     private DataRowVersion _version = DataRowVersion.Current;
     public MpgsqlParameter() { }

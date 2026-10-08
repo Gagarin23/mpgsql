@@ -148,8 +148,10 @@ internal static class Utf8Payload
         }
     }
 
-    internal static int WriteUtf8(ReadOnlySpan<byte> value, Span<byte> destination,
-        bool jsonb)
+    internal static int WriteUtf8(
+        ReadOnlySpan<byte> value, Span<byte> destination,
+        bool jsonb
+    )
     {
         var size = checked(value.Length + (jsonb ? 1 : 0));
         BinaryPayload.RequireCapacity(size, destination.Length);

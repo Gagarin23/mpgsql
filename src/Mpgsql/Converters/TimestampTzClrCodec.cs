@@ -19,10 +19,14 @@ internal readonly struct TimestampTzClrCodec : IBinaryCodec<DateTimeOffset>
     }
     public static DateTimeOffset Read(ReadOnlySpan<byte> payload)
     {
-        return TimestampTzCodec.Read(payload).ToDateTimeOffset();
+        return TimestampTzCodec
+            .Read(payload)
+            .ToDateTimeOffset();
     }
     public static DateTimeOffset Read(ReadOnlySequence<byte> payload)
     {
-        return TimestampTzCodec.Read(payload).ToDateTimeOffset();
+        return TimestampTzCodec
+            .Read(payload)
+            .ToDateTimeOffset();
     }
 }

@@ -19,10 +19,12 @@ public static partial class TimestampTzConverter
     }
     public static DateTime ReadDateTime(ReadOnlySpan<byte> payload)
     {
-        return Read(payload).ToDateTime();
+        return Read(payload)
+            .ToDateTime();
     }
     public static DateTime ReadDateTime(ReadOnlySequence<byte> payload)
     {
-        return Read(payload).ToDateTime();
+        return Read(payload)
+            .ToDateTime();
     }
 }

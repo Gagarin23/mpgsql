@@ -6,7 +6,6 @@ using System.Buffers;
 using System.Buffers.Binary;
 using BenchmarkDotNet.Attributes;
 using Mpgsql.Protocol;
-
 namespace Mpgsql.Benchmarks;
 
 [MemoryDiagnoser, SimpleJob(1, 3, 8), IterationTime(150)]
@@ -25,14 +24,31 @@ public class DataRowBenchmarks
     public void Setup()
     {
         var output = new ArrayBufferWriter<byte>();
-        output.Write(new byte[] {(byte)'D', 0, 0, 0, 0, 0, (byte)Columns});
-        for (var i = 0; i < Columns; i++)
+        output.Write
+        (
+            new byte[]
+            {
+                (byte)'D',
+                0,
+                0,
+                0,
+                0,
+                0,
+                (byte)Columns
+            }
+        );
+        for (var i = 0;
+             i < Columns;
+             i++)
         {
             // Mix ordinary, NULL, and empty values; all data is allocated outside timing.
             var length = i % 5 == 4 ? -1 : i % 5 == 3 ? 0 : 8;
             var prefix = output.GetSpan(4);
-            BinaryPrimitives.WriteInt32BigEndian(prefix,
-                length);
+            BinaryPrimitives.WriteInt32BigEndian
+            (
+                prefix,
+                length
+            );
             output.Advance(4);
             if (length > 0)
             {
@@ -40,12 +56,21 @@ public class DataRowBenchmarks
             }
         }
         byte[] bytes = [.. output.WrittenSpan];
-        BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(1,
-                4),
-            bytes.Length - 1);
+        BinaryPrimitives.WriteInt32BigEndian
+        (
+            bytes.AsSpan
+            (
+                1,
+                4
+            ),
+            bytes.Length - 1
+        );
         _packet = Fragmented
-            ? Segment(bytes,
-                7)
+            ? Segment
+            (
+                bytes,
+                7
+            )
             : new ReadOnlySequence<byte>(bytes);
         _storage = new ReadOnlySequence<byte>?[Columns];
 
@@ -67,14 +92,20 @@ public class DataRowBenchmarks
     public long Original()
     {
         var input = _packet;
-        if (!OriginalReader.TryRead(ref input,
-                out var message))
+        if (!OriginalReader.TryRead
+            (
+                ref input,
+                out var message
+            ))
         {
             throw new InvalidOperationException();
         }
-        long sum = message.GetDataRow().Count;
+        long sum = message.GetDataRow()
+            .Count;
         foreach (var value in message.GetDataRow())
+        {
             sum += value?.Length ?? -1;
+        }
         return sum + input.Length;
     }
 #endif
@@ -83,14 +114,20 @@ public class DataRowBenchmarks
     public long CurrentUnindexed()
     {
         var input = _packet;
-        if (!BackendMessageReader.TryRead(ref input,
-                out var message))
+        if (!BackendMessageReader.TryRead
+            (
+                ref input,
+                out var message
+            ))
         {
             throw new InvalidOperationException();
         }
-        long sum = message.GetDataRow().Count;
+        long sum = message.GetDataRow()
+            .Count;
         foreach (var value in message.GetDataRow())
+        {
             sum += value?.Length ?? -1;
+        }
         return sum + input.Length;
     }
 
@@ -98,36 +135,66 @@ public class DataRowBenchmarks
     public long CurrentIndexed()
     {
         var input = _packet;
-        if (!BackendMessageReader.TryRead(ref input,
+        if (!BackendMessageReader.TryRead
+            (
+                ref input,
                 _storage,
                 out _,
-                out var row))
+                out var row
+            ))
         {
             throw new InvalidOperationException();
         }
         long sum = row.Count;
         foreach (var value in row)
+        {
             sum += value?.Length ?? -1;
+        }
         return sum + input.Length;
     }
 
-    private static ReadOnlySequence<byte> Segment(byte[] bytes,
-        int size)
+    private static ReadOnlySequence<byte> Segment(
+        byte[] bytes,
+        int size
+    )
     {
-        var first = new SegmentNode(bytes.AsMemory(0,
-            Math.Min(size,
-                bytes.Length)));
+        var first = new SegmentNode
+        (
+            bytes.AsMemory
+            (
+                0,
+                Math.Min
+                (
+                    size,
+                    bytes.Length
+                )
+            )
+        );
         var last = first;
-        for (var start = size; start < bytes.Length; start += size)
+        for (var start = size;
+             start < bytes.Length;
+             start += size)
         {
-            last = last.Append(bytes.AsMemory(start,
-                Math.Min(size,
-                    bytes.Length - start)));
+            last = last.Append
+            (
+                bytes.AsMemory
+                (
+                    start,
+                    Math.Min
+                    (
+                        size,
+                        bytes.Length - start
+                    )
+                )
+            );
         }
-        return new ReadOnlySequence<byte>(first,
+        return new ReadOnlySequence<byte>
+        (
+            first,
             0,
             last,
-            last.Memory.Length);
+            last.Memory.Length
+        );
     }
 
     private sealed class SegmentNode : ReadOnlySequenceSegment<byte>
@@ -139,7 +206,10 @@ public class DataRowBenchmarks
 
         public SegmentNode Append(ReadOnlyMemory<byte> memory)
         {
-            var next = new SegmentNode(memory) {RunningIndex = RunningIndex + Memory.Length};
+            var next = new SegmentNode(memory)
+            {
+                RunningIndex = RunningIndex + Memory.Length
+            };
             Next = next;
             return next;
         }

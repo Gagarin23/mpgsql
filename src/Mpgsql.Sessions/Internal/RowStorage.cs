@@ -25,10 +25,13 @@ internal sealed class RowStorage(RowStoragePool? pool)
         return Interlocked.Increment(ref _generation);
     }
 
-    internal void Initialize(BackendMessage message, IMemoryOwner<byte>? owner,
-        RowBufferBudget? budget)
+    internal void Initialize(
+        BackendMessage message, IMemoryOwner<byte>? owner,
+        RowBufferBudget? budget
+    )
     {
-        _count = message.GetDataRow().Count;
+        _count = message.GetDataRow()
+            .Count;
         _bytes = message.Payload.Length;
         if (owner is not null && message.Payload.IsSingleSegment)
         {
@@ -49,7 +52,9 @@ internal sealed class RowStorage(RowStoragePool? pool)
         };
         var bytes = _payload.Span;
         var offset = 2;
-        for (var i = 0; i < _count; i++)
+        for (var i = 0;
+             i < _count;
+             i++)
         {
             if (bytes.Length - offset < 4)
             {
@@ -93,8 +98,14 @@ internal sealed class RowStorage(RowStoragePool? pool)
         var offset = _count == 1 ? _singleOffset : _offsets![ordinal];
         return offset == -1
             ? null
-            : new ReadOnlySequence<byte>(_payload.Slice(offset + 4,
-                BinaryPrimitives.ReadInt32BigEndian(_payload.Span[offset..])));
+            : new ReadOnlySequence<byte>
+            (
+                _payload.Slice
+                (
+                    offset + 4,
+                    BinaryPrimitives.ReadInt32BigEndian(_payload.Span[offset..])
+                )
+            );
     }
 
     internal void Release(long generation)

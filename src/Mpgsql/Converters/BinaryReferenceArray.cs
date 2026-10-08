@@ -39,7 +39,8 @@ internal static class BinaryReferenceArray<T, TCodec>
         ArgumentNullException.ThrowIfNull(destination);
         var source = value.Span;
         var size = Measure(source, out var hasNull);
-        var bytes = destination.GetSpan(size)[..size];
+        var bytes = destination
+            .GetSpan(size)[..size];
         CheckOverlap(source, bytes);
         WriteCore(source, bytes, hasNull);
         destination.Advance(size);
@@ -67,8 +68,10 @@ internal static class BinaryReferenceArray<T, TCodec>
         return WriteCore(value.Span, destination, false);
     }
 
-    private static int WriteCore(ReadOnlySpan<T?> source, Span<byte> bytes,
-        bool hasNull)
+    private static int WriteCore(
+        ReadOnlySpan<T?> source, Span<byte> bytes,
+        bool hasNull
+    )
     {
         ArrayPayload.WriteHeader(bytes, source.Length, hasNull, TCodec.Oid);
         var offset = source.IsEmpty ? ArrayPayload.EmptyHeaderSize : ArrayPayload.HeaderSize;

@@ -37,7 +37,9 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
         {
             if (Execution is { } owner)
             {
-                await owner.EndReaderAsync(true).ConfigureAwait(false);
+                await owner
+                    .EndReaderAsync(true)
+                    .ConfigureAwait(false);
             }
             return;
         }
@@ -51,11 +53,15 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
         finally { Exit(); }
         if (Execution is { } execution)
         {
-            await execution.EndReaderAsync(true).ConfigureAwait(false);
+            await execution
+                .EndReaderAsync(true)
+                .ConfigureAwait(false);
         }
         else
         {
-            await _batch.DiscardResultsAsync().ConfigureAwait(false);
+            await _batch
+                .DiscardResultsAsync()
+                .ConfigureAwait(false);
         }
     }
     internal ValueTask<bool> InitializeAsync()
@@ -191,7 +197,12 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
                         continue;
                     }
                     bool available;
-                    try { available = await _batch.WaitForEventAsync().ConfigureAwait(false); }
+                    try
+                    {
+                        available = await _batch
+                            .WaitForEventAsync()
+                            .ConfigureAwait(false);
+                    }
                     catch
                     {
                         // A filter would run before the availability source's GetResult lock
@@ -202,7 +213,9 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
                             throw;
                         }
                         _batch.RequestToken.ThrowIfCancellationRequested();
-                        await _batch.ObserveCompletionAsync().ConfigureAwait(false);
+                        await _batch
+                            .ObserveCompletionAsync()
+                            .ConfigureAwait(false);
                         available = false;
                     }
                     if (available)
@@ -210,7 +223,9 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
                         continue;
                     }
                     _batch.RequestToken.ThrowIfCancellationRequested();
-                    await _batch.ObserveCompletionAsync().ConfigureAwait(false);
+                    await _batch
+                        .ObserveCompletionAsync()
+                        .ConfigureAwait(false);
                     ObjectDisposedException.ThrowIf(_disposed, this);
                     if (!description)
                     {
@@ -230,11 +245,14 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
         finally { Exit(); }
         if (error is not null)
         {
-            return await FailMovementAsync(error).ConfigureAwait(false);
+            return await FailMovementAsync(error)
+                .ConfigureAwait(false);
         }
         if (_finished && movement == Movement.NextResult && Execution is { } owner)
         {
-            await owner.EndReaderAsync(false).ConfigureAwait(false);
+            await owner
+                .EndReaderAsync(false)
+                .ConfigureAwait(false);
         }
         return result;
     }
@@ -243,7 +261,12 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
     {
         if (Execution is { } execution)
         {
-            try { await execution.EndReaderAsync(true).ConfigureAwait(false); }
+            try
+            {
+                await execution
+                    .EndReaderAsync(true)
+                    .ConfigureAwait(false);
+            }
             catch { }
         }
         ExceptionDispatchInfo.Throw(error);
@@ -253,8 +276,11 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
     /// <summary>Borrowed bytes valid until the next movement or reader/group disposal. SQL NULL is null.</summary>
     public ReadOnlySequence<byte>? GetRawValue(int ordinal)
     {
-        ObjectDisposedException.ThrowIf(_disposed,
-            this);
+        ObjectDisposedException.ThrowIf
+        (
+            _disposed,
+            this
+        );
         if (_row is not { } row)
         {
             throw new InvalidOperationException("ReadAsync must position the reader on a row.");
@@ -338,8 +364,10 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
         return NullableInt64ArrayConverter.Read(payload);
     }
 
-    private ReadOnlySequence<byte>? RequireType(int ordinal,
-        uint oid)
+    private ReadOnlySequence<byte>? RequireType(
+        int ordinal,
+        uint oid
+    )
     {
         var payload = GetRawValue(ordinal);
         var column = Columns.Span[ordinal];
@@ -384,7 +412,9 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
         {
             // A late observer must not see idle until all borrowed ownership is released.
             Volatile.Write(ref _movementState, Closed);
-            Volatile.Read(ref _idle)?.TrySetResult();
+            Volatile
+                .Read(ref _idle)
+                ?.TrySetResult();
         }
     }
 

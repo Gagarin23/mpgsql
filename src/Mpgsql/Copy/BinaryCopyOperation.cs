@@ -17,13 +17,18 @@ public sealed class BinaryCopyOperation
     private Phase _phase;
     private bool _syncSent;
 
-    public BinaryCopyOperation(BackendMessage response,
-        bool extendedQuery = false)
+    public BinaryCopyOperation(
+        BackendMessage response,
+        bool extendedQuery = false
+    )
     {
         if (response.Kind is not (BackendMessageKind.CopyInResponse or BackendMessageKind.CopyOutResponse))
         {
-            throw new ArgumentException("A binary COPY IN/OUT response is required.",
-                nameof(response));
+            throw new ArgumentException
+            (
+                "A binary COPY IN/OUT response is required.",
+                nameof(response)
+            );
         }
         var copy = response.GetCopyResponse();
         if (copy.Format != FormatCode.Binary)
@@ -108,12 +113,18 @@ public sealed class BinaryCopyOperation
                 return true;
             case (Phase.Command, BackendMessageKind.CommandComplete) when !_failedByClient:
                 var tag = message.GetCommandTag();
-                if (!tag.StartsWith("COPY ",
-                        StringComparison.Ordinal) ||
-                    !ulong.TryParse(tag.AsSpan(5),
+                if (!tag.StartsWith
+                    (
+                        "COPY ",
+                        StringComparison.Ordinal
+                    ) ||
+                    !ulong.TryParse
+                    (
+                        tag.AsSpan(5),
                         NumberStyles.None,
                         CultureInfo.InvariantCulture,
-                        out var count))
+                        out var count
+                    ))
                 {
                     throw new InvalidDataException("Invalid COPY command tag.");
                 }

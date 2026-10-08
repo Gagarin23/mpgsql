@@ -9,8 +9,10 @@ public sealed class MpgsqlParameterCollection : DbParameterCollection
     private readonly List<MpgsqlParameter> _items = [];
     private readonly Func<bool> _prepared;
     private MpgsqlParameterValue[] _encoded = [];
-    internal MpgsqlParameterCollection(Lock gate, Action checkMutable,
-        Func<bool> prepared)
+    internal MpgsqlParameterCollection(
+        Lock gate, Action checkMutable,
+        Func<bool> prepared
+    )
     {
         (Gate, _checkMutable, _prepared) = (gate, checkMutable, prepared);
     }
@@ -131,7 +133,10 @@ public sealed class MpgsqlParameterCollection : DbParameterCollection
         lock (Gate)
         {
             CheckStructure();
-            foreach (var item in _items) item.Owner = null;
+            foreach (var item in _items)
+            {
+                item.Owner = null;
+            }
             _items.Clear();
             Array.Clear(_encoded);
         }
@@ -216,15 +221,21 @@ public sealed class MpgsqlParameterCollection : DbParameterCollection
         {
             Array.Resize(ref _encoded, Count);
         }
-        for (var i = 0; i < Count; i++)
+        for (var i = 0;
+             i < Count;
+             i++)
         {
-            _encoded[i] = _items[i].Snapshot();
+            _encoded[i] = _items[i]
+                .Snapshot();
         }
         return _encoded.AsMemory(0, Count);
     }
     internal void Release()
     {
-        foreach (var item in _items) item.Owner = null;
+        foreach (var item in _items)
+        {
+            item.Owner = null;
+        }
         _items.Clear();
         _encoded = [];
     }

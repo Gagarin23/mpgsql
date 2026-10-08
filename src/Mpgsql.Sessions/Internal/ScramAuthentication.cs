@@ -49,7 +49,9 @@ internal sealed class ScramAuthentication
             var final = "c=biws,r=" + nonce;
             var transcript = Encoding.UTF8.GetBytes(_first + "," + serverFirst + "," + final);
             var proof = HMACSHA256.HashData(storedKey, transcript);
-            for (var i = 0; i < proof.Length; i++)
+            for (var i = 0;
+                 i < proof.Length;
+                 i++)
             {
                 proof[i] ^= clientKey[i];
             }

@@ -30,7 +30,7 @@
 
     <ItemGroup>
         <None Update="README.md" Pack="true" PackagePath="/"/>
-        <None Remove="Converters\NumericCodec.Simd.cs~" />
+        <None Remove="Converters\NumericCodec.Simd.cs~"/>
     </ItemGroup>
 
 </Project>

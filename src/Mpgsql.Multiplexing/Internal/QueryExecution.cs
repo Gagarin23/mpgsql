@@ -26,13 +26,17 @@ internal sealed class QueryExecution : IResultExecutionOwner
     private OutboundWork? _send;
     private SharedSyncGroup? _syncGroup;
 
-    internal QueryExecution(MpgsqlMultiplexingDataSource source, PooledSession pooled,
-        QueryDefinition query, CancellationToken request)
+    internal QueryExecution(
+        MpgsqlMultiplexingDataSource source, PooledSession pooled,
+        QueryDefinition query, CancellationToken request
+    )
         : this(source, pooled, query, null, request) { }
 
-    internal QueryExecution(MpgsqlMultiplexingDataSource source, PooledSession pooled,
+    internal QueryExecution(
+        MpgsqlMultiplexingDataSource source, PooledSession pooled,
         QueryDefinition query, QueryDefinition[]? queries,
-        CancellationToken request)
+        CancellationToken request
+    )
     {
         _source = source;
         _pooled = pooled;
@@ -40,8 +44,10 @@ internal sealed class QueryExecution : IResultExecutionOwner
         _batch = pooled.Session.CreateBatch(request);
         _producer = ProduceAsync(query, queries);
     }
-    internal QueryExecution(MpgsqlMultiplexingDataSource source, PooledSession pooled,
-        QueryDefinition[] queries, CancellationToken request)
+    internal QueryExecution(
+        MpgsqlMultiplexingDataSource source, PooledSession pooled,
+        QueryDefinition[] queries, CancellationToken request
+    )
         : this(source, pooled, default, queries, request) { }
 
     private Task SyncDelivery => _syncGroup?.Delivery ?? _send?.Delivery ?? Task.CompletedTask;
@@ -106,7 +112,9 @@ internal sealed class QueryExecution : IResultExecutionOwner
     {
         try
         {
-            var reader = await _batch.ReadResultsAsync().ConfigureAwait(false);
+            var reader = await _batch
+                .ReadResultsAsync()
+                .ConfigureAwait(false);
             lock (_gate)
             {
                 _reader = reader;
@@ -125,7 +133,11 @@ internal sealed class QueryExecution : IResultExecutionOwner
         }
         catch
         {
-            try { await EndReaderAsync(true).ConfigureAwait(false); }
+            try
+            {
+                await EndReaderAsync(true)
+                    .ConfigureAwait(false);
+            }
             catch
             {
                 /* retain the original read/admission failure */
@@ -145,7 +157,11 @@ internal sealed class QueryExecution : IResultExecutionOwner
 
     private async Task ObserveBackgroundFinishAsync()
     {
-        try { await FinishAsync(true).ConfigureAwait(false); }
+        try
+        {
+            await FinishAsync(true)
+                .ConfigureAwait(false);
+        }
         catch { }
     }
 
@@ -224,7 +240,12 @@ internal sealed class QueryExecution : IResultExecutionOwner
         catch (Exception ex) { error = ex; }
         try { await SyncDelivery.ConfigureAwait(false); }
         catch (Exception ex) { error ??= ex; }
-        try { await _batch.ObserveCompletionAsync().ConfigureAwait(false); }
+        try
+        {
+            await _batch
+                .ObserveCompletionAsync()
+                .ConfigureAwait(false);
+        }
         catch (Exception ex) { error ??= ex; }
         if (error is not null && !_request.IsCancellationRequested)
         {
@@ -250,9 +271,16 @@ internal sealed class QueryExecution : IResultExecutionOwner
             }
             await idle.ConfigureAwait(false);
             _reader?.ReleaseCurrent();
-            try { await _batch.DisposeAsync().ConfigureAwait(false); }
+            try
+            {
+                await _batch
+                    .DisposeAsync()
+                    .ConfigureAwait(false);
+            }
             catch (Exception ex) { error ??= ex; }
-            await _source.ReleaseRequestAsync(_pooled).ConfigureAwait(false);
+            await _source
+                .ReleaseRequestAsync(_pooled)
+                .ConfigureAwait(false);
         }
         if (error is not null && !_request.IsCancellationRequested)
         {

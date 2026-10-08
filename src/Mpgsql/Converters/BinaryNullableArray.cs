@@ -10,7 +10,7 @@ internal static class BinaryNullableArray<T, TCodec>
     internal static int Measure(ReadOnlySpan<T?> source, out bool hasNull)
     {
         hasNull = false;
-        int elementBytes = 0;
+        var elementBytes = 0;
         foreach (var item in source)
         {
             if (!item.HasValue)
@@ -26,7 +26,7 @@ internal static class BinaryNullableArray<T, TCodec>
     internal static int Write(ReadOnlyMemory<T?> value, Span<byte> destination)
     {
         var source = value.Span;
-        int size = Measure(source, out bool hasNull);
+        var size = Measure(source, out var hasNull);
         BinaryPayload.RequireCapacity(size, destination.Length);
         destination = destination[..size];
         CheckOverlap(source, destination);
@@ -38,8 +38,9 @@ internal static class BinaryNullableArray<T, TCodec>
     {
         ArgumentNullException.ThrowIfNull(destination);
         var source = value.Span;
-        int size = Measure(source, out bool hasNull);
-        var bytes = destination.GetSpan(size)[..size];
+        var size = Measure(source, out var hasNull);
+        var bytes = destination
+            .GetSpan(size)[..size];
         CheckOverlap(source, bytes);
         WriteCore(source, bytes, hasNull);
         destination.Advance(size);
@@ -51,10 +52,12 @@ internal static class BinaryNullableArray<T, TCodec>
         if (TCodec.MayOverlap)
         {
             foreach (var item in source)
+            {
                 if (item.HasValue)
                 {
                     TCodec.CheckOverlap(item.GetValueOrDefault(), destination);
                 }
+            }
         }
     }
 
@@ -65,14 +68,16 @@ internal static class BinaryNullableArray<T, TCodec>
         return WriteCore(value.Span, destination, false);
     }
 
-    private static int WriteCore(ReadOnlySpan<T?> source, Span<byte> bytes,
-        bool hasNull)
+    private static int WriteCore(
+        ReadOnlySpan<T?> source, Span<byte> bytes,
+        bool hasNull
+    )
     {
         ArrayPayload.WriteHeader(bytes, source.Length, hasNull, TCodec.Oid);
-        int offset = source.IsEmpty ? ArrayPayload.EmptyHeaderSize : ArrayPayload.HeaderSize;
+        var offset = source.IsEmpty ? ArrayPayload.EmptyHeaderSize : ArrayPayload.HeaderSize;
         foreach (var item in source)
         {
-            int lengthOffset = offset;
+            var lengthOffset = offset;
             offset += 4;
             if (!item.HasValue)
             {
@@ -80,7 +85,7 @@ internal static class BinaryNullableArray<T, TCodec>
                 BinaryPrimitives.WriteInt32BigEndian(bytes[lengthOffset..], -1);
                 continue;
             }
-            int length = TCodec.Write(item.GetValueOrDefault(), bytes[offset..]);
+            var length = TCodec.Write(item.GetValueOrDefault(), bytes[offset..]);
             BinaryPrimitives.WriteInt32BigEndian(bytes[lengthOffset..], length);
             offset += length;
         }
@@ -93,7 +98,7 @@ internal static class BinaryNullableArray<T, TCodec>
 
     internal static ReadOnlyMemory<T?> Read(ReadOnlySpan<byte> payload)
     {
-        int count = ArrayPayload.ReadHeader(payload, TCodec.Oid, TCodec.FixedSize, out int headerSize);
+        var count = ArrayPayload.ReadHeader(payload, TCodec.Oid, TCodec.FixedSize, out var headerSize);
         if (count == 0)
         {
             return ReadOnlyMemory<T?>.Empty;
@@ -105,7 +110,7 @@ internal static class BinaryNullableArray<T, TCodec>
 
     internal static int Read(ReadOnlySpan<byte> payload, Span<T?> destination)
     {
-        int count = ArrayPayload.ReadHeader(payload, TCodec.Oid, TCodec.FixedSize, out int headerSize);
+        var count = ArrayPayload.ReadHeader(payload, TCodec.Oid, TCodec.FixedSize, out var headerSize);
         BinaryPayload.RequireCapacity(count, destination.Length);
         destination = destination[..count];
         BinaryPayload.RequireSeparate(payload, BinaryPayload.StorageBytes(destination));
@@ -117,7 +122,7 @@ internal static class BinaryNullableArray<T, TCodec>
     {
         foreach (ref var item in destination)
         {
-            int length = ArrayPayload.ReadLength(records);
+            var length = ArrayPayload.ReadLength(records);
             item = length == -1 ? null : TCodec.Read(records.Slice(4, length));
             records = records[(length == -1 ? 4 : 4 + length)..];
         }
@@ -134,7 +139,7 @@ internal static class BinaryNullableArray<T, TCodec>
             return Read(payload.FirstSpan);
         }
         var reader = new SequenceReader<byte>(payload);
-        int count = ArrayPayload.ReadHeader(ref reader, TCodec.Oid, TCodec.FixedSize);
+        var count = ArrayPayload.ReadHeader(ref reader, TCodec.Oid, TCodec.FixedSize);
         if (count == 0)
         {
             return ReadOnlyMemory<T?>.Empty;
@@ -151,7 +156,7 @@ internal static class BinaryNullableArray<T, TCodec>
             return Read(payload.FirstSpan, destination);
         }
         var reader = new SequenceReader<byte>(payload);
-        int count = ArrayPayload.ReadHeader(ref reader, TCodec.Oid, TCodec.FixedSize);
+        var count = ArrayPayload.ReadHeader(ref reader, TCodec.Oid, TCodec.FixedSize);
         BinaryPayload.RequireCapacity(count, destination.Length);
         destination = destination[..count];
         BinaryPayload.RequireSeparate(payload, destination);
@@ -163,7 +168,7 @@ internal static class BinaryNullableArray<T, TCodec>
     {
         foreach (ref var item in destination)
         {
-            int length = ArrayPayload.ReadLength(ref reader);
+            var length = ArrayPayload.ReadLength(ref reader);
             if (length == -1)
             {
                 item = null;

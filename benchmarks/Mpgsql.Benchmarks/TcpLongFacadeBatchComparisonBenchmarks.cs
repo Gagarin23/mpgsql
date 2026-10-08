@@ -57,7 +57,11 @@ public class TcpLongFacadeBatchComparisonBenchmarks
 
     internal static async Task VerifyAsync()
     {
-        foreach (var native in new[] {false, true})
+        foreach (var native in new[]
+                 {
+                     false,
+                     true
+                 })
         {
             var benchmark = new TcpLongFacadeBatchComparisonBenchmarks();
             try
@@ -70,7 +74,9 @@ public class TcpLongFacadeBatchComparisonBenchmarks
                 {
                     await benchmark.SetupMpgsql();
                 }
-                for (var repeat = 0; repeat < 2; repeat++)
+                for (var repeat = 0;
+                     repeat < 2;
+                     repeat++)
                 {
                     if (native)
                     {
@@ -81,11 +87,17 @@ public class TcpLongFacadeBatchComparisonBenchmarks
                         benchmark.PrepareMpgsql();
                     }
                     var before = benchmark._inner.Peer.Counters();
-                    Check(await (native ? benchmark.NpgsqlFreshBatch() : benchmark.MpgsqlFacadeBatch())
-                          == 136L * GroupsPerIteration, "Long fresh Batch16 checksum");
+                    Check
+                    (
+                        await (native ? benchmark.NpgsqlFreshBatch() : benchmark.MpgsqlFacadeBatch())
+                        == 136L * GroupsPerIteration, "Long fresh Batch16 checksum"
+                    );
                     var after = benchmark._inner.Peer.Counters();
-                    Check(after.Queries - before.Queries == 16 * GroupsPerIteration
-                          && after.Syncs - before.Syncs == GroupsPerIteration, "Long fresh Batch16 boundaries");
+                    Check
+                    (
+                        after.Queries - before.Queries == 16 * GroupsPerIteration
+                        && after.Syncs - before.Syncs == GroupsPerIteration, "Long fresh Batch16 boundaries"
+                    );
                     benchmark._inner.CheckIdle();
                 }
             }

@@ -76,7 +76,9 @@ public class BackendFrameBenchmarks
     {
         var first = new Segment(bytes.AsMemory(0, Math.Min(chunk, bytes.Length)));
         var last = first;
-        for (var offset = first.Memory.Length; offset < bytes.Length; offset += chunk)
+        for (var offset = first.Memory.Length;
+             offset < bytes.Length;
+             offset += chunk)
         {
             last = last.Append(bytes.AsMemory(offset, Math.Min(chunk, bytes.Length - offset)));
         }
@@ -87,7 +89,8 @@ public class BackendFrameBenchmarks
     {
         var first = new Segment(ReadOnlyMemory<byte>.Empty);
         var last = first;
-        for (var offset = 0; offset < bytes.Length;)
+        for (var offset = 0;
+             offset < bytes.Length;)
         {
             var length = BinaryPrimitives.ReadInt32BigEndian(bytes.AsSpan(offset + 1));
             // Every header crosses a segment boundary; payload remains contiguous.
@@ -106,7 +109,10 @@ public class BackendFrameBenchmarks
         }
         internal Segment Append(ReadOnlyMemory<byte> memory)
         {
-            var next = new Segment(memory) {RunningIndex = RunningIndex + Memory.Length};
+            var next = new Segment(memory)
+            {
+                RunningIndex = RunningIndex + Memory.Length
+            };
             Next = next;
             return next;
         }

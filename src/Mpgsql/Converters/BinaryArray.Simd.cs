@@ -52,8 +52,10 @@ internal static partial class BinaryArray<T, TCodec>
     // Each block fuses endian reversal with [Int32 BE length][BE value] framing.
     // Capacity and disjoint storage have been checked before any vector load/store.
     // 255 shuffle indices select zero bytes, then OR inserts the length prefixes.
-    private static int WriteInt16Vectors(ref byte input, ref byte output,
-        int count)
+    private static int WriteInt16Vectors(
+        ref byte input, ref byte output,
+        int count
+    )
     {
         var firstMask = Vector128.Create(255, 255, 255, 255, 1, 0, 255, 255, 255, 255, 3, 2, 255, 255, 255, 255);
         var middleMask = Vector128.Create(5, 4, 255, 255, 255, 255, 7, 6, 255, 255, 255, 255, 9, 8, 255, 255);
@@ -62,7 +64,9 @@ internal static partial class BinaryArray<T, TCodec>
         var middlePrefix = Vector128.Create((byte)0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0);
         var lastPrefix = Vector128.Create((byte)0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0);
         var i = 0;
-        for (var offset = 0; i <= count - 8; i += 8, offset += 48)
+        for (var offset = 0;
+             i <= count - 8;
+             i += 8, offset += 48)
         {
             var values = Vector128.LoadUnsafe(ref input, (nuint)(i * 2));
             (Vector128.Shuffle(values, firstMask) | firstPrefix).StoreUnsafe(ref output, (nuint)offset);
@@ -72,14 +76,20 @@ internal static partial class BinaryArray<T, TCodec>
         return i;
     }
 
-    private static int WriteInt32Vectors(ref byte input, ref byte output,
-        int count)
+    private static int WriteInt32Vectors(
+        ref byte input, ref byte output,
+        int count
+    )
     {
         var firstMask = Vector128.Create(255, 255, 255, 255, 3, 2, 1, 0, 255, 255, 255, 255, 7, 6, 5, 4);
         var lastMask = Vector128.Create(255, 255, 255, 255, 11, 10, 9, 8, 255, 255, 255, 255, 15, 14, 13, 12);
-        var prefix = Vector128.Create(0x04000000u, 0u, 0x04000000u, 0u).AsByte();
+        var prefix = Vector128
+            .Create(0x04000000u, 0u, 0x04000000u, 0u)
+            .AsByte();
         var i = 0;
-        for (var offset = 0; i <= count - 4; i += 4, offset += 32)
+        for (var offset = 0;
+             i <= count - 4;
+             i += 4, offset += 32)
         {
             var values = Vector128.LoadUnsafe(ref input, (nuint)(i * 4));
             (Vector128.Shuffle(values, firstMask) | prefix).StoreUnsafe(ref output, (nuint)offset);
@@ -88,22 +98,36 @@ internal static partial class BinaryArray<T, TCodec>
         return i;
     }
 
-    private static int WriteInt64Vectors(ref byte input, ref byte output,
-        int count)
+    private static int WriteInt64Vectors(
+        ref byte input, ref byte output,
+        int count
+    )
     {
         var firstMask = Vector128.Create(255, 255, 255, 255, 7, 6, 5, 4, 3, 2, 1, 0, 255, 255, 255, 255);
         var middleLeftMask = Vector128.Create(15, 14, 13, 12, 11, 10, 9, 8, 255, 255, 255, 255, 255, 255, 255, 255);
         var middleRightMask = Vector128.Create(255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 7, 6, 5, 4);
         var lastMask = Vector128.Create(3, 2, 1, 0, 255, 255, 255, 255, 15, 14, 13, 12, 11, 10, 9, 8);
-        var firstPrefix = Vector128.Create(0x08000000u, 0u, 0u, 0x08000000u).AsByte();
-        var middlePrefix = Vector128.Create(0u, 0u, 0x08000000u, 0u).AsByte();
-        var lastPrefix = Vector128.Create(0u, 0x08000000u, 0u, 0u).AsByte();
+        var firstPrefix = Vector128
+            .Create(0x08000000u, 0u, 0u, 0x08000000u)
+            .AsByte();
+        var middlePrefix = Vector128
+            .Create(0u, 0u, 0x08000000u, 0u)
+            .AsByte();
+        var lastPrefix = Vector128
+            .Create(0u, 0x08000000u, 0u, 0u)
+            .AsByte();
         ref var values = ref Unsafe.As<byte, long>(ref input);
         var i = 0;
-        for (var offset = 0; i <= count - 4; i += 4, offset += 48)
+        for (var offset = 0;
+             i <= count - 4;
+             i += 4, offset += 48)
         {
-            var left = Vector128.LoadUnsafe(ref values, (nuint)i).AsByte();
-            var right = Vector128.LoadUnsafe(ref values, (nuint)(i + 2)).AsByte();
+            var left = Vector128
+                .LoadUnsafe(ref values, (nuint)i)
+                .AsByte();
+            var right = Vector128
+                .LoadUnsafe(ref values, (nuint)(i + 2))
+                .AsByte();
             (Vector128.Shuffle(left, firstMask) | firstPrefix).StoreUnsafe(ref output, (nuint)offset);
             (Vector128.Shuffle(left, middleLeftMask) | Vector128.Shuffle(right, middleRightMask) | middlePrefix)
                 .StoreUnsafe(ref output, (nuint)(offset + 16));
@@ -112,8 +136,10 @@ internal static partial class BinaryArray<T, TCodec>
         return i;
     }
 
-    private static int ReadInt16Vectors(ref byte input, ref byte output,
-        int count)
+    private static int ReadInt16Vectors(
+        ref byte input, ref byte output,
+        int count
+    )
     {
         var firstMask = Vector128.Create(5, 4, 11, 10, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255);
         var middleMask = Vector128.Create(255, 255, 255, 255, 1, 0, 7, 6, 13, 12, 255, 255, 255, 255, 255, 255);
@@ -124,7 +150,9 @@ internal static partial class BinaryArray<T, TCodec>
         var lastLengthsMask = Vector128.Create(255, 255, 255, 255, 255, 255, 0, 1, 4, 5, 6, 7, 10, 11, 12, 13);
         var prefix = Vector128.Create(0x02000000u);
         var i = 0;
-        for (var offset = 0; i <= count - 8; i += 8, offset += 48)
+        for (var offset = 0;
+             i <= count - 8;
+             i += 8, offset += 48)
         {
             var first = Vector128.LoadUnsafe(ref input, (nuint)offset);
             var middle = Vector128.LoadUnsafe(ref input, (nuint)(offset + 16));
@@ -141,15 +169,19 @@ internal static partial class BinaryArray<T, TCodec>
         return i;
     }
 
-    private static int ReadInt32Vectors(ref byte input, ref byte output,
-        int count)
+    private static int ReadInt32Vectors(
+        ref byte input, ref byte output,
+        int count
+    )
     {
         var firstMask = Vector128.Create(7, 6, 5, 4, 15, 14, 13, 12, 255, 255, 255, 255, 255, 255, 255, 255);
         var lastMask = Vector128.Create(255, 255, 255, 255, 255, 255, 255, 255, 7, 6, 5, 4, 15, 14, 13, 12);
         var lengthMask = Vector128.Create(uint.MaxValue, 0u, uint.MaxValue, 0u);
         var prefix = Vector128.Create(0x04000000u, 0u, 0x04000000u, 0u);
         var i = 0;
-        for (var offset = 0; i <= count - 4; i += 4, offset += 32)
+        for (var offset = 0;
+             i <= count - 4;
+             i += 4, offset += 32)
         {
             var first = Vector128.LoadUnsafe(ref input, (nuint)offset);
             var last = Vector128.LoadUnsafe(ref input, (nuint)(offset + 16));
@@ -162,8 +194,10 @@ internal static partial class BinaryArray<T, TCodec>
         return i;
     }
 
-    private static int ReadInt64Vectors(ref byte input, ref byte output,
-        int count)
+    private static int ReadInt64Vectors(
+        ref byte input, ref byte output,
+        int count
+    )
     {
         var firstLeftMask = Vector128.Create(11, 10, 9, 8, 7, 6, 5, 4, 255, 255, 255, 255, 255, 255, 255, 255);
         var firstRightMask = Vector128.Create(255, 255, 255, 255, 255, 255, 255, 255, 7, 6, 5, 4, 3, 2, 1, 0);
@@ -171,15 +205,25 @@ internal static partial class BinaryArray<T, TCodec>
         var lastRightMask = Vector128.Create(3, 2, 1, 0, 255, 255, 255, 255, 15, 14, 13, 12, 11, 10, 9, 8);
         ref var values = ref Unsafe.As<byte, long>(ref output);
         var i = 0;
-        for (var offset = 0; i <= count - 4; i += 4, offset += 48)
+        for (var offset = 0;
+             i <= count - 4;
+             i += 4, offset += 48)
         {
             var first = Vector128.LoadUnsafe(ref input, (nuint)offset);
             var middle = Vector128.LoadUnsafe(ref input, (nuint)(offset + 16));
             var last = Vector128.LoadUnsafe(ref input, (nuint)(offset + 32));
-            var invalid = first.AsUInt32().GetElement(0) ^ 0x08000000u |
-                          first.AsUInt32().GetElement(3) ^ 0x08000000u |
-                          middle.AsUInt32().GetElement(2) ^ 0x08000000u |
-                          last.AsUInt32().GetElement(1) ^ 0x08000000u;
+            var invalid = first
+                              .AsUInt32()
+                              .GetElement(0) ^ 0x08000000u |
+                          first
+                              .AsUInt32()
+                              .GetElement(3) ^ 0x08000000u |
+                          middle
+                              .AsUInt32()
+                              .GetElement(2) ^ 0x08000000u |
+                          last
+                              .AsUInt32()
+                              .GetElement(1) ^ 0x08000000u;
             if (invalid != 0)
             {
                 // Preserve bigint[]'s existing exception and non-returning cold path.
@@ -191,23 +235,31 @@ internal static partial class BinaryArray<T, TCodec>
                 ThrowNumericVectorLength(ref input, offset, 4, 8);
             }
             (Vector128.Shuffle(first, firstLeftMask) | Vector128.Shuffle(middle, firstRightMask))
-                .AsInt64().StoreUnsafe(ref values, (nuint)i);
+                .AsInt64()
+                .StoreUnsafe(ref values, (nuint)i);
             (Vector128.Shuffle(middle, lastLeftMask) | Vector128.Shuffle(last, lastRightMask))
-                .AsInt64().StoreUnsafe(ref values, (nuint)(i + 2));
+                .AsInt64()
+                .StoreUnsafe(ref values, (nuint)(i + 2));
         }
         return i;
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowNumericVectorLength(ref byte input, int offset,
-        int count, int size)
+    private static void ThrowNumericVectorLength(
+        ref byte input, int offset,
+        int count, int size
+    )
     {
         // Inspect only a failing block to preserve the existing NULL exception type.
         // Valid input checks its framing in the decoding pass, without another walk.
-        for (var i = 0; i < count; i++, offset += 4 + size)
+        for (var i = 0;
+             i < count;
+             i++, offset += 4 + size)
         {
-            var length = BinaryPrimitives.ReverseEndianness(
-                Unsafe.ReadUnaligned<int>(ref Unsafe.Add(ref input, offset)));
+            var length = BinaryPrimitives.ReverseEndianness
+            (
+                Unsafe.ReadUnaligned<int>(ref Unsafe.Add(ref input, offset))
+            );
             if (length != size)
             {
                 ThrowFixedLength(length);

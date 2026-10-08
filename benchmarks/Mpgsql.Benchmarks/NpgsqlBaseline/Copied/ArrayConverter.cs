@@ -37,37 +37,54 @@ internal abstract class ArrayConverter<T> : PgStreamingConverter<T> where T : no
 {
     private readonly PgArrayConverter _pgArrayConverter;
 
-    protected private ArrayConverter(int? expectedDimensions,
+    protected private ArrayConverter(
+        int? expectedDimensions,
         PgConverterResolution elemResolution,
-        int pgLowerBound = 1)
+        int pgLowerBound = 1
+    )
     {
-        if (!elemResolution.Converter.CanConvert(DataFormat.Binary,
-                out var bufferRequirements))
+        if (!elemResolution.Converter.CanConvert
+            (
+                DataFormat.Binary,
+                out var bufferRequirements
+            ))
         {
             throw new NotSupportedException("Element converter has to support the binary format to be compatible.");
         }
 
-        _pgArrayConverter = new PgArrayConverter((IElementOperations)this,
+        _pgArrayConverter = new PgArrayConverter
+        (
+            (IElementOperations)this,
             elemResolution.Converter.IsDbNullable,
             expectedDimensions,
             bufferRequirements,
             elemResolution.PgTypeId,
-            pgLowerBound);
+            pgLowerBound
+        );
     }
 
     public override T Read(PgReader reader)
     {
-        return (T)_pgArrayConverter.Read(false,
-            reader).Result;
+        return (T)_pgArrayConverter.Read
+            (
+                false,
+                reader
+            )
+            .Result;
     }
 
     // Adapted: AsyncHelpers is internal to Npgsql; retain the completed fast path.
-    public override ValueTask<T> ReadAsync(PgReader reader,
-        CancellationToken cancellationToken = default)
+    public override ValueTask<T> ReadAsync(
+        PgReader reader,
+        CancellationToken cancellationToken = default
+    )
     {
-        var task = _pgArrayConverter.Read(true,
+        var task = _pgArrayConverter.Read
+        (
+            true,
             reader,
-            cancellationToken);
+            cancellationToken
+        );
         return task.IsCompletedSuccessfully ? new ValueTask<T>((T)task.Result) : AwaitResult(task);
 
         static async ValueTask<T> AwaitResult(ValueTask<object> task)
@@ -76,36 +93,56 @@ internal abstract class ArrayConverter<T> : PgStreamingConverter<T> where T : no
         }
     }
 
-    public override Size GetSize(SizeContext context,
+    public override Size GetSize(
+        SizeContext context,
         T values,
-        ref object? writeState)
+        ref object? writeState
+    )
     {
-        return _pgArrayConverter.GetSize(context,
+        return _pgArrayConverter.GetSize
+        (
+            context,
             values,
-            ref writeState);
+            ref writeState
+        );
     }
 
-    public override void Write(PgWriter writer,
-        T values)
+    public override void Write(
+        PgWriter writer,
+        T values
+    )
     {
-        _pgArrayConverter.Write(false,
+        _pgArrayConverter
+            .Write
+            (
+                false,
+                writer,
+                values,
+                CancellationToken.None
+            )
+            .GetAwaiter()
+            .GetResult();
+    }
+
+    public override ValueTask WriteAsync(
+        PgWriter writer,
+        T values,
+        CancellationToken cancellationToken = default
+    )
+    {
+        return _pgArrayConverter.Write
+        (
+            true,
             writer,
             values,
-            CancellationToken.None).GetAwaiter().GetResult();
+            cancellationToken
+        );
     }
 
-    public override ValueTask WriteAsync(PgWriter writer,
-        T values,
-        CancellationToken cancellationToken = default)
-    {
-        return _pgArrayConverter.Write(true,
-            writer,
-            values,
-            cancellationToken);
-    }
-
-    protected static int GetLengths(Array array,
-        out int[]? lengths)
+    protected static int GetLengths(
+        Array array,
+        out int[]? lengths
+    )
     {
         var dimensions = array.Rank;
 
@@ -116,7 +153,9 @@ internal abstract class ArrayConverter<T> : PgStreamingConverter<T> where T : no
         }
 
         lengths = new int[dimensions];
-        for (var i = 0; i < lengths.Length; i++)
+        for (var i = 0;
+             i < lengths.Length;
+             i++)
         {
             lengths[i] = array.GetLength(i);
         }

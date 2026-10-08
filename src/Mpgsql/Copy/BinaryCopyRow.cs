@@ -44,22 +44,32 @@ public readonly struct BinaryCopyRow
     {
         return Int64ArrayConverter.Read(RequireValue(index));
     }
-    public int ReadLongArray(int index,
-        Span<long> destination)
+    public int ReadLongArray(
+        int index,
+        Span<long> destination
+    )
     {
-        return Int64ArrayConverter.Read(RequireValue(index),
-            destination);
+        return Int64ArrayConverter.Read
+        (
+            RequireValue(index),
+            destination
+        );
     }
 
     public ReadOnlyMemory<long?> ReadNullableLongArray(int index)
     {
         return NullableInt64ArrayConverter.Read(RequireValue(index));
     }
-    public int ReadNullableLongArray(int index,
-        Span<long?> destination)
+    public int ReadNullableLongArray(
+        int index,
+        Span<long?> destination
+    )
     {
-        return NullableInt64ArrayConverter.Read(RequireValue(index),
-            destination);
+        return NullableInt64ArrayConverter.Read
+        (
+            RequireValue(index),
+            destination
+        );
     }
 
     private ReadOnlySequence<byte> RequireValue(int index)

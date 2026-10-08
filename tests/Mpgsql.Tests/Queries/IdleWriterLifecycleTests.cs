@@ -13,7 +13,10 @@ public sealed class IdleWriterLifecycleTests
         using var input = new BlockingBytes();
         await using var wire = new ScriptedSession();
         await using var batch = wire.Session.CreateBatch(token);
-        var parameters = new[] {MpgsqlParameterValue.Bytea(input.Memory)};
+        var parameters = new[]
+        {
+            MpgsqlParameterValue.Bytea(input.Memory)
+        };
         var sending = Task.Run(() => batch.SendExecution(new QueryDefinition("select $1::bytea", parameters), null), token);
         try
         {
@@ -34,7 +37,11 @@ public sealed class IdleWriterLifecycleTests
         finally { input.Resume(); }
         var work = await sending.WaitAsync(TestTimeout, token);
         await Assert.ThrowsAnyAsync<IOException>(() => work.Completion.WaitAsync(TestTimeout, token));
-        await Assert.ThrowsAnyAsync<IOException>(() => batch.ObserveCompletionAsync().AsTask());
+        await Assert.ThrowsAnyAsync<IOException>
+        (() => batch
+            .ObserveCompletionAsync()
+            .AsTask()
+        );
         Assert.Equal(0, wire.Session.BufferedRowBytes);
     }
 
@@ -44,9 +51,18 @@ public sealed class IdleWriterLifecycleTests
         var token = TestContext.Current.CancellationToken;
         using var input = new BlockingParameters();
         await using var wire = new ScriptedSession();
-        await using var source = new MpgsqlMultiplexingDataSource(_ => ValueTask.FromResult(wire.Session), new MpgsqlMultiplexingOptions {MaxConnections = 1, MaxInFlightPerConnection = 1});
+        await using var source = new MpgsqlMultiplexingDataSource
+        (
+            _ => ValueTask.FromResult(wire.Session), new MpgsqlMultiplexingOptions
+            {
+                MaxConnections = 1,
+                MaxInFlightPerConnection = 1
+            }
+        );
         // Sizing can read once. A subsequent container access belongs to the asynchronous encoder.
-        var opening = source.ExecuteReaderAsync("select $1::bigint", input.Memory, token).AsTask();
+        var opening = source
+            .ExecuteReaderAsync("select $1::bigint", input.Memory, token)
+            .AsTask();
         try
         {
             await input.Entered.WaitAsync(TestTimeout, token);
@@ -66,20 +82,53 @@ public sealed class IdleWriterLifecycleTests
         var token = TestContext.Current.CancellationToken;
         await using var wire = new ScriptedSession(true);
         await using var first = wire.Session.CreateBatch(token);
-        var one = first.SendExecution(new QueryDefinition("select $1::bigint", new[] {MpgsqlParameterValue.Int64(11)}), null);
+        var one = first.SendExecution
+        (
+            new QueryDefinition
+            (
+                "select $1::bigint", new[]
+                {
+                    MpgsqlParameterValue.Int64(11)
+                }
+            ), null
+        );
         await using var following = wire.Session.CreateBatch(token);
-        var two = following.SendExecution(new QueryDefinition("select $1::bigint", new[] {MpgsqlParameterValue.Int64(22)}), null);
+        var two = following.SendExecution
+        (
+            new QueryDefinition
+            (
+                "select $1::bigint", new[]
+                {
+                    MpgsqlParameterValue.Int64(22)
+                }
+            ), null
+        );
         Assert.False(one.Delivery.IsCompleted);
         Assert.False(two.Delivery.IsCompleted);
-        await wire.Session.DisposeAsync().AsTask().WaitAsync(TestTimeout, token);
-        foreach (var work in new[] {one, two})
+        await wire
+            .Session.DisposeAsync()
+            .AsTask()
+            .WaitAsync(TestTimeout, token);
+        foreach (var work in new[]
+                 {
+                     one,
+                     two
+                 })
         {
             var error = await Record.ExceptionAsync(() => work.Delivery.WaitAsync(TestTimeout, token));
             Assert.True(error is ObjectDisposedException or OperationCanceledException);
             await Record.ExceptionAsync(() => work.Completion.WaitAsync(TestTimeout, token));
         }
-        await Record.ExceptionAsync(() => first.ObserveCompletionAsync().AsTask());
-        await Record.ExceptionAsync(() => following.ObserveCompletionAsync().AsTask());
+        await Record.ExceptionAsync
+        (() => first
+            .ObserveCompletionAsync()
+            .AsTask()
+        );
+        await Record.ExceptionAsync
+        (() => following
+            .ObserveCompletionAsync()
+            .AsTask()
+        );
         Assert.False(wire.Session.IsHealthy);
         Assert.Equal(0, wire.Session.BufferedRowBytes);
     }

@@ -12,10 +12,20 @@ public sealed class VariablePayloadEdgeTests
     {
         var value = string.Concat(Enumerable.Repeat("ASCII Я ε 中文 😀 e\u0301 ", 512));
         var bytes = Encoding.UTF8.GetBytes(value);
-        var input = TestWire.Chunks(Enumerable.Range(0, (bytes.Length + segmentSize - 1) / segmentSize)
-            .Select(i => (ReadOnlyMemory<byte>)bytes.AsMemory(i * segmentSize, Math.Min(segmentSize, bytes.Length - i * segmentSize))).ToArray());
+        var input = TestWire.Chunks
+        (
+            Enumerable
+                .Range(0, (bytes.Length + segmentSize - 1) / segmentSize)
+                .Select(i => (ReadOnlyMemory<byte>)bytes.AsMemory(i * segmentSize, Math.Min(segmentSize, bytes.Length - i * segmentSize)))
+                .ToArray()
+        );
         Assert.Equal(value, TextConverter.Read(input));
-        Assert.Equal(bytes, TextConverter.ReadUtf8(input).ToArray());
+        Assert.Equal
+        (
+            bytes, TextConverter
+                .ReadUtf8(input)
+                .ToArray()
+        );
         var result = new byte[bytes.Length + 1];
         JsonbConverter.WriteUtf8(bytes, result);
         Assert.Equal((byte)1, result[0]);
@@ -27,11 +37,18 @@ public sealed class VariablePayloadEdgeTests
     {
         var bytes = TestWire.Bytes(hex);
         Assert.Throws<InvalidDataException>(() => TextConverter.Read(bytes));
-        for (var split = 0; split <= bytes.Length; split++)
+        for (var split = 0;
+             split <= bytes.Length;
+             split++)
         {
             var input = TestWire.Chunks(bytes.AsMemory(0, split), ReadOnlyMemory<byte>.Empty, bytes.AsMemory(split));
             Assert.Throws<InvalidDataException>(() => TextConverter.Read(input));
-            Assert.Equal(bytes, TextConverter.ReadUtf8(input).ToArray());
+            Assert.Equal
+            (
+                bytes, TextConverter
+                    .ReadUtf8(input)
+                    .ToArray()
+            );
         }
     }
 
@@ -40,9 +57,24 @@ public sealed class VariablePayloadEdgeTests
     {
         var bytes = TestWire.Bytes(hex);
         var output = new byte[bytes.Length + 1];
-        Assert.Equal(bytes, TextConverter.ReadUtf8(bytes).ToArray());
-        Assert.Equal(bytes, JsonConverter.ReadUtf8(bytes).ToArray());
-        Assert.Equal(bytes, XmlConverter.ReadUtf8(bytes).ToArray());
+        Assert.Equal
+        (
+            bytes, TextConverter
+                .ReadUtf8(bytes)
+                .ToArray()
+        );
+        Assert.Equal
+        (
+            bytes, JsonConverter
+                .ReadUtf8(bytes)
+                .ToArray()
+        );
+        Assert.Equal
+        (
+            bytes, XmlConverter
+                .ReadUtf8(bytes)
+                .ToArray()
+        );
         Assert.Equal(bytes.Length, TextConverter.WriteUtf8(bytes, output));
         Assert.Equal(bytes, output[..bytes.Length]);
         Assert.Equal(bytes.Length, JsonConverter.WriteUtf8(bytes, output));
@@ -50,8 +82,18 @@ public sealed class VariablePayloadEdgeTests
         Assert.Equal(bytes.Length, XmlConverter.WriteUtf8(bytes, output));
         Assert.Equal(bytes, output[..bytes.Length]);
         var sequence = TestWire.ByteSegments(bytes);
-        Assert.Equal(bytes, JsonConverter.ReadUtf8(sequence).ToArray());
-        Assert.Equal(bytes, XmlConverter.ReadUtf8(sequence).ToArray());
+        Assert.Equal
+        (
+            bytes, JsonConverter
+                .ReadUtf8(sequence)
+                .ToArray()
+        );
+        Assert.Equal
+        (
+            bytes, XmlConverter
+                .ReadUtf8(sequence)
+                .ToArray()
+        );
     }
 
     [Fact]
@@ -80,13 +122,30 @@ public sealed class VariablePayloadEdgeTests
         bytes[1] = 42;
         Assert.Equal((byte)42, borrowed.Span[1]);
         Assert.Equal((byte)1, owned.Span[1]);
-        Assert.True(ByteaConverter.Read(ReadOnlySpan<byte>.Empty).IsEmpty);
+        Assert.True
+        (
+            ByteaConverter.Read(ReadOnlySpan<byte>.Empty)
+                .IsEmpty
+        );
         Assert.True(ByteaConverter.ReadNullable(ReadOnlyMemory<byte>.Empty)!.Value.IsEmpty);
         Assert.Null(ByteaConverter.ReadNullable((ReadOnlyMemory<byte>?)null));
-        byte[]?[] values = [new byte[] {0, 255}, null, Array.Empty<byte>(), new byte[] {128}];
+        byte[]?[] values =
+        [
+            new byte[]
+            {
+                0,
+                255
+            },
+            null, Array.Empty<byte>(), new byte[]
+            {
+                128
+            }
+        ];
         var payload = new byte[ByteaArrayConverter.GetByteCount(values)];
         ByteaArrayConverter.Write(values, payload);
-        var decoded = ByteaArrayConverter.ReadByteArrays(TestWire.ByteSegments(payload)).ToArray();
+        var decoded = ByteaArrayConverter
+            .ReadByteArrays(TestWire.ByteSegments(payload))
+            .ToArray();
         Assert.Equal(values[0], decoded[0]);
         Assert.Null(decoded[1]);
         Assert.NotNull(decoded[2]);
@@ -97,7 +156,20 @@ public sealed class VariablePayloadEdgeTests
     [Fact]
     public void JsonbRequiresVersionOneEvenWhenSplitIntoEmptySegments()
     {
-        foreach (var payload in new[] {Array.Empty<byte>(), new byte[] {0}, new byte[] {2, 123, 125}})
+        foreach (var payload in new[]
+                 {
+                     Array.Empty<byte>(),
+                     new byte[]
+                     {
+                         0
+                     },
+                     new byte[]
+                     {
+                         2,
+                         123,
+                         125
+                     }
+                 })
         {
             Assert.Throws<InvalidDataException>(() => JsonbConverter.Read(payload));
             Assert.Throws<InvalidDataException>(() => JsonbConverter.Read(TestWire.Chunks(ReadOnlyMemory<byte>.Empty, payload)));

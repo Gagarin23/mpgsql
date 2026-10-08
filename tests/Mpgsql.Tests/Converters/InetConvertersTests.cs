@@ -11,13 +11,26 @@ public sealed class InetConvertersTests
     public void LiteralPayloadsArraysBuffersAndSegmentBoundaries()
     {
         var value = PgInet.FromIPAddress(IPAddress.Parse("192.0.2.129"), 24);
-        ConverterAssertions.CheckScalar(value, "02180004c0000281", InetConverter.GetByteCount, InetConverter.Write,
-            InetConverter.Write, InetConverter.Read, InetConverter.Read);
-        ConverterAssertions.CheckNullableScalar(InetConverter.Write, InetConverter.Write,
-            InetConverter.GetByteCount, InetConverter.ReadNullable, InetConverter.ReadNullable);
-        ConverterAssertions.CheckArray(new[] {value, value}, (uint)TypeOid.Inet, "02180004c0000281",
+        ConverterAssertions.CheckScalar
+        (
+            value, "02180004c0000281", InetConverter.GetByteCount, InetConverter.Write,
+            InetConverter.Write, InetConverter.Read, InetConverter.Read
+        );
+        ConverterAssertions.CheckNullableScalar
+        (
+            InetConverter.Write, InetConverter.Write,
+            InetConverter.GetByteCount, InetConverter.ReadNullable, InetConverter.ReadNullable
+        );
+        ConverterAssertions.CheckArray
+        (
+            new[]
+            {
+                value,
+                value
+            }, (uint)TypeOid.Inet, "02180004c0000281",
             InetArrayConverter.GetByteCount, InetArrayConverter.Write, InetArrayConverter.Write,
-            InetArrayConverter.Read, InetArrayConverter.Read, InetArrayConverter.Read, InetArrayConverter.Read);
+            InetArrayConverter.Read, InetArrayConverter.Read, InetArrayConverter.Read, InetArrayConverter.Read
+        );
         ConverterAssertions.CheckNullableArray<PgInet, InetCodec>(value, "02180004c0000281");
     }
     [Fact]

@@ -22,8 +22,11 @@ public class NumericArraySimdBenchmarks
 {
 
     private NumericArrayBenchmarkCase _case = null!;
-    [Params(NumericArrayKind.Int16, NumericArrayKind.Int32, NumericArrayKind.Float32,
-        NumericArrayKind.Float64, NumericArrayKind.Oid, NumericArrayKind.Money)]
+    [Params
+    (
+        NumericArrayKind.Int16, NumericArrayKind.Int32, NumericArrayKind.Float32,
+        NumericArrayKind.Float64, NumericArrayKind.Oid, NumericArrayKind.Money
+    )]
     public NumericArrayKind Kind { get; set; }
 
     [Params(1, 8, 256, 4096)]
@@ -97,8 +100,10 @@ internal abstract class NumericArrayBenchmarkCase
     internal abstract int ReadScalar();
     internal abstract int ReadSimd();
 
-    internal static NumericArrayBenchmarkCase Create(NumericArrayKind kind, int count,
-        int segmentSize)
+    internal static NumericArrayBenchmarkCase Create(
+        NumericArrayKind kind, int count,
+        int segmentSize
+    )
     {
         return kind switch
         {
@@ -129,7 +134,9 @@ internal abstract class NumericArrayBenchmarkCase
             WriteScalar();
             var reference = _payload.ToArray();
             WriteSimd();
-            if (!reference.AsSpan().SequenceEqual(_payload))
+            if (!reference
+                    .AsSpan()
+                    .SequenceEqual(_payload))
             {
                 throw new InvalidDataException("SIMD array bytes differ from the original scalar implementation.");
             }
@@ -142,7 +149,9 @@ internal abstract class NumericArrayBenchmarkCase
 
         private void CheckRead()
         {
-            if (!MemoryMarshal.AsBytes(_values.AsSpan()).SequenceEqual(MemoryMarshal.AsBytes(_scratch.AsSpan())))
+            if (!MemoryMarshal
+                    .AsBytes(_values.AsSpan())
+                    .SequenceEqual(MemoryMarshal.AsBytes(_scratch.AsSpan())))
             {
                 throw new InvalidDataException("The numeric array decoder changed value bits.");
             }

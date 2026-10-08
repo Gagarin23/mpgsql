@@ -15,6 +15,6 @@
         <InternalsVisibleTo Include="Mpgsql.IntegrationTests"/>
     </ItemGroup>
     <ItemGroup>
-      <None Remove="Internal\MessageOperationKind.cs~" />
+        <None Remove="Internal\MessageOperationKind.cs~"/>
     </ItemGroup>
 </Project>

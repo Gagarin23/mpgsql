@@ -16,13 +16,18 @@ public sealed class BinaryCopyWriter
     private readonly IBufferWriter<byte> _destination;
     private int _column = -1;
 
-    public BinaryCopyWriter(IBufferWriter<byte> destination,
-        int columnCount)
+    public BinaryCopyWriter(
+        IBufferWriter<byte> destination,
+        int columnCount
+    )
     {
         ArgumentNullException.ThrowIfNull(destination);
         ArgumentOutOfRangeException.ThrowIfNegative(columnCount);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(columnCount,
-            short.MaxValue);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan
+        (
+            columnCount,
+            short.MaxValue
+        );
         _destination = destination;
         ColumnCount = columnCount;
         BinaryCopyFormat.WriteHeader(destination);
@@ -34,8 +39,11 @@ public sealed class BinaryCopyWriter
     public void StartRow()
     {
         RequireRowBoundary();
-        BinaryCopyFormat.WriteInt16(_destination,
-            (short)ColumnCount);
+        BinaryCopyFormat.WriteInt16
+        (
+            _destination,
+            (short)ColumnCount
+        );
         _column = 0;
         if (ColumnCount == 0)
         {
@@ -46,8 +54,11 @@ public sealed class BinaryCopyWriter
     public void WriteNull()
     {
         RequireColumn();
-        BinaryPrimitives.WriteInt32BigEndian(_destination.GetSpan(4),
-            -1);
+        BinaryPrimitives.WriteInt32BigEndian
+        (
+            _destination.GetSpan(4),
+            -1
+        );
         _destination.Advance(4);
         FinishColumn();
     }
@@ -56,10 +67,16 @@ public sealed class BinaryCopyWriter
     {
         RequireColumn();
         var bytes = _destination.GetSpan(12);
-        BinaryPrimitives.WriteInt32BigEndian(bytes,
-            8);
-        BinaryPrimitives.WriteInt64BigEndian(bytes[4..],
-            value);
+        BinaryPrimitives.WriteInt32BigEndian
+        (
+            bytes,
+            8
+        );
+        BinaryPrimitives.WriteInt64BigEndian
+        (
+            bytes[4..],
+            value
+        );
         _destination.Advance(12);
         FinishColumn();
     }
@@ -82,10 +99,14 @@ public sealed class BinaryCopyWriter
     {
         RequireColumn();
         var size = checked(4 + value.Length);
-        var bytes = _destination.GetSpan(size)[..size];
+        var bytes = _destination
+            .GetSpan(size)[..size];
         value.CopyTo(bytes[4..]); // Copy before the prefix also permits overlapping input.
-        BinaryPrimitives.WriteInt32BigEndian(bytes,
-            value.Length);
+        BinaryPrimitives.WriteInt32BigEndian
+        (
+            bytes,
+            value.Length
+        );
         _destination.Advance(size);
         FinishColumn();
     }
@@ -96,11 +117,18 @@ public sealed class BinaryCopyWriter
         RequireColumn();
         var payloadSize = Int64ArrayConverter.GetByteCount(value);
         var size = checked(4 + payloadSize);
-        var bytes = _destination.GetSpan(size)[..size];
-        Int64ArrayConverter.Write(value,
-            bytes[4..]);
-        BinaryPrimitives.WriteInt32BigEndian(bytes,
-            payloadSize);
+        var bytes = _destination
+            .GetSpan(size)[..size];
+        Int64ArrayConverter.Write
+        (
+            value,
+            bytes[4..]
+        );
+        BinaryPrimitives.WriteInt32BigEndian
+        (
+            bytes,
+            payloadSize
+        );
         _destination.Advance(size);
         FinishColumn();
     }
@@ -109,8 +137,11 @@ public sealed class BinaryCopyWriter
     public void WriteNullableLongArray(ReadOnlyMemory<long?> value)
     {
         RequireColumn();
-        NullableInt64ArrayConverter.WriteCopyField(value,
-            _destination);
+        NullableInt64ArrayConverter.WriteCopyField
+        (
+            value,
+            _destination
+        );
         FinishColumn();
     }
 
@@ -128,20 +159,38 @@ public sealed class BinaryCopyWriter
             return;
         }
         var size = checked(14 * values.Length);
-        var bytes = _destination.GetSpan(size)[..size];
-        if (MemoryMarshal.AsBytes(values).Overlaps(bytes))
+        var bytes = _destination
+            .GetSpan(size)[..size];
+        if (MemoryMarshal
+            .AsBytes(values)
+            .Overlaps(bytes))
         {
-            throw new ArgumentException("Input values must not overlap the COPY output.",
-                nameof(values));
+            throw new ArgumentException
+            (
+                "Input values must not overlap the COPY output.",
+                nameof(values)
+            );
         }
-        for (int i = 0, offset = 0; i < values.Length; i++, offset += 14)
+        for (int i = 0,
+             offset = 0;
+             i < values.Length;
+             i++, offset += 14)
         {
-            BinaryPrimitives.WriteInt16BigEndian(bytes[offset..],
-                1);
-            BinaryPrimitives.WriteInt32BigEndian(bytes[(offset + 2)..],
-                8);
-            BinaryPrimitives.WriteInt64BigEndian(bytes[(offset + 6)..],
-                values[i]);
+            BinaryPrimitives.WriteInt16BigEndian
+            (
+                bytes[offset..],
+                1
+            );
+            BinaryPrimitives.WriteInt32BigEndian
+            (
+                bytes[(offset + 2)..],
+                8
+            );
+            BinaryPrimitives.WriteInt64BigEndian
+            (
+                bytes[(offset + 6)..],
+                values[i]
+            );
         }
         _destination.Advance(size);
         _column = ColumnCount;
@@ -151,8 +200,11 @@ public sealed class BinaryCopyWriter
     public ulong Complete()
     {
         RequireRowBoundary();
-        BinaryCopyFormat.WriteInt16(_destination,
-            -1);
+        BinaryCopyFormat.WriteInt16
+        (
+            _destination,
+            -1
+        );
         IsCompleted = true;
         return RowsWritten;
     }

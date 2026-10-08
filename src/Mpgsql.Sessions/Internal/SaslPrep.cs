@@ -27,8 +27,10 @@ internal static class SaslPrep
         {
             return password;
         }
-        bool randal = false, lcat = false;
-        int first = -1, last = -1;
+        bool randal = false,
+            lcat = false;
+        int first = -1,
+            last = -1;
         // Match PostgreSQL's pg_saslprep: prohibited/unassigned and bidi checks inspect
         // the mapped input, while the returned successful value is NFKC-normalized.
         foreach (var rune in text.EnumerateRunes())

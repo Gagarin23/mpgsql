@@ -38,20 +38,26 @@ public sealed class BackendValidationTests
     public void Utf8IsDecodedOnlyWhenAccessingTheString(string hex)
     {
         var bytes = TestWire.Bytes(hex);
-        foreach (var fragmented in new[] {false, true})
+        foreach (var fragmented in new[]
+                 {
+                     false,
+                     true
+                 })
         {
             var input = fragmented ? TestWire.ByteSegments(bytes) : new ReadOnlySequence<byte>(bytes);
             Assert.True(BackendMessageReader.TryRead(ref input, out var message));
             Assert.True(input.IsEmpty);
-            Assert.Throws<InvalidDataException>(() =>
-            {
-                switch (message.Kind)
+            Assert.Throws<InvalidDataException>
+            (() =>
                 {
-                    case BackendMessageKind.CommandComplete: message.GetCommandTag(); break;
-                    case BackendMessageKind.Authentication: message.GetAuthentication(); break;
-                    case BackendMessageKind.ParameterStatus: message.GetParameterStatus(); break;
+                    switch (message.Kind)
+                    {
+                        case BackendMessageKind.CommandComplete: message.GetCommandTag(); break;
+                        case BackendMessageKind.Authentication: message.GetAuthentication(); break;
+                        case BackendMessageKind.ParameterStatus: message.GetParameterStatus(); break;
+                    }
                 }
-            });
+            );
         }
     }
 
@@ -59,18 +65,36 @@ public sealed class BackendValidationTests
     public void RejectsMalformedCompleteBodiesWithoutConsumingInput(string hex)
     {
         var bytes = TestWire.Bytes(hex);
-        foreach (var fragmented in new[] {false, true})
+        foreach (var fragmented in new[]
+                 {
+                     false,
+                     true
+                 })
         {
             var input = fragmented ? TestWire.ByteSegments(bytes) : new ReadOnlySequence<byte>(bytes);
             var before = input;
-            Assert.Throws<InvalidDataException>(() => BackendMessageReader.TryRead(ref input,
-                out _));
-            Assert.Equal(before.Start,
-                input.Start);
-            Assert.Equal(before.End,
-                input.End);
-            Assert.Equal(bytes,
-                input.ToArray());
+            Assert.Throws<InvalidDataException>
+            (() => BackendMessageReader.TryRead
+                (
+                    ref input,
+                    out _
+                )
+            );
+            Assert.Equal
+            (
+                before.Start,
+                input.Start
+            );
+            Assert.Equal
+            (
+                before.End,
+                input.End
+            );
+            Assert.Equal
+            (
+                bytes,
+                input.ToArray()
+            );
         }
     }
 
@@ -79,90 +103,175 @@ public sealed class BackendValidationTests
     {
         var input = TestWire.ByteSegments(TestWire.Bytes(hex));
         var before = input;
-        Assert.Throws<InvalidDataException>(() => BackendMessageReader.TryRead(ref input,
-            out _));
-        Assert.Equal(before.Start,
-            input.Start);
+        Assert.Throws<InvalidDataException>
+        (() => BackendMessageReader.TryRead
+            (
+                ref input,
+                out _
+            )
+        );
+        Assert.Equal
+        (
+            before.Start,
+            input.Start
+        );
     }
 
     [Fact]
     public void MessageLengthLimitIsExplicitAndConfigurable()
     {
         var input = new ReadOnlySequence<byte>(TestWire.Bytes("64 00000006 0102"));
-        Assert.Throws<InvalidDataException>(() => BackendMessageReader.TryRead(ref input,
-            out _,
-            5));
-        Assert.True(BackendMessageReader.TryRead(ref input,
-            out _,
-            6));
+        Assert.Throws<InvalidDataException>
+        (() => BackendMessageReader.TryRead
+            (
+                ref input,
+                out _,
+                5
+            )
+        );
+        Assert.True
+        (
+            BackendMessageReader.TryRead
+            (
+                ref input,
+                out _,
+                6
+            )
+        );
         Assert.True(input.IsEmpty);
-        Assert.Throws<ArgumentOutOfRangeException>(() => BackendMessageReader.TryRead(ref input,
-            out _,
-            3));
+        Assert.Throws<ArgumentOutOfRangeException>
+        (() => BackendMessageReader.TryRead
+            (
+                ref input,
+                out _,
+                3
+            )
+        );
     }
 
     [Theory, InlineData("f09f988000", "😀"), InlineData("e282ac00", "€"), InlineData("d0af00", "Я")]
-    public void DecodesUtf8ScalarsAcrossEveryByteBoundary(string textHex,
-        string expected)
+    public void DecodesUtf8ScalarsAcrossEveryByteBoundary(
+        string textHex,
+        string expected
+    )
     {
         var text = TestWire.Bytes(textHex);
         var frame = new byte[text.Length + 5];
         frame[0] = (byte)'C';
-        BinaryPrimitives.WriteInt32BigEndian(frame.AsSpan(1),
-            text.Length + 4);
-        text.CopyTo(frame,
-            5);
+        BinaryPrimitives.WriteInt32BigEndian
+        (
+            frame.AsSpan(1),
+            text.Length + 4
+        );
+        text.CopyTo
+        (
+            frame,
+            5
+        );
         var input = TestWire.ByteSegments(frame);
-        Assert.True(BackendMessageReader.TryRead(ref input,
-            out var message));
-        Assert.Equal(expected,
-            message.GetCommandTag());
+        Assert.True
+        (
+            BackendMessageReader.TryRead
+            (
+                ref input,
+                out var message
+            )
+        );
+        Assert.Equal
+        (
+            expected,
+            message.GetCommandTag()
+        );
     }
 
     [Theory, InlineData(EncryptionRequestKind.Ssl, "53", true), InlineData(EncryptionRequestKind.Ssl, "4e", false), InlineData(EncryptionRequestKind.Gss, "47", true), InlineData(EncryptionRequestKind.Gss, "4e", false)]
-    public void ReadsOnlyOneEncryptionNegotiationByte(EncryptionRequestKind request,
+    public void ReadsOnlyOneEncryptionNegotiationByte(
+        EncryptionRequestKind request,
         string response,
-        bool expected)
+        bool expected
+    )
     {
         var following = TestWire.Bytes("52 00000008 00000000");
         var input = TestWire.ByteSegments([.. TestWire.Bytes(response), .. following]);
-        Assert.True(BackendMessageReader.TryReadEncryptionResponse(ref input,
-            request,
-            out var accepted));
-        Assert.Equal(expected,
-            accepted);
-        Assert.Equal(following,
-            input.ToArray());
-        Assert.True(BackendMessageReader.TryRead(ref input,
-            out var message));
-        Assert.Equal(AuthenticationMethod.Ok,
+        Assert.True
+        (
+            BackendMessageReader.TryReadEncryptionResponse
+            (
+                ref input,
+                request,
+                out var accepted
+            )
+        );
+        Assert.Equal
+        (
+            expected,
+            accepted
+        );
+        Assert.Equal
+        (
+            following,
+            input.ToArray()
+        );
+        Assert.True
+        (
+            BackendMessageReader.TryRead
+            (
+                ref input,
+                out var message
+            )
+        );
+        Assert.Equal
+        (
+            AuthenticationMethod.Ok,
             message.GetAuthentication()
-                .Method);
+                .Method
+        );
     }
 
     [Theory, InlineData(EncryptionRequestKind.Ssl, "47"), InlineData(EncryptionRequestKind.Gss, "53"), InlineData(EncryptionRequestKind.Ssl, "00")]
-    public void RejectsEncryptionReplyFromWrongPhaseWithoutConsumption(EncryptionRequestKind request,
-        string response)
+    public void RejectsEncryptionReplyFromWrongPhaseWithoutConsumption(
+        EncryptionRequestKind request,
+        string response
+    )
     {
         var input = TestWire.ByteSegments(TestWire.Bytes(response));
         var before = input;
-        Assert.Throws<InvalidDataException>(() => BackendMessageReader.TryReadEncryptionResponse(ref input,
-            request,
-            out _));
-        Assert.Equal(before.Start,
-            input.Start);
+        Assert.Throws<InvalidDataException>
+        (() => BackendMessageReader.TryReadEncryptionResponse
+            (
+                ref input,
+                request,
+                out _
+            )
+        );
+        Assert.Equal
+        (
+            before.Start,
+            input.Start
+        );
     }
 
     [Fact]
     public void EmptyEncryptionReplyNeedsMoreData()
     {
         var input = ReadOnlySequence<byte>.Empty;
-        Assert.False(BackendMessageReader.TryReadEncryptionResponse(ref input,
-            EncryptionRequestKind.Ssl,
-            out _));
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            BackendMessageReader.TryReadEncryptionResponse(ref input,
+        Assert.False
+        (
+            BackendMessageReader.TryReadEncryptionResponse
+            (
+                ref input,
+                EncryptionRequestKind.Ssl,
+                out _
+            )
+        );
+        Assert.Throws<ArgumentOutOfRangeException>
+        (() =>
+            BackendMessageReader.TryReadEncryptionResponse
+            (
+                ref input,
                 (EncryptionRequestKind)42,
-                out _));
+                out _
+            )
+        );
     }
 }

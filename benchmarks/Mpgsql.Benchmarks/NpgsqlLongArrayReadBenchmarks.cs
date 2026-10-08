@@ -25,18 +25,42 @@ public class NpgsqlLongArrayReadBenchmarks
         var values = NpgsqlArrayVerification.Values(Count);
         // Independent scalar reference, same bytes for all three decoders.
         var bytes = new byte[Int64ArrayConverter.GetByteCount(Count)];
-        Int64ArrayReference.WriteScalar(values,
-            bytes);
-        _payload = NpgsqlArrayVerification.Sequence(bytes,
-            ReaderBufferSize);
-        _harness = new NpgsqlArrayHarness(20,
+        Int64ArrayReference.WriteScalar
+        (
+            values,
+            bytes
+        );
+        _payload = NpgsqlArrayVerification.Sequence
+        (
             bytes,
-            ReaderBufferSize);
-        if (!NpgsqlOriginal().AsSpan().SequenceEqual(values) ||
-            !NpgsqlCopied().AsSpan().SequenceEqual(values) ||
-            !Mpgsql().Span.SequenceEqual(values) ||
-            !_harness.ReadAsync(_harness.Original).GetAwaiter().GetResult().AsSpan().SequenceEqual(values) ||
-            !_harness.ReadAsync(_harness.Copy).GetAwaiter().GetResult().AsSpan().SequenceEqual(values))
+            ReaderBufferSize
+        );
+        _harness = new NpgsqlArrayHarness
+        (
+            20,
+            bytes,
+            ReaderBufferSize
+        );
+        if (!NpgsqlOriginal()
+                .AsSpan()
+                .SequenceEqual(values) ||
+            !NpgsqlCopied()
+                .AsSpan()
+                .SequenceEqual(values) ||
+            !Mpgsql()
+                .Span.SequenceEqual(values) ||
+            !_harness
+                .ReadAsync(_harness.Original)
+                .GetAwaiter()
+                .GetResult()
+                .AsSpan()
+                .SequenceEqual(values) ||
+            !_harness
+                .ReadAsync(_harness.Copy)
+                .GetAwaiter()
+                .GetResult()
+                .AsSpan()
+                .SequenceEqual(values))
         {
             throw new InvalidOperationException("An Npgsql array decoder differs from the expected values.");
         }

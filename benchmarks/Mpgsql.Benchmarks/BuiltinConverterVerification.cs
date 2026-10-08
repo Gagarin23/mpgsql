@@ -38,13 +38,26 @@ internal static class BuiltinConverterVerification
 
     private static void Check<T, TCodec>(T value) where T : struct where TCodec : struct, IBinaryCodec<T>
     {
-        foreach (var count in new[] {0, 1, 256, 4096}) Check<T, TCodec>(value, count);
+        foreach (var count in new[]
+                 {
+                     0,
+                     1,
+                     256,
+                     4096
+                 })
+        {
+            Check<T, TCodec>(value, count);
+        }
     }
 
     private static void Check<T, TCodec>(T value, int count) where T : struct where TCodec : struct, IBinaryCodec<T>
     {
-        var values = Enumerable.Repeat(value, count).ToArray();
-        var nullable = values.Select((v, i) => i % 3 == 0 ? (T?)null : v).ToArray();
+        var values = Enumerable
+            .Repeat(value, count)
+            .ToArray();
+        var nullable = values
+            .Select((v, i) => i % 3 == 0 ? (T?)null : v)
+            .ToArray();
         var scalar = new byte[TCodec.Measure(value)];
         var bytes = new byte[BinaryArray<T, TCodec>.Measure(values)];
         var nullBytes = new byte[BinaryNullableArray<T, TCodec>.Measure(nullable, out _)];
@@ -57,12 +70,16 @@ internal static class BuiltinConverterVerification
         var scratch = new T[values.Length];
         var nullScratch = new T?[values.Length];
         var writer = new FixedBufferWriter(Math.Max(scalar.Length, Math.Max(bytes.Length, nullBytes.Length)));
-        for (var i = 0; i < 32; i++)
+        for (var i = 0;
+             i < 32;
+             i++)
         {
             Exercise();
         }
         var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 128; i++)
+        for (var i = 0;
+             i < 128;
+             i++)
         {
             Exercise();
         }
@@ -97,7 +114,7 @@ internal static class BuiltinConverterVerification
         ReadOnlyMemory<byte>?[] arrays = [value, null, value];
         var numeric = PgNumeric.FromDecimal(decimal.MaxValue);
         PgNumeric?[] numbers = [numeric, null, numeric];
-        string text = new string('x', 4096);
+        var text = new string('x', 4096);
         string?[] strings = [text, null, text];
         Memory<byte> jsonb = Encoding.UTF8.GetBytes(text);
         Memory<byte>?[] jsonbValues = [jsonb, null, jsonb];
@@ -107,12 +124,16 @@ internal static class BuiltinConverterVerification
         var numericBytes = new byte[NumericConverter.GetByteCount(numeric)];
         NumericConverter.Write(numeric, numericBytes);
         var numericSequence = NpgsqlArrayVerification.Sequence(numericBytes, 1);
-        for (var i = 0; i < 32; i++)
+        for (var i = 0;
+             i < 32;
+             i++)
         {
             Exercise();
         }
         var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 128; i++)
+        for (var i = 0;
+             i < 128;
+             i++)
         {
             Exercise();
         }

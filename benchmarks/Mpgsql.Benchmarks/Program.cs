@@ -55,7 +55,12 @@ if (args.Contains("--verify-profiler-api"))
 
 if (args.Contains("--query-pipeline-profile"))
 {
-    try { await TcpPipelineProfileRunner.RunAsync(args).WaitAsync(TimeSpan.FromMinutes(3)); }
+    try
+    {
+        await TcpPipelineProfileRunner
+            .RunAsync(args)
+            .WaitAsync(TimeSpan.FromMinutes(3));
+    }
     catch (Exception error)
     {
         Console.Error.WriteLine(error);
@@ -66,7 +71,12 @@ if (args.Contains("--query-pipeline-profile"))
 
 if (args.Contains("--verify-query-pipeline-profile"))
 {
-    try { await TcpPipelineProfileRunner.VerifyAsync().WaitAsync(TimeSpan.FromMinutes(2)); }
+    try
+    {
+        await TcpPipelineProfileRunner
+            .VerifyAsync()
+            .WaitAsync(TimeSpan.FromMinutes(2));
+    }
     catch (Exception error)
     {
         Console.Error.WriteLine(error);
@@ -77,7 +87,12 @@ if (args.Contains("--verify-query-pipeline-profile"))
 
 if (args.Contains("--query-batch-profile"))
 {
-    try { await TcpBatchProfileRunner.RunAsync(args).WaitAsync(TimeSpan.FromMinutes(3)); }
+    try
+    {
+        await TcpBatchProfileRunner
+            .RunAsync(args)
+            .WaitAsync(TimeSpan.FromMinutes(3));
+    }
     catch (Exception error)
     {
         Console.Error.WriteLine(error);
@@ -88,7 +103,12 @@ if (args.Contains("--query-batch-profile"))
 
 if (args.Contains("--verify-query-batch-profile"))
 {
-    try { await TcpBatchProfileRunner.VerifyAsync().WaitAsync(TimeSpan.FromMinutes(2)); }
+    try
+    {
+        await TcpBatchProfileRunner
+            .VerifyAsync()
+            .WaitAsync(TimeSpan.FromMinutes(2));
+    }
     catch (Exception error)
     {
         Console.Error.WriteLine(error);
@@ -110,7 +130,12 @@ if (args.Contains("--query-compare-load"))
 
 if (args.Contains("--verify-query-compare"))
 {
-    try { await TcpComparisonVerification.RunAsync().WaitAsync(TimeSpan.FromMinutes(3)); }
+    try
+    {
+        await TcpComparisonVerification
+            .RunAsync()
+            .WaitAsync(TimeSpan.FromMinutes(3));
+    }
     catch (Exception error)
     {
         Console.Error.WriteLine(error);
@@ -158,7 +183,9 @@ if (args.Contains("--verify"))
     {
         BuiltinConverterVerification.Run();
         await QueryBenchmarkVerification.RunAsync();
-        await TcpComparisonVerification.RunAsync().WaitAsync(TimeSpan.FromMinutes(3));
+        await TcpComparisonVerification
+            .RunAsync()
+            .WaitAsync(TimeSpan.FromMinutes(3));
     }
     catch (Exception error)
     {
@@ -170,23 +197,88 @@ if (args.Contains("--verify"))
     Console.WriteLine("Scalar bigint/nullable bigint results and zero-allocation span/writer/segmented paths verified.");
     new SyncBenchmarks().Setup();
     new ExecuteBenchmarks().Setup();
-    foreach (var length in new[] {32, 4096})
-        new ParseBenchmarks {QueryLength = length}.Setup();
-    foreach (var count in new[] {1, 16})
-        new BindBenchmarks {Parameters = count}.Setup();
-    foreach (var count in new[] {1, 8, 64})
-    foreach (var fragmented in new[] {false, true})
-        new DataRowBenchmarks {Columns = count, Fragmented = fragmented}.Setup();
-    foreach (var ready in new[] {false, true})
-        new BackendControlBenchmarks {ReadyForQuery = ready}.Setup();
-    foreach (var count in new[] {0, 1, 3, 4, 5, 8, 256, 4096, 65536})
+    foreach (var length in new[]
+             {
+                 32,
+                 4096
+             })
     {
-        var write = new Int64ArrayWriteBenchmarks {Count = count};
+        new ParseBenchmarks
+        {
+            QueryLength = length
+        }.Setup();
+    }
+    foreach (var count in new[]
+             {
+                 1,
+                 16
+             })
+    {
+        new BindBenchmarks
+        {
+            Parameters = count
+        }.Setup();
+    }
+    foreach (var count in new[]
+             {
+                 1,
+                 8,
+                 64
+             })
+    foreach (var fragmented in new[]
+             {
+                 false,
+                 true
+             })
+    {
+        new DataRowBenchmarks
+        {
+            Columns = count,
+            Fragmented = fragmented
+        }.Setup();
+    }
+    foreach (var ready in new[]
+             {
+                 false,
+                 true
+             })
+    {
+        new BackendControlBenchmarks
+        {
+            ReadyForQuery = ready
+        }.Setup();
+    }
+    foreach (var count in new[]
+             {
+                 0,
+                 1,
+                 3,
+                 4,
+                 5,
+                 8,
+                 256,
+                 4096,
+                 65536
+             })
+    {
+        var write = new Int64ArrayWriteBenchmarks
+        {
+            Count = count
+        };
         write.Setup();
         write.CheckReusableAllocations();
-        foreach (var segmentSize in new[] {0, 7, 4096})
+        foreach (var segmentSize in new[]
+                 {
+                     0,
+                     7,
+                     4096
+                 })
         {
-            var read = new Int64ArrayReadBenchmarks {Count = count, SegmentSize = segmentSize};
+            var read = new Int64ArrayReadBenchmarks
+            {
+                Count = count,
+                SegmentSize = segmentSize
+            };
             read.Setup();
             read.CheckReusableAllocations();
         }
@@ -211,9 +303,14 @@ if (args.Contains("--verify"))
     return;
 }
 
-var summaries = BenchmarkSwitcher.FromAssembly(typeof(SyncBenchmarks).Assembly).Run(args).ToArray();
-if (summaries.Length == 0 || summaries.Any(summary => summary.HasCriticalValidationErrors
-                                                      || summary.Reports.Any(report => !report.Success || report.ResultStatistics is null)))
+var summaries = BenchmarkSwitcher
+    .FromAssembly(typeof(SyncBenchmarks).Assembly)
+    .Run(args)
+    .ToArray();
+if (summaries.Length == 0 || summaries.Any
+    (summary => summary.HasCriticalValidationErrors
+                || summary.Reports.Any(report => !report.Success || report.ResultStatistics is null)
+    ))
 {
     Environment.ExitCode = 1;
 }

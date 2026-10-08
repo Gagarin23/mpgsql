@@ -25,16 +25,24 @@ internal sealed class SocketTransport(TcpClient client, Stream stream, MpgsqlSes
 
     internal static async ValueTask<SocketTransport> ConnectAsync(MpgsqlSessionOptions options, CancellationToken token)
     {
-        var client = new TcpClient {NoDelay = true};
+        var client = new TcpClient
+        {
+            NoDelay = true
+        };
         try
         {
-            await client.ConnectAsync(options.Host, options.Port, token).ConfigureAwait(false);
+            await client
+                .ConnectAsync(options.Host, options.Port, token)
+                .ConfigureAwait(false);
             Stream stream = client.GetStream();
             if (options.SslMode != MpgsqlSslMode.Disable)
             {
-                await WriteAsync(stream, FrontendMessage.SslRequest(), token).ConfigureAwait(false);
+                await WriteAsync(stream, FrontendMessage.SslRequest(), token)
+                    .ConfigureAwait(false);
                 var response = new byte[1];
-                await stream.ReadExactlyAsync(response, token).ConfigureAwait(false);
+                await stream
+                    .ReadExactlyAsync(response, token)
+                    .ConfigureAwait(false);
                 if (response[0] != 'S')
                 {
                     throw new AuthenticationException("The server did not accept TLS.");
@@ -42,9 +50,26 @@ internal sealed class SocketTransport(TcpClient client, Stream stream, MpgsqlSes
                 var root = options.RootCertificate is null ? null : X509Certificate2.CreateFromPem(File.ReadAllText(options.RootCertificate));
                 try
                 {
-                    var ssl = new SslStream(stream, false, (_, certificate,
-                        _, errors) => ValidateCertificate(options.SslMode, certificate, errors, root));
-                    try { await ssl.AuthenticateAsClientAsync(new SslClientAuthenticationOptions {TargetHost = options.Host, AllowRenegotiation = false}, token).ConfigureAwait(false); }
+                    var ssl = new SslStream
+                    (
+                        stream, false, (
+                            _, certificate,
+                            _, errors
+                        ) => ValidateCertificate(options.SslMode, certificate, errors, root)
+                    );
+                    try
+                    {
+                        await ssl
+                            .AuthenticateAsClientAsync
+                            (
+                                new SslClientAuthenticationOptions
+                                {
+                                    TargetHost = options.Host,
+                                    AllowRenegotiation = false
+                                }, token
+                            )
+                            .ConfigureAwait(false);
+                    }
                     catch
                     {
                         ssl.Dispose();
@@ -63,8 +88,10 @@ internal sealed class SocketTransport(TcpClient client, Stream stream, MpgsqlSes
         }
     }
 
-    internal static bool ValidateCertificate(MpgsqlSslMode mode, X509Certificate? certificate,
-        SslPolicyErrors errors, X509Certificate2? root)
+    internal static bool ValidateCertificate(
+        MpgsqlSslMode mode, X509Certificate? certificate,
+        SslPolicyErrors errors, X509Certificate2? root
+    )
     {
         if (mode == MpgsqlSslMode.Require)
         {
@@ -93,13 +120,20 @@ internal sealed class SocketTransport(TcpClient client, Stream stream, MpgsqlSes
 
     internal async ValueTask StartupAsync(CancellationToken token)
     {
-        await WriteAsync(Stream, FrontendMessage.Startup(new[]
-        {
-            new KeyValuePair<string, string>("user", options.Username),
-            new KeyValuePair<string, string>("database", options.Database ?? options.Username),
-            new KeyValuePair<string, string>("client_encoding", "UTF8"),
-            new KeyValuePair<string, string>("application_name", options.ApplicationName)
-        }), token).ConfigureAwait(false);
+        await WriteAsync
+            (
+                Stream, FrontendMessage.Startup
+                (
+                    new[]
+                    {
+                        new KeyValuePair<string, string>("user", options.Username),
+                        new KeyValuePair<string, string>("database", options.Database ?? options.Username),
+                        new KeyValuePair<string, string>("client_encoding", "UTF8"),
+                        new KeyValuePair<string, string>("application_name", options.ApplicationName)
+                    }
+                ), token
+            )
+            .ConfigureAwait(false);
         var authenticated = false;
         ScramAuthentication? scram = null;
         var passwordSent = false;
@@ -107,7 +141,8 @@ internal sealed class SocketTransport(TcpClient client, Stream stream, MpgsqlSes
         {
             // Exact reads deliberately avoid startup read-ahead: no frame tail is lost when
             // the authenticated stream is handed to PipeReader.
-            var frame = await ReadFrameAsync(Stream, token).ConfigureAwait(false);
+            var frame = await ReadFrameAsync(Stream, token)
+                .ConfigureAwait(false);
             var input = new ReadOnlySequence<byte>(frame);
             if (!BackendMessageReader.TryRead(ref input, out var message))
             {
@@ -138,7 +173,8 @@ internal sealed class SocketTransport(TcpClient client, Stream stream, MpgsqlSes
                                 var first = Encoding.ASCII.GetBytes(Convert.ToHexStringLower(MD5.HashData(Encoding.UTF8.GetBytes(password + options.Username))));
                                 password = "md5" + Convert.ToHexStringLower(MD5.HashData([.. first, .. auth.Data.ToArray()]));
                             }
-                            await WriteAsync(Stream, FrontendMessage.Password(password), token).ConfigureAwait(false);
+                            await WriteAsync(Stream, FrontendMessage.Password(password), token)
+                                .ConfigureAwait(false);
                             passwordSent = true;
                             break;
                         case AuthenticationMethod.Sasl:
@@ -151,12 +187,23 @@ internal sealed class SocketTransport(TcpClient client, Stream stream, MpgsqlSes
                                 throw new NotSupportedException("Only SCRAM-SHA-256 SASL is supported.");
                             }
                             scram = new ScramAuthentication();
-                            await WriteAsync(Stream, FrontendMessage.SaslInitialResponse("SCRAM-SHA-256", scram.First()), token).ConfigureAwait(false);
+                            await WriteAsync(Stream, FrontendMessage.SaslInitialResponse("SCRAM-SHA-256", scram.First()), token)
+                                .ConfigureAwait(false);
                             break;
                         case AuthenticationMethod.SaslContinue:
-                            await WriteAsync(Stream,
-                                FrontendMessage.SaslResponse((scram ?? throw new InvalidDataException("Unexpected SASL continuation.")).Continue(Encoding.UTF8.GetString(auth.Data.ToArray()),
-                                    options.Password ?? throw new AuthenticationException("The server requires a password."))), token).ConfigureAwait(false); break;
+                            await WriteAsync
+                                (
+                                    Stream,
+                                    FrontendMessage.SaslResponse
+                                    (
+                                        (scram ?? throw new InvalidDataException("Unexpected SASL continuation.")).Continue
+                                        (
+                                            Encoding.UTF8.GetString(auth.Data.ToArray()),
+                                            options.Password ?? throw new AuthenticationException("The server requires a password.")
+                                        )
+                                    ), token
+                                )
+                                .ConfigureAwait(false); break;
                         case AuthenticationMethod.SaslFinal:
                             (scram ?? throw new InvalidDataException("Unexpected SASL final.")).Verify(Encoding.UTF8.GetString(auth.Data.ToArray())); break;
                         default: throw new NotSupportedException($"Authentication {auth.Method} is not supported.");
@@ -197,10 +244,14 @@ internal sealed class SocketTransport(TcpClient client, Stream stream, MpgsqlSes
     internal async ValueTask CancelAsync(CancellationToken token)
     {
         var key = BackendKey ?? throw new InvalidOperationException("The server did not provide BackendKeyData.");
-        using var channel = await ConnectAsync(options, token).ConfigureAwait(false);
-        await WriteAsync(channel.Stream, FrontendMessage.CancelRequest(key.ProcessId, key.SecretKey), token).ConfigureAwait(false);
+        using var channel = await ConnectAsync(options, token)
+            .ConfigureAwait(false);
+        await WriteAsync(channel.Stream, FrontendMessage.CancelRequest(key.ProcessId, key.SecretKey), token)
+            .ConfigureAwait(false);
         var reply = new byte[1];
-        if (await channel.Stream.ReadAsync(reply, token).ConfigureAwait(false) != 0)
+        if (await channel
+                .Stream.ReadAsync(reply, token)
+                .ConfigureAwait(false) != 0)
         {
             throw new InvalidDataException("Unexpected CancelRequest response.");
         }
@@ -209,7 +260,9 @@ internal sealed class SocketTransport(TcpClient client, Stream stream, MpgsqlSes
     private static async ValueTask<byte[]> ReadFrameAsync(Stream stream, CancellationToken token)
     {
         var header = new byte[5];
-        await stream.ReadExactlyAsync(header, token).ConfigureAwait(false);
+        await stream
+            .ReadExactlyAsync(header, token)
+            .ConfigureAwait(false);
         var length = BinaryPrimitives.ReadInt32BigEndian(header.AsSpan(1));
         if (length is < 4 or > 16 * 1024 * 1024)
         {
@@ -217,15 +270,21 @@ internal sealed class SocketTransport(TcpClient client, Stream stream, MpgsqlSes
         }
         var frame = new byte[length + 1];
         header.CopyTo(frame, 0);
-        await stream.ReadExactlyAsync(frame.AsMemory(5), token).ConfigureAwait(false);
+        await stream
+            .ReadExactlyAsync(frame.AsMemory(5), token)
+            .ConfigureAwait(false);
         return frame;
     }
 
-    private static async ValueTask WriteAsync<T>(Stream stream, T message,
-        CancellationToken token) where T : struct, IFrontendMessage<T>
+    private static async ValueTask WriteAsync<T>(
+        Stream stream, T message,
+        CancellationToken token
+    ) where T : struct, IFrontendMessage<T>
     {
         var bytes = new byte[FrontendMessageWriter.GetByteCount(message)];
         FrontendMessageWriter.Write(message, bytes);
-        await stream.WriteAsync(bytes, token).ConfigureAwait(false);
+        await stream
+            .WriteAsync(bytes, token)
+            .ConfigureAwait(false);
     }
 }

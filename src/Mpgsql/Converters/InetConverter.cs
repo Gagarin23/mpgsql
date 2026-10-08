@@ -36,8 +36,10 @@ public static class InetConverter
             Write(value.Value, destination);
         }
     }
-    public static int Write(IPAddress address, Span<byte> destination,
-        int? prefixLength = null)
+    public static int Write(
+        IPAddress address, Span<byte> destination,
+        int? prefixLength = null
+    )
     {
         return Write(PgInet.FromIPAddress(address, prefixLength), destination);
     }

@@ -9,13 +9,26 @@ public sealed class OidConvertersTests
     public void LiteralPayloadsArraysBuffersAndSegmentBoundaries()
     {
         var value = 0xfedcba98u;
-        ConverterAssertions.CheckScalar(value, "fedcba98", OidConverter.GetByteCount, OidConverter.Write,
-            OidConverter.Write, OidConverter.Read, OidConverter.Read);
-        ConverterAssertions.CheckNullableScalar(OidConverter.Write, OidConverter.Write,
-            OidConverter.GetByteCount, OidConverter.ReadNullable, OidConverter.ReadNullable);
-        ConverterAssertions.CheckArray(new[] {value, value}, (uint)TypeOid.Oid, "fedcba98",
+        ConverterAssertions.CheckScalar
+        (
+            value, "fedcba98", OidConverter.GetByteCount, OidConverter.Write,
+            OidConverter.Write, OidConverter.Read, OidConverter.Read
+        );
+        ConverterAssertions.CheckNullableScalar
+        (
+            OidConverter.Write, OidConverter.Write,
+            OidConverter.GetByteCount, OidConverter.ReadNullable, OidConverter.ReadNullable
+        );
+        ConverterAssertions.CheckArray
+        (
+            new[]
+            {
+                value,
+                value
+            }, (uint)TypeOid.Oid, "fedcba98",
             OidArrayConverter.GetByteCount, OidArrayConverter.Write, OidArrayConverter.Write,
-            OidArrayConverter.Read, OidArrayConverter.Read, OidArrayConverter.Read, OidArrayConverter.Read);
+            OidArrayConverter.Read, OidArrayConverter.Read, OidArrayConverter.Read, OidArrayConverter.Read
+        );
         ConverterAssertions.CheckNullableArray<uint, OidCodec>(value, "fedcba98");
     }
     [Fact]

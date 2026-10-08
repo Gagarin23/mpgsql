@@ -10,7 +10,9 @@ public sealed class SessionObservationTests
     {
         var token = TestContext.Current.CancellationToken;
         await using var wire = new ScriptedSession();
-        for (var i = 0; i < 24; i++)
+        for (var i = 0;
+             i < 24;
+             i++)
         {
             var status = (i % 3) switch
             {
@@ -24,8 +26,14 @@ public sealed class SessionObservationTests
                 await batch.SendQueryAsync("select state");
                 await batch.SendSyncAsync();
                 await wire.ReadOutputAsync();
-                await wire.WriteAsync(Join(status == TransactionStatus.FailedTransaction ? Error() : Query(i),
-                    Ready((char)status)), fragment);
+                await wire.WriteAsync
+                (
+                    Join
+                    (
+                        status == TransactionStatus.FailedTransaction ? Error() : Query(i),
+                        Ready((char)status)
+                    ), fragment
+                );
                 if (status == TransactionStatus.FailedTransaction)
                 {
                     var error = await Assert.ThrowsAsync<MpgsqlServerException>(() => batch.Completion.WaitAsync(TestTimeout, token));
@@ -68,16 +76,31 @@ public sealed class SessionObservationTests
         Assert.False(wire.Session.IsIdleAndHealthy);
         if (abort)
         {
-            Assert.Same(cause, await Assert.ThrowsAsync<IOException>(() => wire.Session.Completion.WaitAsync(TestTimeout,
-                TestContext.Current.CancellationToken)));
+            Assert.Same
+            (
+                cause, await Assert.ThrowsAsync<IOException>
+                (() => wire.Session.Completion.WaitAsync
+                    (
+                        TestTimeout,
+                        TestContext.Current.CancellationToken
+                    )
+                )
+            );
         }
         else
         {
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wire.Session.Completion.WaitAsync(TestTimeout,
-                TestContext.Current.CancellationToken));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>
+            (() => wire.Session.Completion.WaitAsync
+                (
+                    TestTimeout,
+                    TestContext.Current.CancellationToken
+                )
+            );
         }
         await wire.Session.DisposeAsync();
-        for (var i = 0; i < 64; i++)
+        for (var i = 0;
+             i < 64;
+             i++)
         {
             Assert.False(wire.Session.IsHealthy);
             Assert.False(wire.Session.IsIdleAndHealthy);
@@ -92,14 +115,25 @@ public sealed class SessionObservationTests
         await using var wire = new ScriptedSession();
         await using var replacement = new ScriptedSession();
         var factories = 0;
-        await using var source = new MpgsqlDataSource(_ => ValueTask.FromResult(
-                Interlocked.Increment(ref factories) == 1 ? wire.Session : replacement.Session),
-            (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions {MaxConnections = 1});
+        await using var source = new MpgsqlDataSource
+        (
+            _ => ValueTask.FromResult
+            (
+                Interlocked.Increment(ref factories) == 1 ? wire.Session : replacement.Session
+            ),
+            (_, _) => ValueTask.CompletedTask, new MpgsqlDataSourceOptions
+            {
+                MaxConnections = 1
+            }
+        );
         var connection = await source.OpenConnectionAsync(token);
         await using var command = connection.CreateCommand("select state");
-        var execution = command.ExecuteScalarAsync<long>(token).AsTask();
+        var execution = command
+            .ExecuteScalarAsync<long>(token)
+            .AsTask();
         var tags = new List<char>();
-        do { tags.AddRange(Tags(await wire.ReadOutputAsync())); } while (!tags.Contains('S'));
+        do { tags.AddRange(Tags(await wire.ReadOutputAsync())); }
+        while (!tags.Contains('S'));
         Assert.Equal("PBDES", new string([.. tags]));
         await wire.WriteAsync(Join(status == 'E' ? Error() : Query(42), Ready(status)), 1);
         if (status == 'E')

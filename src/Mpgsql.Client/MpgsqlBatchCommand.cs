@@ -74,6 +74,9 @@ public sealed class MpgsqlBatchCommand : DbBatchCommand
     internal QueryDefinition Snapshot()
     {
         var query = new QueryDefinition(_sql, Parameters.Snapshot(), PreparedStatement: Statement);
-        return query with {EncodedSize = query.Measure()};
+        return query with
+        {
+            EncodedSize = query.Measure()
+        };
     }
 }

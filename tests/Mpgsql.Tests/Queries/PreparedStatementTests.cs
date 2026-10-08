@@ -27,11 +27,29 @@ public sealed class PreparedStatementTests
         types[0] = 1016;
         Assert.Equal("mpgsql_ps_1", statement.Name);
         Assert.Equal("select $1", statement.Sql);
-        Assert.Equal(new uint[] {20}, statement.ParameterTypes.ToArray());
-        Assert.Equal("mpgsql_ps_2", wire.Session.CreatePreparedStatement("select 1").Name);
+        Assert.Equal
+        (
+            new uint[]
+            {
+                20
+            }, statement.ParameterTypes.ToArray()
+        );
+        Assert.Equal
+        (
+            "mpgsql_ps_2", wire.Session.CreatePreparedStatement("select 1")
+                .Name
+        );
         Assert.False(statement.Prepared.IsCompleted);
         Assert.False(wire.HasOutput());
-        Assert.Throws<ArgumentException>(() => wire.Session.CreatePreparedStatement("select $1", new uint[] {0}));
+        Assert.Throws<ArgumentException>
+        (() => wire.Session.CreatePreparedStatement
+            (
+                "select $1", new uint[]
+                {
+                    0
+                }
+            )
+        );
         Assert.Throws<ArgumentNullException>(() => wire.Session.CreatePreparedStatement(null!));
         Assert.Throws<ArgumentOutOfRangeException>(() => wire.Session.CreatePreparedStatement("select 1", new uint[65536]));
         Assert.False(wire.HasOutput());
@@ -41,21 +59,44 @@ public sealed class PreparedStatementTests
     public async Task CompleteNamedPrepareExecuteClosePayloadIncludesTagsLengthsAndFormats()
     {
         await using var wire = new ScriptedSession();
-        var statement = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
+        var statement = wire.Session.CreatePreparedStatement
+        (
+            "select $1", new uint[]
+            {
+                20
+            }
+        );
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         Task[] sends =
         [
-            batch.SendPrepareAsync(statement).AsTask(),
-            batch.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(42)}).AsTask(),
-            batch.SendCloseAsync(statement).AsTask()
+            batch
+                .SendPrepareAsync(statement)
+                .AsTask(),
+            batch
+                .SendQueryAsync
+                (
+                    statement, new[]
+                    {
+                        MpgsqlParameterValue.Int64(42)
+                    }
+                )
+                .AsTask(),
+            batch
+                .SendCloseAsync(statement)
+                .AsTask()
         ];
         await batch.SendSyncAsync();
         await Wait(Task.WhenAll(sends));
-        Assert.Equal(TestWire.Bytes(
-            "50 00000020 6d706773716c5f70735f3100 73656c65637420243100 0001 00000014 " +
-            "42 00000027 00 6d706773716c5f70735f3100 0001 0001 0001 00000008 000000000000002a 0001 0001 " +
-            "44 00000006 50 00 45 00000009 00 00000000 " +
-            "43 00000011 53 6d706773716c5f70735f3100 53 00000004"), await wire.ReadOutputAsync());
+        Assert.Equal
+        (
+            TestWire.Bytes
+            (
+                "50 00000020 6d706773716c5f70735f3100 73656c65637420243100 0001 00000014 " +
+                "42 00000027 00 6d706773716c5f70735f3100 0001 0001 0001 00000008 000000000000002a 0001 0001 " +
+                "44 00000006 50 00 45 00000009 00 00000000 " +
+                "43 00000011 53 6d706773716c5f70735f3100 53 00000004"
+            ), await wire.ReadOutputAsync()
+        );
         Assert.False(statement.Prepared.IsCompleted);
         await wire.WriteAsync(Join(Packet('1'), Execution(42), Packet('3'), Ready()), 1);
         await Wait(statement.Prepared);
@@ -70,20 +111,46 @@ public sealed class PreparedStatementTests
     public async Task PreparationAndUnawaitedExecutionsShareOneBatch()
     {
         await using var wire = new ScriptedSession();
-        var statement = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
+        var statement = wire.Session.CreatePreparedStatement
+        (
+            "select $1", new uint[]
+            {
+                20
+            }
+        );
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         Task[] sends =
         [
-            batch.SendPrepareAsync(statement).AsTask(),
-            batch.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(11)}).AsTask(),
-            batch.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(22)}).AsTask()
+            batch
+                .SendPrepareAsync(statement)
+                .AsTask(),
+            batch
+                .SendQueryAsync
+                (
+                    statement, new[]
+                    {
+                        MpgsqlParameterValue.Int64(11)
+                    }
+                )
+                .AsTask(),
+            batch
+                .SendQueryAsync
+                (
+                    statement, new[]
+                    {
+                        MpgsqlParameterValue.Int64(22)
+                    }
+                )
+                .AsTask()
         ];
         await batch.SendSyncAsync();
         await Wait(Task.WhenAll(sends));
         Assert.Equal("PBDEBDES", new string(Tags(await wire.ReadOutputAsync())));
         await wire.WriteAsync(Join(Packet('1'), Execution(11), Execution(22), Ready()));
         await using var reader = await batch.ReadResultsAsync();
-        for (var i = 0; i < 2; i++)
+        for (var i = 0;
+             i < 2;
+             i++)
         {
             Assert.Equal(i, reader.QueryIndex);
             Assert.True(await reader.ReadAsync());
@@ -96,22 +163,54 @@ public sealed class PreparedStatementTests
     public async Task AdministrativeOperationsDoNotCreateResultsOrChangeQueryIndexes()
     {
         await using var wire = new ScriptedSession();
-        var first = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
-        var second = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
+        var first = wire.Session.CreatePreparedStatement
+        (
+            "select $1", new uint[]
+            {
+                20
+            }
+        );
+        var second = wire.Session.CreatePreparedStatement
+        (
+            "select $1", new uint[]
+            {
+                20
+            }
+        );
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         await batch.SendQueryAsync("select 1::bigint");
         await batch.SendPrepareAsync(first);
-        await batch.SendQueryAsync(first, new[] {MpgsqlParameterValue.Int64(2)});
+        await batch.SendQueryAsync
+        (
+            first, new[]
+            {
+                MpgsqlParameterValue.Int64(2)
+            }
+        );
         await batch.SendPrepareAsync(second);
         await batch.SendQueryAsync("select 3::bigint");
         await batch.SendCloseAsync(first);
-        await batch.SendQueryAsync(second, new[] {MpgsqlParameterValue.Int64(4)});
+        await batch.SendQueryAsync
+        (
+            second, new[]
+            {
+                MpgsqlParameterValue.Int64(4)
+            }
+        );
         await batch.SendCloseAsync(second);
         await batch.SendSyncAsync();
-        await wire.WriteAsync(Join(Query(1), Packet('1'), Execution(2), Packet('1'), Query(3),
-            Packet('3'), Execution(4), Packet('3'), Ready()), 3);
+        await wire.WriteAsync
+        (
+            Join
+            (
+                Query(1), Packet('1'), Execution(2), Packet('1'), Query(3),
+                Packet('3'), Execution(4), Packet('3'), Ready()
+            ), 3
+        );
         await using var reader = await batch.ReadResultsAsync();
-        for (var i = 0; i < 4; i++)
+        for (var i = 0;
+             i < 4;
+             i++)
         {
             Assert.Equal(i, reader.QueryIndex);
             Assert.True(await reader.ReadAsync());
@@ -124,16 +223,34 @@ public sealed class PreparedStatementTests
     public async Task ParseCompleteAllowsSeveralGroupsInFlightBeforeFirstReady()
     {
         await using var wire = new ScriptedSession();
-        var statement = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
+        var statement = wire.Session.CreatePreparedStatement
+        (
+            "select $1", new uint[]
+            {
+                20
+            }
+        );
         await using var first = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         await first.SendPrepareAsync(statement);
-        await first.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(1)});
+        await first.SendQueryAsync
+        (
+            statement, new[]
+            {
+                MpgsqlParameterValue.Int64(1)
+            }
+        );
         await first.SendSyncAsync();
         await wire.WriteAsync(Packet('1'));
         await Wait(statement.Prepared);
         Assert.False(first.Completion.IsCompleted);
         await using var second = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        await second.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(2)});
+        await second.SendQueryAsync
+        (
+            statement, new[]
+            {
+                MpgsqlParameterValue.Int64(2)
+            }
+        );
         await second.SendSyncAsync();
         Assert.Equal("PBDESBDES", new string(Tags(await wire.ReadOutputAsync())));
         await wire.WriteAsync(Join(Execution(1), Ready(), Execution(2), Ready()));
@@ -151,13 +268,27 @@ public sealed class PreparedStatementTests
     public async Task PendingPreparationCannotBeUsedInAnotherBatch()
     {
         await using var wire = new ScriptedSession();
-        var statement = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
+        var statement = wire.Session.CreatePreparedStatement
+        (
+            "select $1", new uint[]
+            {
+                20
+            }
+        );
         await using var preparing = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         await preparing.SendPrepareAsync(statement);
         await preparing.SendSyncAsync();
         Assert.Equal("PS", new string(Tags(await wire.ReadOutputAsync())));
         await using var other = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        Assert.Throws<InvalidOperationException>(() => other.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(1)}));
+        Assert.Throws<InvalidOperationException>
+        (() => other.SendQueryAsync
+            (
+                statement, new[]
+                {
+                    MpgsqlParameterValue.Int64(1)
+                }
+            )
+        );
         Assert.False(wire.HasOutput());
         await wire.WriteAsync(Join(Packet('1'), Ready()));
         await Wait(statement.Prepared);
@@ -168,7 +299,13 @@ public sealed class PreparedStatementTests
     {
         await using var wire = new ScriptedSession();
         await using var foreign = new ScriptedSession();
-        var statement = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
+        var statement = wire.Session.CreatePreparedStatement
+        (
+            "select $1", new uint[]
+            {
+                20
+            }
+        );
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         await using var other = foreign.Session.CreateBatch(TestContext.Current.CancellationToken);
         Assert.Throws<ArgumentException>(() => other.SendPrepareAsync(statement));
@@ -185,7 +322,15 @@ public sealed class PreparedStatementTests
         Assert.Equal("P", new string(Tags(await wire.ReadOutputAsync())));
         Assert.Throws<InvalidOperationException>(() => batch.SendPrepareAsync(statement));
         Assert.Throws<ArgumentException>(() => batch.SendQueryAsync(statement));
-        Assert.Throws<ArgumentException>(() => batch.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64Array(null)}));
+        Assert.Throws<ArgumentException>
+        (() => batch.SendQueryAsync
+            (
+                statement, new[]
+                {
+                    MpgsqlParameterValue.Int64Array(null)
+                }
+            )
+        );
         Assert.Throws<InvalidOperationException>(() => batch.SendQueryAsync(statement, new MpgsqlParameterValue[1]));
         Assert.False(wire.HasOutput());
         await batch.SendSyncAsync();
@@ -238,17 +383,35 @@ public sealed class PreparedStatementTests
     public async Task ExecutionErrorPreservesConfirmedPreparation()
     {
         await using var wire = new ScriptedSession();
-        var statement = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
+        var statement = wire.Session.CreatePreparedStatement
+        (
+            "select $1", new uint[]
+            {
+                20
+            }
+        );
         var failed = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         await failed.SendPrepareAsync(statement);
-        await failed.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(0)});
+        await failed.SendQueryAsync
+        (
+            statement, new[]
+            {
+                MpgsqlParameterValue.Int64(0)
+            }
+        );
         await failed.SendSyncAsync();
         await wire.ReadOutputAsync();
         await wire.WriteAsync(Join(Packet('1'), Packet('2'), Description(20), Error(), Ready()));
         Assert.Equal(0, (await FailBatch(failed)).QueryIndex);
         await Wait(statement.Prepared);
         await using var next = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        await next.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(42)});
+        await next.SendQueryAsync
+        (
+            statement, new[]
+            {
+                MpgsqlParameterValue.Int64(42)
+            }
+        );
         await next.SendSyncAsync();
         Assert.Equal("BDES", new string(Tags(await wire.ReadOutputAsync())));
         await wire.WriteAsync(Join(Execution(42), Ready()));
@@ -266,17 +429,39 @@ public sealed class PreparedStatementTests
         var failed = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         if (skipped)
         {
-            await failed.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(0)});
+            await failed.SendQueryAsync
+            (
+                statement, new[]
+                {
+                    MpgsqlParameterValue.Int64(0)
+                }
+            );
         }
         await failed.SendCloseAsync(statement);
-        Assert.Throws<InvalidOperationException>(() => failed.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(1)}));
+        Assert.Throws<InvalidOperationException>
+        (() => failed.SendQueryAsync
+            (
+                statement, new[]
+                {
+                    MpgsqlParameterValue.Int64(1)
+                }
+            )
+        );
         Assert.Throws<InvalidOperationException>(() => failed.SendCloseAsync(statement));
         await failed.SendSyncAsync();
         await wire.WriteAsync(Join(Error(), Ready()));
         Assert.Equal(skipped ? 0 : null, (await FailBatch(failed)).QueryIndex);
         Assert.True(statement.Prepared.IsCompletedSuccessfully);
         await using var retry = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        Assert.Throws<InvalidOperationException>(() => retry.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(1)}));
+        Assert.Throws<InvalidOperationException>
+        (() => retry.SendQueryAsync
+            (
+                statement, new[]
+                {
+                    MpgsqlParameterValue.Int64(1)
+                }
+            )
+        );
         await retry.SendCloseAsync(statement);
         await retry.SendSyncAsync();
         await wire.WriteAsync(Join(Packet('3'), Ready()));
@@ -285,7 +470,15 @@ public sealed class PreparedStatementTests
         await using var noop = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         await noop.SendCloseAsync(statement);
         Assert.False(wire.HasOutput());
-        Assert.Throws<InvalidOperationException>(() => noop.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(1)}));
+        Assert.Throws<InvalidOperationException>
+        (() => noop.SendQueryAsync
+            (
+                statement, new[]
+                {
+                    MpgsqlParameterValue.Int64(1)
+                }
+            )
+        );
     }
 
     [Fact]
@@ -293,20 +486,45 @@ public sealed class PreparedStatementTests
     {
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await using var wire = new ScriptedSession(true);
-        var statement = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
+        var statement = wire.Session.CreatePreparedStatement
+        (
+            "select $1", new uint[]
+            {
+                20
+            }
+        );
         var batch = wire.Session.CreateBatch(request.Token);
-        var published = batch.SendQueryAsync("select 11::bigint").AsTask();
+        var published = batch
+            .SendQueryAsync("select 11::bigint")
+            .AsTask();
         var held = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
         Task[] queued =
         [
-            batch.SendPrepareAsync(statement).AsTask(),
-            batch.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(22)}).AsTask(),
-            batch.SendCloseAsync(statement).AsTask()
+            batch
+                .SendPrepareAsync(statement)
+                .AsTask(),
+            batch
+                .SendQueryAsync
+                (
+                    statement, new[]
+                    {
+                        MpgsqlParameterValue.Int64(22)
+                    }
+                )
+                .AsTask(),
+            batch
+                .SendCloseAsync(statement)
+                .AsTask()
         ];
-        var sync = batch.SendSyncAsync().AsTask();
+        var sync = batch
+            .SendSyncAsync()
+            .AsTask();
         request.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Wait(published));
-        foreach (var send in queued) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Wait(send));
+        foreach (var send in queued)
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Wait(send));
+        }
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Wait(statement.Prepared));
         wire.Outgoing.Reader.AdvanceTo(held.Buffer.End);
         Assert.Equal("S", new string(Tags(await wire.ReadOutputAsync())));
@@ -328,9 +546,13 @@ public sealed class PreparedStatementTests
         await using var wire = new ScriptedSession(true);
         var statement = wire.Session.CreatePreparedStatement("select 1::bigint");
         var batch = wire.Session.CreateBatch(request.Token);
-        var send = batch.SendPrepareAsync(statement).AsTask();
+        var send = batch
+            .SendPrepareAsync(statement)
+            .AsTask();
         var held = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
-        var sync = batch.SendSyncAsync().AsTask();
+        var sync = batch
+            .SendSyncAsync()
+            .AsTask();
         request.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Wait(send));
         Assert.False(statement.Prepared.IsCompleted);
@@ -364,24 +586,50 @@ public sealed class PreparedStatementTests
         confirmed.Dispose();
         pending.Dispose();
         unused.Dispose();
-        Assert.Throws<ObjectDisposedException>(() => batch.SendQueryAsync(confirmed, new[] {MpgsqlParameterValue.Int64(1)}));
+        Assert.Throws<ObjectDisposedException>
+        (() => batch.SendQueryAsync
+            (
+                confirmed, new[]
+                {
+                    MpgsqlParameterValue.Int64(1)
+                }
+            )
+        );
     }
 
     [Fact]
     public async Task AsynchronousMessagesDoNotConsumePreparationOrExecutionResponses()
     {
         await using var wire = new ScriptedSession();
-        var statement = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
+        var statement = wire.Session.CreatePreparedStatement
+        (
+            "select $1", new uint[]
+            {
+                20
+            }
+        );
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         await batch.SendPrepareAsync(statement);
-        await batch.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64(42)});
+        await batch.SendQueryAsync
+        (
+            statement, new[]
+            {
+                MpgsqlParameterValue.Int64(42)
+            }
+        );
         await batch.SendCloseAsync(statement);
         await batch.SendSyncAsync();
         var notice = Packet('N', Encoding.UTF8.GetBytes("SNOTICE\0Mhello\0\0"));
         var parameter = Packet('S', Encoding.UTF8.GetBytes("application_name\0prepared-tests\0"));
         var notification = Packet('A', [0, 0, 0, 7, .. Encoding.UTF8.GetBytes("events\0ready\0")]);
-        await wire.WriteAsync(Join(notice, Packet('1'), parameter, Packet('2'), notification,
-            Description(20), Row(Int64(42)), Command(), notice, Packet('3'), Ready()), 1);
+        await wire.WriteAsync
+        (
+            Join
+            (
+                notice, Packet('1'), parameter, Packet('2'), notification,
+                Description(20), Row(Int64(42)), Command(), notice, Packet('3'), Ready()
+            ), 1
+        );
         await Wait(statement.Prepared);
         await using var reader = await batch.ReadResultsAsync();
         Assert.True(await reader.ReadAsync());
@@ -404,8 +652,14 @@ public sealed class PreparedStatementTests
         await batch.SendPrepareAsync(statement);
         await batch.SendQueryAsync(statement);
         await batch.SendSyncAsync();
-        await wire.WriteAsync(Join(Packet('1'), Packet('2'), Packet('n'),
-            empty ? Packet('I') : Command("UPDATE 1"), Ready()));
+        await wire.WriteAsync
+        (
+            Join
+            (
+                Packet('1'), Packet('2'), Packet('n'),
+                empty ? Packet('I') : Command("UPDATE 1"), Ready()
+            )
+        );
         await using var reader = await batch.ReadResultsAsync();
         Assert.Equal(0, reader.QueryIndex);
         Assert.True(reader.Columns.IsEmpty);
@@ -433,24 +687,50 @@ public sealed class PreparedStatementTests
         [
             MpgsqlParameterValue.Int64(null), MpgsqlParameterValue.Int64Array(null),
             MpgsqlParameterValue.Int64Array(ReadOnlyMemory<long>.Empty),
-            MpgsqlParameterValue.NullableInt64Array(new long?[] {long.MinValue, null, long.MaxValue})
+            MpgsqlParameterValue.NullableInt64Array
+            (
+                new long?[]
+                {
+                    long.MinValue,
+                    null,
+                    long.MaxValue
+                }
+            )
         ];
         var payloads = new ReadOnlyMemory<byte>?[parameters.Length];
-        for (var i = 0; i < parameters.Length; i++)
+        for (var i = 0;
+             i < parameters.Length;
+             i++)
         {
             if (parameters[i].PayloadLength >= 0)
             {
                 var bytes = new byte[parameters[i].PayloadLength];
-                parameters[i].WritePayload(bytes);
+                parameters[i]
+                    .WritePayload(bytes);
                 payloads[i] = bytes;
             }
         }
         const string name = "statement_ж";
         var reference = new ArrayBufferWriter<byte>();
-        FrontendMessage.Bind(statement: name, parameters: payloads,
-            parameterFormats: new[] {FormatCode.Binary}, resultFormats: new[] {FormatCode.Binary}).Write(reference);
-        FrontendMessage.Describe(StatementOrPortal.Portal).Write(reference);
-        FrontendMessage.Execute().Write(reference);
+        FrontendMessage
+            .Bind
+            (
+                statement: name, parameters: payloads,
+                parameterFormats: new[]
+                {
+                    FormatCode.Binary
+                }, resultFormats: new[]
+                {
+                    FormatCode.Binary
+                }
+            )
+            .Write(reference);
+        FrontendMessage
+            .Describe(StatementOrPortal.Portal)
+            .Write(reference);
+        FrontendMessage
+            .Execute()
+            .Write(reference);
         var destination = new byte[QueryPacket.GetPreparedByteCount(name, parameters)];
         Assert.Equal(destination.Length, QueryPacket.WritePrepared(name, parameters, destination));
         Assert.Equal(reference.WrittenSpan.ToArray(), destination);
@@ -458,7 +738,13 @@ public sealed class PreparedStatementTests
 
     private static async Task<MpgsqlPreparedStatement> Prepare(ScriptedSession wire)
     {
-        var statement = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
+        var statement = wire.Session.CreatePreparedStatement
+        (
+            "select $1", new uint[]
+            {
+                20
+            }
+        );
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         await batch.SendPrepareAsync(statement);
         await batch.SendSyncAsync();
@@ -472,7 +758,11 @@ public sealed class PreparedStatementTests
     private static async Task<MpgsqlServerException> FailBatch(MpgsqlQueryBatch batch)
     {
         var error = await Assert.ThrowsAsync<MpgsqlServerException>(() => Wait(batch.Completion));
-        await Assert.ThrowsAsync<MpgsqlServerException>(() => batch.DisposeAsync().AsTask());
+        await Assert.ThrowsAsync<MpgsqlServerException>
+        (() => batch
+            .DisposeAsync()
+            .AsTask()
+        );
         return error;
     }
 }

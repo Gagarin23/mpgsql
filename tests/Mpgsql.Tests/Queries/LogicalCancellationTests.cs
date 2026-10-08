@@ -15,11 +15,15 @@ public sealed class LogicalCancellationTests
 
     private static MpgsqlMultiplexingDataSource Source(ScriptedSession wire, int inFlight = 2)
     {
-        return new MpgsqlMultiplexingDataSource(_ => ValueTask.FromResult(wire.Session),
+        return new MpgsqlMultiplexingDataSource
+        (
+            _ => ValueTask.FromResult(wire.Session),
             new MpgsqlMultiplexingOptions
             {
-                MaxConnections = 1, MaxInFlightPerConnection = inFlight
-            });
+                MaxConnections = 1,
+                MaxInFlightPerConnection = inFlight
+            }
+        );
     }
 
     private static async Task<string> ThroughSync(ScriptedSession wire, int count = 1)
@@ -34,7 +38,8 @@ public sealed class LogicalCancellationTests
 
     [Theory, InlineData(false, false), InlineData(false, true), InlineData(true, false)]
     public async Task CancellationDuringBlockedFlushReleasesInputsAndPreservesNeighbour(
-        bool blockedSync, bool descriptionArrived)
+        bool blockedSync, bool descriptionArrived
+    )
     {
         using var input = new BlockingInputMemory();
         await using var wire = new ScriptedSession(true);
@@ -42,10 +47,19 @@ public sealed class LogicalCancellationTests
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         MpgsqlParameterValue[] parameters = [MpgsqlParameterValue.Int64Array(input.Memory)];
         var sql = "select $1::bigint[]" + (blockedSync ? new string(' ', 65536) : "");
-        var opening = source.ExecuteReaderAsync(sql, parameters, request.Token).AsTask();
+        var opening = source
+            .ExecuteReaderAsync(sql, parameters, request.Token)
+            .AsTask();
         var held = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
         var heldTags = new string(Tags(held.Buffer.ToArray()));
-        Assert.Contains(heldTags, new[] {"PBDE", "PBDES"});
+        Assert.Contains
+        (
+            heldTags, new[]
+            {
+                "PBDE",
+                "PBDES"
+            }
+        );
         if (blockedSync)
         {
             Assert.Equal("PBDE", heldTags);
@@ -54,16 +68,26 @@ public sealed class LogicalCancellationTests
             heldTags = new string(Tags(held.Buffer.ToArray()));
             Assert.Equal("S", heldTags);
         }
-        var neighbour = source.ExecuteScalarAsync<long>("select 8::bigint",
-            cancellationToken: TestContext.Current.CancellationToken).AsTask();
+        var neighbour = source
+            .ExecuteScalarAsync<long>
+            (
+                "select 8::bigint",
+                cancellationToken: TestContext.Current.CancellationToken
+            )
+            .AsTask();
         if (descriptionArrived)
         {
             await wire.WriteAsync(Begin(20));
         }
 
         request.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => opening.WaitAsync(PromptTimeout,
-            TestContext.Current.CancellationToken));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>
+        (() => opening.WaitAsync
+            (
+                PromptTimeout,
+                TestContext.Current.CancellationToken
+            )
+        );
         Assert.Equal(1, input.Reads);
         input.Revoke();
         parameters[0] = default;
@@ -73,9 +97,12 @@ public sealed class LogicalCancellationTests
         wire.Outgoing.Reader.AdvanceTo(held.Buffer.End);
         var syncPublished = heldTags.EndsWith('S');
         Assert.Equal(syncPublished ? "PBDES" : "SPBDES", await ThroughSync(wire, syncPublished ? 1 : 2));
-        await wire.WriteAsync(descriptionArrived
-            ? Join(Row(Int64(1)), Command(), Ready(), Query(8), Ready())
-            : Join(Query(1), Ready(), Query(8), Ready()));
+        await wire.WriteAsync
+        (
+            descriptionArrived
+                ? Join(Row(Int64(1)), Command(), Ready(), Query(8), Ready())
+                : Join(Query(1), Ready(), Query(8), Ready())
+        );
         Assert.Equal(8, (await neighbour.WaitAsync(TestTimeout, TestContext.Current.CancellationToken)).Value);
         Assert.Equal(1, input.Reads);
         Assert.True(wire.Session.IsHealthy);
@@ -87,18 +114,37 @@ public sealed class LogicalCancellationTests
         using var input = new BlockingInputMemory();
         await using var wire = new ScriptedSession(true);
         await using var source = Source(wire);
-        var neighbour = source.ExecuteScalarAsync<long>("select 7::bigint",
-            cancellationToken: TestContext.Current.CancellationToken).AsTask();
+        var neighbour = source
+            .ExecuteScalarAsync<long>
+            (
+                "select 7::bigint",
+                cancellationToken: TestContext.Current.CancellationToken
+            )
+            .AsTask();
         var held = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
         var heldTags = new string(Tags(held.Buffer.ToArray()));
-        Assert.Contains(heldTags, new[] {"PBDE", "PBDES"});
+        Assert.Contains
+        (
+            heldTags, new[]
+            {
+                "PBDE",
+                "PBDES"
+            }
+        );
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         MpgsqlParameterValue[] parameters = [MpgsqlParameterValue.Int64Array(input.Memory)];
-        var opening = source.ExecuteReaderAsync("select $1::bigint[]", parameters, request.Token).AsTask();
+        var opening = source
+            .ExecuteReaderAsync("select $1::bigint[]", parameters, request.Token)
+            .AsTask();
         request.Cancel();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => opening.WaitAsync(PromptTimeout,
-            TestContext.Current.CancellationToken));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>
+        (() => opening.WaitAsync
+            (
+                PromptTimeout,
+                TestContext.Current.CancellationToken
+            )
+        );
         Assert.Equal(0, input.Reads);
         input.Revoke();
         parameters[0] = default;
@@ -117,11 +163,24 @@ public sealed class LogicalCancellationTests
         await using var wire = new ScriptedSession(true);
         await using var source = Source(wire);
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        var opening = source.ExecuteReaderAsync("select $1::bigint[]",
-            new[] {MpgsqlParameterValue.Int64Array(input.Memory)}, request.Token).AsTask();
+        var opening = source
+            .ExecuteReaderAsync
+            (
+                "select $1::bigint[]",
+                new[]
+                {
+                    MpgsqlParameterValue.Int64Array(input.Memory)
+                }, request.Token
+            )
+            .AsTask();
         await input.Entered.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
-        var neighbour = source.ExecuteScalarAsync<long>("select 8::bigint",
-            cancellationToken: TestContext.Current.CancellationToken).AsTask();
+        var neighbour = source
+            .ExecuteScalarAsync<long>
+            (
+                "select 8::bigint",
+                cancellationToken: TestContext.Current.CancellationToken
+            )
+            .AsTask();
         try
         {
             request.Cancel();
@@ -131,8 +190,13 @@ public sealed class LogicalCancellationTests
         }
         finally { input.Resume(); }
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => opening.WaitAsync(PromptTimeout,
-            TestContext.Current.CancellationToken));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>
+        (() => opening.WaitAsync
+            (
+                PromptTimeout,
+                TestContext.Current.CancellationToken
+            )
+        );
         input.Revoke();
         var sync = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
         var tags = new string(Tags(sync.Buffer.ToArray()));
@@ -157,16 +221,35 @@ public sealed class LogicalCancellationTests
         await using var wire = new ScriptedSession(true);
         await using var source = Source(wire, 1);
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        var opening = source.ExecuteReaderAsync("select 1::bigint", cancellationToken: request.Token).AsTask();
+        var opening = source
+            .ExecuteReaderAsync("select 1::bigint", cancellationToken: request.Token)
+            .AsTask();
         var held = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
         var heldTags = new string(Tags(held.Buffer.ToArray()));
-        Assert.Contains(heldTags, new[] {"PBDE", "PBDES"});
+        Assert.Contains
+        (
+            heldTags, new[]
+            {
+                "PBDE",
+                "PBDES"
+            }
+        );
         request.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => opening.WaitAsync(PromptTimeout,
-            TestContext.Current.CancellationToken));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>
+        (() => opening.WaitAsync
+            (
+                PromptTimeout,
+                TestContext.Current.CancellationToken
+            )
+        );
 
-        var neighbour = source.ExecuteScalarAsync<long>("select 8::bigint",
-            cancellationToken: TestContext.Current.CancellationToken).AsTask();
+        var neighbour = source
+            .ExecuteScalarAsync<long>
+            (
+                "select 8::bigint",
+                cancellationToken: TestContext.Current.CancellationToken
+            )
+            .AsTask();
         await Task.Delay(100, TestContext.Current.CancellationToken); // shared recovery has no exclusive deadline
         Assert.False(neighbour.IsCompleted);
         Assert.True(wire.Session.IsHealthy);
@@ -190,16 +273,28 @@ public sealed class LogicalCancellationTests
         await using var wire = new ScriptedSession(true);
         await using var source = Source(wire, 1);
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        var opening = source.ExecuteReaderAsync(SeparateSyncSql, cancellationToken: request.Token).AsTask();
+        var opening = source
+            .ExecuteReaderAsync(SeparateSyncSql, cancellationToken: request.Token)
+            .AsTask();
         Assert.Equal("PBDE", new string(Tags(await wire.ReadOutputAsync())));
         var sync = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
         Assert.Equal("S", new string(Tags(sync.Buffer.ToArray())));
         request.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => opening.WaitAsync(PromptTimeout,
-            TestContext.Current.CancellationToken));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>
+        (() => opening.WaitAsync
+            (
+                PromptTimeout,
+                TestContext.Current.CancellationToken
+            )
+        );
 
-        var neighbour = source.ExecuteScalarAsync<long>("select 8::bigint",
-            cancellationToken: TestContext.Current.CancellationToken).AsTask();
+        var neighbour = source
+            .ExecuteScalarAsync<long>
+            (
+                "select 8::bigint",
+                cancellationToken: TestContext.Current.CancellationToken
+            )
+            .AsTask();
         await wire.WriteAsync(Join(Query(1), Ready()));
         await Task.Delay(100, TestContext.Current.CancellationToken);
         Assert.False(neighbour.IsCompleted);
@@ -216,19 +311,36 @@ public sealed class LogicalCancellationTests
         await using var wire = new ScriptedSession(true);
         await using var source = Source(wire, 1);
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        var opening = source.ExecuteReaderAsync(SeparateSyncSql, cancellationToken: request.Token).AsTask();
+        var opening = source
+            .ExecuteReaderAsync(SeparateSyncSql, cancellationToken: request.Token)
+            .AsTask();
         Assert.Equal("PBDE", new string(Tags(await wire.ReadOutputAsync())));
         var sync = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
         await wire.WriteAsync(Begin(20));
         await using var reader = await opening.WaitAsync(PromptTimeout, TestContext.Current.CancellationToken);
-        var reading = reader.ReadAsync().AsTask();
+        var reading = reader
+            .ReadAsync()
+            .AsTask();
         request.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reading.WaitAsync(PromptTimeout,
-            TestContext.Current.CancellationToken));
-        await reader.DisposeAsync().AsTask().WaitAsync(PromptTimeout, TestContext.Current.CancellationToken);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>
+        (() => reading.WaitAsync
+            (
+                PromptTimeout,
+                TestContext.Current.CancellationToken
+            )
+        );
+        await reader
+            .DisposeAsync()
+            .AsTask()
+            .WaitAsync(PromptTimeout, TestContext.Current.CancellationToken);
 
-        var neighbour = source.ExecuteScalarAsync<long>("select 8::bigint",
-            cancellationToken: TestContext.Current.CancellationToken).AsTask();
+        var neighbour = source
+            .ExecuteScalarAsync<long>
+            (
+                "select 8::bigint",
+                cancellationToken: TestContext.Current.CancellationToken
+            )
+            .AsTask();
         Assert.False(neighbour.IsCompleted);
         wire.Outgoing.Reader.AdvanceTo(sync.Buffer.End);
         await wire.WriteAsync(Join(Row(Int64(1)), Command(), Ready()));
@@ -244,17 +356,44 @@ public sealed class LogicalCancellationTests
         using var input = new BlockingInputMemory();
         await using var wire = new ScriptedSession();
         await using var source = Source(wire);
-        var pooled = new PooledSession(wire.Session) {Active = 1};
+        var pooled = new PooledSession(wire.Session)
+        {
+            Active = 1
+        };
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         request.Cancel();
-        var execution = new QueryExecution(source, pooled,
-            [new QueryDefinition("select $1::bigint[]", new[] {MpgsqlParameterValue.Int64Array(input.Memory)})], request.Token);
-        var opening = execution.OpenReaderAsync(true).AsTask();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => opening.WaitAsync(PromptTimeout,
-            TestContext.Current.CancellationToken));
+        var execution = new QueryExecution
+        (
+            source, pooled,
+            [
+                new QueryDefinition
+                (
+                    "select $1::bigint[]", new[]
+                    {
+                        MpgsqlParameterValue.Int64Array(input.Memory)
+                    }
+                )
+            ], request.Token
+        );
+        var opening = execution
+            .OpenReaderAsync(true)
+            .AsTask();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>
+        (() => opening.WaitAsync
+            (
+                PromptTimeout,
+                TestContext.Current.CancellationToken
+            )
+        );
         input.Revoke();
-        await execution.FinishAsync(true).AsTask().WaitAsync(TestTimeout,
-            TestContext.Current.CancellationToken);
+        await execution
+            .FinishAsync(true)
+            .AsTask()
+            .WaitAsync
+            (
+                TestTimeout,
+                TestContext.Current.CancellationToken
+            );
         Assert.Equal(0, input.Reads);
         Assert.Equal(0, pooled.Active);
         Assert.False(wire.HasOutput());

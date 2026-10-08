@@ -7,35 +7,48 @@ public static class FrontendMessage
     public const int ProtocolVersion = 3 << 16;
 
     /// <summary>The payload excludes the tag and length; body validation is left to the caller.</summary>
-    public static RawFrontendMessage Raw(byte type,
-        ReadOnlyMemory<byte> payload)
+    public static RawFrontendMessage Raw(
+        byte type,
+        ReadOnlyMemory<byte> payload
+    )
     {
         ArgumentOutOfRangeException.ThrowIfZero(type);
-        return new RawFrontendMessage(type,
+        return new RawFrontendMessage
+        (
+            type,
             payload,
-            FrontendMessageKind.Raw);
+            FrontendMessageKind.Raw
+        );
     }
 
     /// <summary>The untagged payload starts with its protocol/request code.</summary>
     public static RawFrontendMessage RawStartup(ReadOnlyMemory<byte> payload)
     {
-        return new RawFrontendMessage(null,
+        return new RawFrontendMessage
+        (
+            null,
             payload,
-            FrontendMessageKind.Raw);
+            FrontendMessageKind.Raw
+        );
     }
-    public static StartupMessage Startup(string user,
-        string? database = null)
+    public static StartupMessage Startup(
+        string user,
+        string? database = null
+    )
     {
-        return Startup(database is null
-            ? new[]
-            {
-                new KeyValuePair<string, string>("user", user)
-            }
-            : new[]
-            {
-                new KeyValuePair<string, string>("user", user),
-                new KeyValuePair<string, string>("database", database)
-            });
+        return Startup
+        (
+            database is null
+                ? new[]
+                {
+                    new KeyValuePair<string, string>("user", user)
+                }
+                : new[]
+                {
+                    new KeyValuePair<string, string>("user", user),
+                    new KeyValuePair<string, string>("database", database)
+                }
+        );
     }
     public static StartupMessage Startup(ReadOnlyMemory<KeyValuePair<string, string>> parameters)
     {
@@ -43,134 +56,208 @@ public static class FrontendMessage
     }
     public static EncryptionRequestMessage SslRequest()
     {
-        return new EncryptionRequestMessage(80877103,
-            FrontendMessageKind.SslRequest);
+        return new EncryptionRequestMessage
+        (
+            80877103,
+            FrontendMessageKind.SslRequest
+        );
     }
     public static EncryptionRequestMessage GssEncRequest()
     {
-        return new EncryptionRequestMessage(80877104,
-            FrontendMessageKind.GssEncRequest);
+        return new EncryptionRequestMessage
+        (
+            80877104,
+            FrontendMessageKind.GssEncRequest
+        );
     }
-    public static CancelRequestMessage CancelRequest(int processId,
-        int secretKey)
+    public static CancelRequestMessage CancelRequest(
+        int processId,
+        int secretKey
+    )
     {
-        return new CancelRequestMessage(processId,
-            secretKey);
+        return new CancelRequestMessage
+        (
+            processId,
+            secretKey
+        );
     }
     public static TextMessage Query(string query)
     {
-        return new TextMessage((byte)'Q',
+        return new TextMessage
+        (
+            (byte)'Q',
             query,
-            FrontendMessageKind.Query);
+            FrontendMessageKind.Query
+        );
     }
-    public static ParseMessage Parse(string query,
+    public static ParseMessage Parse(
+        string query,
         string statement = "",
-        ReadOnlyMemory<uint> parameterTypes = default)
+        ReadOnlyMemory<uint> parameterTypes = default
+    )
     {
-        return new ParseMessage(query,
+        return new ParseMessage
+        (
+            query,
             statement,
-            parameterTypes);
+            parameterTypes
+        );
     }
     public static BindMessage Bind(
         string portal = "",
         string statement = "",
         ReadOnlyMemory<ReadOnlyMemory<byte>?> parameters = default,
         ReadOnlyMemory<FormatCode> parameterFormats = default,
-        ReadOnlyMemory<FormatCode> resultFormats = default)
+        ReadOnlyMemory<FormatCode> resultFormats = default
+    )
     {
-        return new BindMessage(portal,
+        return new BindMessage
+        (
+            portal,
             statement,
             parameters,
             parameterFormats,
-            resultFormats);
+            resultFormats
+        );
     }
-    public static TargetMessage Describe(StatementOrPortal target,
-        string name = "")
+    public static TargetMessage Describe(
+        StatementOrPortal target,
+        string name = ""
+    )
     {
-        return new TargetMessage((byte)'D',
+        return new TargetMessage
+        (
+            (byte)'D',
             target,
             name,
-            FrontendMessageKind.Describe);
+            FrontendMessageKind.Describe
+        );
     }
-    public static TargetMessage Close(StatementOrPortal target,
-        string name = "")
+    public static TargetMessage Close(
+        StatementOrPortal target,
+        string name = ""
+    )
     {
-        return new TargetMessage((byte)'C',
+        return new TargetMessage
+        (
+            (byte)'C',
             target,
             name,
-            FrontendMessageKind.Close);
+            FrontendMessageKind.Close
+        );
     }
-    public static ExecuteMessage Execute(string portal = "",
-        int maxRows = 0)
+    public static ExecuteMessage Execute(
+        string portal = "",
+        int maxRows = 0
+    )
     {
-        return new ExecuteMessage(portal,
-            maxRows);
+        return new ExecuteMessage
+        (
+            portal,
+            maxRows
+        );
     }
     public static EmptyMessage Flush()
     {
-        return new EmptyMessage((byte)'H',
-            FrontendMessageKind.Flush);
+        return new EmptyMessage
+        (
+            (byte)'H',
+            FrontendMessageKind.Flush
+        );
     }
     public static EmptyMessage Sync()
     {
-        return new EmptyMessage((byte)'S',
-            FrontendMessageKind.Sync);
+        return new EmptyMessage
+        (
+            (byte)'S',
+            FrontendMessageKind.Sync
+        );
     }
     public static EmptyMessage Terminate()
     {
-        return new EmptyMessage((byte)'X',
-            FrontendMessageKind.Terminate);
+        return new EmptyMessage
+        (
+            (byte)'X',
+            FrontendMessageKind.Terminate
+        );
     }
     public static TextMessage Password(string password)
     {
-        return new TextMessage((byte)'p',
+        return new TextMessage
+        (
+            (byte)'p',
             password,
-            FrontendMessageKind.Password);
+            FrontendMessageKind.Password
+        );
     }
     public static RawFrontendMessage GssResponse(ReadOnlyMemory<byte> data)
     {
-        return new RawFrontendMessage((byte)'p',
+        return new RawFrontendMessage
+        (
+            (byte)'p',
             data,
-            FrontendMessageKind.GssResponse);
+            FrontendMessageKind.GssResponse
+        );
     }
-    public static SaslInitialResponseMessage SaslInitialResponse(string mechanism,
-        ReadOnlyMemory<byte>? initialResponse = null)
+    public static SaslInitialResponseMessage SaslInitialResponse(
+        string mechanism,
+        ReadOnlyMemory<byte>? initialResponse = null
+    )
     {
-        return new SaslInitialResponseMessage(mechanism,
-            initialResponse);
+        return new SaslInitialResponseMessage
+        (
+            mechanism,
+            initialResponse
+        );
     }
     public static RawFrontendMessage SaslResponse(ReadOnlyMemory<byte> data)
     {
-        return new RawFrontendMessage((byte)'p',
+        return new RawFrontendMessage
+        (
+            (byte)'p',
             data,
-            FrontendMessageKind.SaslResponse);
+            FrontendMessageKind.SaslResponse
+        );
     }
     public static RawFrontendMessage CopyData(ReadOnlyMemory<byte> data)
     {
-        return new RawFrontendMessage((byte)'d',
+        return new RawFrontendMessage
+        (
+            (byte)'d',
             data,
-            FrontendMessageKind.CopyData);
+            FrontendMessageKind.CopyData
+        );
     }
     public static EmptyMessage CopyDone()
     {
-        return new EmptyMessage((byte)'c',
-            FrontendMessageKind.CopyDone);
+        return new EmptyMessage
+        (
+            (byte)'c',
+            FrontendMessageKind.CopyDone
+        );
     }
     public static TextMessage CopyFail(string reason)
     {
-        return new TextMessage((byte)'f',
+        return new TextMessage
+        (
+            (byte)'f',
             reason,
-            FrontendMessageKind.CopyFail);
+            FrontendMessageKind.CopyFail
+        );
     }
     public static FunctionCallMessage FunctionCall(
         uint functionOid,
         ReadOnlyMemory<ReadOnlyMemory<byte>?> arguments = default,
         ReadOnlyMemory<FormatCode> argumentFormats = default,
-        FormatCode resultFormat = FormatCode.Text)
+        FormatCode resultFormat = FormatCode.Text
+    )
     {
-        return new FunctionCallMessage(functionOid,
+        return new FunctionCallMessage
+        (
+            functionOid,
             arguments,
             argumentFormats,
-            resultFormat);
+            resultFormat
+        );
     }
 }

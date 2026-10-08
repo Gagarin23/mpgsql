@@ -13,17 +13,27 @@ public sealed class ReceiveBurstTests
         await batch.SendQueryAsync("select first");
         await batch.SendQueryAsync("select second");
         Assert.Equal("PBDEPBDE", new string(Tags(await wire.ReadOutputAsync())));
-        var opening = batch.ReadResultsAsync().AsTask();
+        var opening = batch
+            .ReadResultsAsync()
+            .AsTask();
         await wire.WriteAsync(Query(11));
         await using var reader = await opening.WaitAsync(TestTimeout, token);
         Assert.True(await reader.ReadAsync());
         Assert.Equal(11, reader.GetInt64(0));
-        Assert.False(await reader.ReadAsync().AsTask().WaitAsync(TestTimeout, token));
+        Assert.False
+        (
+            await reader
+                .ReadAsync()
+                .AsTask()
+                .WaitAsync(TestTimeout, token)
+        );
         Assert.Equal(0, reader.QueryIndex);
         Assert.Equal("SELECT 1", reader.CommandTag);
         Assert.False(batch.Completion.IsCompleted);
         Assert.False(wire.HasOutput());
-        var next = reader.NextResultAsync().AsTask();
+        var next = reader
+            .NextResultAsync()
+            .AsTask();
         Assert.False(next.IsCompleted);
         await batch.SendSyncAsync();
         Assert.Equal("S", new string(Tags(await wire.ReadOutputAsync())));
@@ -49,19 +59,36 @@ public sealed class ReceiveBurstTests
         await batch.SendQueryAsync("select second");
         await batch.SendSyncAsync();
         Assert.Equal("PBDEPBDES", new string(Tags(await wire.ReadOutputAsync())));
-        var opening = batch.ReadResultsAsync().AsTask();
+        var opening = batch
+            .ReadResultsAsync()
+            .AsTask();
         var writing = wire.WriteAsync(Join(Query(11), Query(12), Ready()), fragment);
         await using var reader = await opening.WaitAsync(TestTimeout, token);
         Assert.True(await reader.ReadAsync());
         Assert.Equal(11, reader.GetInt64(0));
         if (discard)
         {
-            await reader.DisposeAsync().AsTask().WaitAsync(TestTimeout, token);
+            await reader
+                .DisposeAsync()
+                .AsTask()
+                .WaitAsync(TestTimeout, token);
         }
         else
         {
-            Assert.False(await reader.ReadAsync().AsTask().WaitAsync(TestTimeout, token));
-            Assert.True(await reader.NextResultAsync().AsTask().WaitAsync(TestTimeout, token));
+            Assert.False
+            (
+                await reader
+                    .ReadAsync()
+                    .AsTask()
+                    .WaitAsync(TestTimeout, token)
+            );
+            Assert.True
+            (
+                await reader
+                    .NextResultAsync()
+                    .AsTask()
+                    .WaitAsync(TestTimeout, token)
+            );
             Assert.Equal(1, reader.QueryIndex);
             Assert.True(await reader.ReadAsync());
             Assert.Equal(12, reader.GetInt64(0));
@@ -95,14 +122,20 @@ public sealed class ReceiveBurstTests
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         await batch.SendQueryAsync("select 11::bigint");
         Assert.Equal("PBDE", new string(Tags(await wire.ReadOutputAsync())));
-        var opening = batch.ReadResultsAsync().AsTask();
+        var opening = batch
+            .ReadResultsAsync()
+            .AsTask();
         await wire.WriteAsync(Begin(20), fragment);
         await using var reader = await opening.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
-        var reading = reader.ReadAsync().AsTask();
+        var reading = reader
+            .ReadAsync()
+            .AsTask();
         await wire.WriteAsync(Row(Int64(11)), fragment);
         Assert.True(await reading.WaitAsync(TestTimeout, TestContext.Current.CancellationToken));
         Assert.Equal(11, reader.GetInt64(0));
-        var ending = reader.ReadAsync().AsTask();
+        var ending = reader
+            .ReadAsync()
+            .AsTask();
         await wire.WriteAsync(Command(), fragment);
         Assert.False(await ending.WaitAsync(TestTimeout, TestContext.Current.CancellationToken));
         Assert.False(batch.Completion.IsCompleted);
@@ -110,7 +143,13 @@ public sealed class ReceiveBurstTests
         await batch.SendSyncAsync();
         Assert.Equal("S", new string(Tags(await wire.ReadOutputAsync())));
         await wire.WriteAsync(Ready(), fragment);
-        Assert.False(await reader.NextResultAsync().AsTask().WaitAsync(TestTimeout, TestContext.Current.CancellationToken));
+        Assert.False
+        (
+            await reader
+                .NextResultAsync()
+                .AsTask()
+                .WaitAsync(TestTimeout, TestContext.Current.CancellationToken)
+        );
         Assert.True(wire.Session.IsHealthy);
     }
 
@@ -126,10 +165,20 @@ public sealed class ReceiveBurstTests
         await second.SendQueryAsync("select second");
         await second.SendSyncAsync();
         Assert.Equal("PBDESPBDES", new string(Tags(await wire.ReadOutputAsync())));
-        var opening = first.ReadResultsAsync().AsTask();
-        var nextOpening = second.ReadResultsAsync().AsTask();
-        var writing = wire.WriteAsync(Join(Begin(20), Row(Int64(11)), Row(Int64(12)),
-            Command("SELECT 2"), Ready(), Query(21), Ready()));
+        var opening = first
+            .ReadResultsAsync()
+            .AsTask();
+        var nextOpening = second
+            .ReadResultsAsync()
+            .AsTask();
+        var writing = wire.WriteAsync
+        (
+            Join
+            (
+                Begin(20), Row(Int64(11)), Row(Int64(12)),
+                Command("SELECT 2"), Ready(), Query(21), Ready()
+            )
+        );
         await using var reader = await opening.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         Assert.True(await reader.ReadAsync());
         Assert.Equal(11, reader.GetInt64(0));
@@ -140,16 +189,34 @@ public sealed class ReceiveBurstTests
         }
         else
         {
-            Assert.True(await reader.ReadAsync().AsTask().WaitAsync(TestTimeout, TestContext.Current.CancellationToken));
+            Assert.True
+            (
+                await reader
+                    .ReadAsync()
+                    .AsTask()
+                    .WaitAsync(TestTimeout, TestContext.Current.CancellationToken)
+            );
             Assert.Equal(12, reader.GetInt64(0));
             Assert.False(await reader.ReadAsync());
-            Assert.False(await reader.NextResultAsync().AsTask().WaitAsync(TestTimeout, TestContext.Current.CancellationToken));
+            Assert.False
+            (
+                await reader
+                    .NextResultAsync()
+                    .AsTask()
+                    .WaitAsync(TestTimeout, TestContext.Current.CancellationToken)
+            );
         }
         await using var next = await nextOpening.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         Assert.True(await next.ReadAsync());
         Assert.Equal(21, next.GetInt64(0));
         Assert.False(await next.ReadAsync());
-        Assert.False(await next.NextResultAsync().AsTask().WaitAsync(TestTimeout, TestContext.Current.CancellationToken));
+        Assert.False
+        (
+            await next
+                .NextResultAsync()
+                .AsTask()
+                .WaitAsync(TestTimeout, TestContext.Current.CancellationToken)
+        );
         await writing.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         await first.Completion.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         await second.Completion.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);

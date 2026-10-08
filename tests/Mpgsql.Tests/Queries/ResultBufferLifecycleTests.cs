@@ -86,7 +86,11 @@ public sealed class ResultBufferLifecycleTests
         Assert.Equal(28, wire.Session.BufferedRowBytes);
         await wire.WriteAsync(Join(Error(), Ready()));
         await Assert.ThrowsAsync<MpgsqlServerException>(() => batch.Completion.WaitAsync(TestTimeout, token));
-        await Assert.ThrowsAsync<MpgsqlServerException>(() => reader.ReadAsync().AsTask());
+        await Assert.ThrowsAsync<MpgsqlServerException>
+        (() => reader
+            .ReadAsync()
+            .AsTask()
+        );
         Assert.Equal(0, wire.Session.BufferedRowBytes);
         Assert.True(wire.Session.IsIdleAndHealthy);
         await CheckFollowingQuery(wire, token);

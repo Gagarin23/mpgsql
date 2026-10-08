@@ -28,11 +28,15 @@ internal static class QueryWire
             output.Write(Frame('E', Encoding.UTF8.GetBytes("SERROR\0C22012\0Msynthetic division by zero\0\0")));
             return output.WrittenSpan.ToArray();
         }
-        for (var row = 0; row < scenario.Rows; row++)
+        for (var row = 0;
+             row < scenario.Rows;
+             row++)
         {
             var payload = new ArrayBufferWriter<byte>();
             UInt16(payload, (ushort)scenario.Columns);
-            for (var column = 0; column < scenario.Columns; column++)
+            for (var column = 0;
+                 column < scenario.Columns;
+                 column++)
             {
                 if (scenario.Null)
                 {
@@ -62,7 +66,9 @@ internal static class QueryWire
     {
         var payload = new ArrayBufferWriter<byte>();
         UInt16(payload, (ushort)scenario.Columns);
-        for (var column = 0; column < scenario.Columns; column++)
+        for (var column = 0;
+             column < scenario.Columns;
+             column++)
         {
             payload.Write(Encoding.UTF8.GetBytes("c" + column + '\0'));
             Int32(payload, 0); // table OID

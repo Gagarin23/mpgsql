@@ -15,6 +15,12 @@ public sealed class MpgsqlDataSourceOptions
         {
             throw new ArgumentOutOfRangeException(nameof(RecoveryTimeout));
         }
-        return new MpgsqlDataSourceOptions {MaxConnections = MaxConnections, MaxBufferedRowBytesPerConnection = MaxBufferedRowBytesPerConnection, RecoveryTimeout = RecoveryTimeout, TypeMapper = TypeMapper?.Snapshot()};
+        return new MpgsqlDataSourceOptions
+        {
+            MaxConnections = MaxConnections,
+            MaxBufferedRowBytesPerConnection = MaxBufferedRowBytesPerConnection,
+            RecoveryTimeout = RecoveryTimeout,
+            TypeMapper = TypeMapper?.Snapshot()
+        };
     }
 }

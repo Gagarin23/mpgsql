@@ -10,13 +10,26 @@ public sealed class TimestampTzConvertersTests
     public void LiteralPayloadsArraysBuffersAndSegmentBoundaries()
     {
         var value = new PgTimestampTz(1000001);
-        ConverterAssertions.CheckScalar(value, "00000000000f4241", TimestampTzConverter.GetByteCount, TimestampTzConverter.Write,
-            TimestampTzConverter.Write, TimestampTzConverter.Read, TimestampTzConverter.Read);
-        ConverterAssertions.CheckNullableScalar(TimestampTzConverter.Write, TimestampTzConverter.Write,
-            TimestampTzConverter.GetByteCount, TimestampTzConverter.ReadNullable, TimestampTzConverter.ReadNullable);
-        ConverterAssertions.CheckArray(new[] {value, value}, (uint)TypeOid.TimestampTz, "00000000000f4241",
+        ConverterAssertions.CheckScalar
+        (
+            value, "00000000000f4241", TimestampTzConverter.GetByteCount, TimestampTzConverter.Write,
+            TimestampTzConverter.Write, TimestampTzConverter.Read, TimestampTzConverter.Read
+        );
+        ConverterAssertions.CheckNullableScalar
+        (
+            TimestampTzConverter.Write, TimestampTzConverter.Write,
+            TimestampTzConverter.GetByteCount, TimestampTzConverter.ReadNullable, TimestampTzConverter.ReadNullable
+        );
+        ConverterAssertions.CheckArray
+        (
+            new[]
+            {
+                value,
+                value
+            }, (uint)TypeOid.TimestampTz, "00000000000f4241",
             TimestampTzArrayConverter.GetByteCount, TimestampTzArrayConverter.Write, TimestampTzArrayConverter.Write,
-            TimestampTzArrayConverter.Read, TimestampTzArrayConverter.Read, TimestampTzArrayConverter.Read, TimestampTzArrayConverter.Read);
+            TimestampTzArrayConverter.Read, TimestampTzArrayConverter.Read, TimestampTzArrayConverter.Read, TimestampTzArrayConverter.Read
+        );
         ConverterAssertions.CheckNullableArray<PgTimestampTz, TimestampTzCodec>(value, "00000000000f4241");
     }
     [Fact]

@@ -9,24 +9,30 @@ internal sealed class QuerySourceFixture : IAsyncDisposable
     private readonly List<QueryPeer> _peers = [];
     private long _observed;
 
-    private QuerySourceFixture(QueryCatalog catalog, int connections,
+    private QuerySourceFixture(
+        QueryCatalog catalog, int connections,
         int inFlight, long rowBytes,
-        int chunk)
+        int chunk
+    )
     {
         Catalog = catalog;
-        Source = new MpgsqlMultiplexingDataSource(_ =>
-        {
-            var peer = new QueryPeer(catalog, chunk);
-            lock (_gate)
+        Source = new MpgsqlMultiplexingDataSource
+        (
+            _ =>
             {
-                _peers.Add(peer);
+                var peer = new QueryPeer(catalog, chunk);
+                lock (_gate)
+                {
+                    _peers.Add(peer);
+                }
+                return ValueTask.FromResult(peer.Session);
+            }, new MpgsqlMultiplexingOptions
+            {
+                MaxConnections = connections,
+                MaxInFlightPerConnection = inFlight,
+                MaxBufferedRowBytesPerConnection = rowBytes
             }
-            return ValueTask.FromResult(peer.Session);
-        }, new MpgsqlMultiplexingOptions
-        {
-            MaxConnections = connections, MaxInFlightPerConnection = inFlight,
-            MaxBufferedRowBytesPerConnection = rowBytes
-        });
+        );
     }
     internal MpgsqlMultiplexingDataSource Source { get; }
     internal QueryCatalog Catalog { get; }
@@ -35,18 +41,27 @@ internal sealed class QuerySourceFixture : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await Source.DisposeAsync().ConfigureAwait(false);
+        await Source
+            .DisposeAsync()
+            .ConfigureAwait(false);
         QueryPeer[] peers;
         lock (_gate)
         {
             peers = [.. _peers];
         }
-        foreach (var peer in peers) await peer.DisposeAsync().ConfigureAwait(false);
+        foreach (var peer in peers)
+        {
+            await peer
+                .DisposeAsync()
+                .ConfigureAwait(false);
+        }
     }
 
-    internal static async Task<QuerySourceFixture> CreateAsync(QueryCatalog catalog, int connections = 1,
+    internal static async Task<QuerySourceFixture> CreateAsync(
+        QueryCatalog catalog, int connections = 1,
         int inFlight = 1, long rowBytes = 8 * 1024 * 1024,
-        int chunk = 0)
+        int chunk = 0
+    )
     {
         var fixture = new QuerySourceFixture(catalog, connections, inFlight, rowBytes, chunk);
         try
@@ -55,9 +70,13 @@ internal sealed class QuerySourceFixture : IAsyncDisposable
             var leases = new PooledSession[connections * inFlight];
             try
             {
-                for (var i = 0; i < leases.Length; i++)
+                for (var i = 0;
+                     i < leases.Length;
+                     i++)
                 {
-                    leases[i] = await fixture.Source.AcquireAsync(default).ConfigureAwait(false);
+                    leases[i] = await fixture
+                        .Source.AcquireAsync(default)
+                        .ConfigureAwait(false);
                 }
             }
             finally
@@ -66,7 +85,9 @@ internal sealed class QuerySourceFixture : IAsyncDisposable
                 {
                     if (lease is not null)
                     {
-                        await fixture.Source.ReleaseRequestAsync(lease).ConfigureAwait(false);
+                        await fixture
+                            .Source.ReleaseRequestAsync(lease)
+                            .ConfigureAwait(false);
                     }
                 }
             }
@@ -78,7 +99,9 @@ internal sealed class QuerySourceFixture : IAsyncDisposable
         }
         catch
         {
-            await fixture.DisposeAsync().ConfigureAwait(false);
+            await fixture
+                .DisposeAsync()
+                .ConfigureAwait(false);
             throw;
         }
     }
@@ -86,7 +109,10 @@ internal sealed class QuerySourceFixture : IAsyncDisposable
     internal void ObserveBuffers()
     {
         long current = 0;
-        foreach (var peer in Peers) current = Math.Max(current, peer.Session.BufferedRowBytes);
+        foreach (var peer in Peers)
+        {
+            current = Math.Max(current, peer.Session.BufferedRowBytes);
+        }
         long previous;
         do
         {
@@ -95,7 +121,8 @@ internal sealed class QuerySourceFixture : IAsyncDisposable
             {
                 return;
             }
-        } while (Interlocked.CompareExchange(ref _observed, current, previous) != previous);
+        }
+        while (Interlocked.CompareExchange(ref _observed, current, previous) != previous);
     }
 
     internal void ResetObservation()

@@ -52,22 +52,37 @@ else
 }
 var output = Path.GetFullPath(args[2]);
 Directory.CreateDirectory(Path.GetDirectoryName(output)!);
-await File.WriteAllTextAsync(output, JsonSerializer.Serialize(new
-{
-    Baseline = Path.GetFullPath(args[0]), Candidate = Path.GetFullPath(args[1]),
-    Runtime = RuntimeInformation.FrameworkDescription,
-    ProcessPriority = comparisonProcess.PriorityClass.ToString(), LogicalProcessors = Environment.ProcessorCount,
-    ServerGC = GCSettings.IsServerGC,
-    Samples = 40, WarmupSeconds = 5, TargetSampleMilliseconds = 120,
-    Confidence = "95% paired Student t interval; t(39)=2.023",
-    AllocationScope = "Whole managed process, including identical TCP peer; Batch16 caller construction excluded",
-    ExclusiveBaseline = "Previous explicit connection/typed command; single-use command construction outside timing, candidate command reused",
-    Results = results
-}, new JsonSerializerOptions {WriteIndented = true}));
+await File.WriteAllTextAsync
+(
+    output, JsonSerializer.Serialize
+    (
+        new
+        {
+            Baseline = Path.GetFullPath(args[0]),
+            Candidate = Path.GetFullPath(args[1]),
+            Runtime = RuntimeInformation.FrameworkDescription,
+            ProcessPriority = comparisonProcess.PriorityClass.ToString(),
+            LogicalProcessors = Environment.ProcessorCount,
+            ServerGC = GCSettings.IsServerGC,
+            Samples = 40,
+            WarmupSeconds = 5,
+            TargetSampleMilliseconds = 120,
+            Confidence = "95% paired Student t interval; t(39)=2.023",
+            AllocationScope = "Whole managed process, including identical TCP peer; Batch16 caller construction excluded",
+            ExclusiveBaseline = "Previous explicit connection/typed command; single-use command construction outside timing, candidate command reused",
+            Results = results
+        }, new JsonSerializerOptions
+        {
+            WriteIndented = true
+        }
+    )
+);
 
-async Task CompareAsync(string scenario, string path,
+async Task CompareAsync(
+    string scenario, string path,
     string oldClass, string oldMethod,
-    string newClass, string newMethod)
+    string newClass, string newMethod
+)
 {
     await using var oldRun = await BenchmarkRun.CreateAsync(baseline, oldClass, oldMethod, scenario);
     await using var newRun = await BenchmarkRun.CreateAsync(candidate, newClass, newMethod, scenario);
@@ -83,11 +98,15 @@ async Task CompareAsync(string scenario, string path,
     }
     var pilot = await oldRun.MeasureAsync(1);
     var invocations = Math.Clamp((int)(120_000_000 / (pilot.Nanoseconds * oldRun.Operations)), 8, 2048);
-    long? oldCopied = oldRun.CopiedRowBytes, newCopied = newRun.CopiedRowBytes;
+    long? oldCopied = oldRun.CopiedRowBytes,
+        newCopied = newRun.CopiedRowBytes;
     var pairs = new List<Pair>();
-    for (var sample = 0; sample < 40; sample++)
+    for (var sample = 0;
+         sample < 40;
+         sample++)
     {
-        Measurement before, after;
+        Measurement before,
+            after;
         if ((sample & 1) == 0)
         {
             before = await oldRun.MeasureAsync(invocations);
@@ -100,21 +119,37 @@ async Task CompareAsync(string scenario, string path,
         }
         pairs.Add(new Pair(before.Nanoseconds, after.Nanoseconds, before.Bytes, after.Bytes));
     }
-    double oldMean = pairs.Average(p => p.BaselineNanoseconds), newMean = pairs.Average(p => p.CandidateNanoseconds);
+    double oldMean = pairs.Average(p => p.BaselineNanoseconds),
+        newMean = pairs.Average(p => p.CandidateNanoseconds);
     var logRatio = pairs.Average(p => Math.Log(p.CandidateNanoseconds / p.BaselineNanoseconds));
     var sd = Math.Sqrt(pairs.Sum(p => Math.Pow(Math.Log(p.CandidateNanoseconds / p.BaselineNanoseconds) - logRatio, 2)) / (pairs.Count - 1));
     var halfWidth = 2.023 * sd / Math.Sqrt(pairs.Count);
-    double ratio = Math.Exp(logRatio), lower = Math.Exp(logRatio - halfWidth), upper = Math.Exp(logRatio + halfWidth);
-    results.Add(new
-    {
-        Case = scenario, Path = path, InvocationsPerSample = invocations, OperationsPerInvocation = oldRun.Operations,
-        BaselineMicroseconds = oldMean / 1000, CandidateMicroseconds = newMean / 1000,
-        BaselineOperationsPerSecond = 1e9 / oldMean, CandidateOperationsPerSecond = 1e9 / newMean,
-        BaselineBytes = pairs.Average(p => p.BaselineBytes), CandidateBytes = pairs.Average(p => p.CandidateBytes),
-        BaselineCopiedBytesPerOperation = (oldRun.CopiedRowBytes - oldCopied) / (double)(pairs.Count * invocations * oldRun.Operations),
-        CandidateCopiedBytesPerOperation = (newRun.CopiedRowBytes - newCopied) / (double)(pairs.Count * invocations * newRun.Operations),
-        PairedRatio = ratio, Ratio95Lower = lower, Ratio95Upper = upper, MeetsFivePercentBound = upper <= 1.05, Pairs = pairs
-    });
+    double ratio = Math.Exp(logRatio),
+        lower = Math.Exp(logRatio - halfWidth),
+        upper = Math.Exp(logRatio + halfWidth);
+    results.Add
+    (
+        new
+        {
+            Case = scenario,
+            Path = path,
+            InvocationsPerSample = invocations,
+            OperationsPerInvocation = oldRun.Operations,
+            BaselineMicroseconds = oldMean / 1000,
+            CandidateMicroseconds = newMean / 1000,
+            BaselineOperationsPerSecond = 1e9 / oldMean,
+            CandidateOperationsPerSecond = 1e9 / newMean,
+            BaselineBytes = pairs.Average(p => p.BaselineBytes),
+            CandidateBytes = pairs.Average(p => p.CandidateBytes),
+            BaselineCopiedBytesPerOperation = (oldRun.CopiedRowBytes - oldCopied) / (double)(pairs.Count * invocations * oldRun.Operations),
+            CandidateCopiedBytesPerOperation = (newRun.CopiedRowBytes - newCopied) / (double)(pairs.Count * invocations * newRun.Operations),
+            PairedRatio = ratio,
+            Ratio95Lower = lower,
+            Ratio95Upper = upper,
+            MeetsFivePercentBound = upper <= 1.05,
+            Pairs = pairs
+        }
+    );
     Console.WriteLine($"{path}/{scenario}: {oldMean / 1000:F2} -> {newMean / 1000:F2} us; ratio {ratio:F4} [{lower:F4}, {upper:F4}], bytes {pairs.Average(p => p.BaselineBytes):F0} -> {pairs.Average(p => p.CandidateBytes):F0}");
 }
 
@@ -141,8 +176,10 @@ internal sealed class BenchmarkRun : IAsyncDisposable
     private readonly Func<long>? _copied;
     private readonly Action? _prepare;
     private readonly Func<Task<long>> _run;
-    private BenchmarkRun(object instance, Type type,
-        string method)
+    private BenchmarkRun(
+        object instance, Type type,
+        string method
+    )
     {
         _run = type.GetMethod(method)!.CreateDelegate<Func<Task<long>>>(instance);
         _cleanup = type.GetMethod("Cleanup")!.CreateDelegate<Func<Task>>(instance);
@@ -159,8 +196,10 @@ internal sealed class BenchmarkRun : IAsyncDisposable
         var fixture = (type.GetField("_m", members) ?? type.GetField("_fixture", members))?.GetValue(instance);
         _copied = fixture is null ? null : CreateCopiedCounter(fixture);
     }
-    private BenchmarkRun(Func<Task<long>> run, Func<Task> cleanup,
-        Action prepare, Func<long>? copied)
+    private BenchmarkRun(
+        Func<Task<long>> run, Func<Task> cleanup,
+        Action prepare, Func<long>? copied
+    )
     {
         _run = run;
         _cleanup = cleanup;
@@ -178,20 +217,32 @@ internal sealed class BenchmarkRun : IAsyncDisposable
     private static Func<long>? CreateCopiedCounter(object fixture)
     {
         const BindingFlags members = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-        if (fixture.GetType().GetProperty("Transports", members)?.GetValue(fixture) is not IEnumerable transports)
+        if (fixture
+                .GetType()
+                .GetProperty("Transports", members)
+                ?.GetValue(fixture) is not IEnumerable transports)
         {
             return null;
         }
         var counters = new List<Func<long>>();
         foreach (var transport in transports)
         {
-            var session = transport.GetType().GetProperty("Session", members)!.GetValue(transport)!;
-            counters.Add(session.GetType().GetProperty("CopiedRowBytes", members)!.GetMethod!.CreateDelegate<Func<long>>(session));
+            var session = transport
+                .GetType()
+                .GetProperty("Session", members)!.GetValue(transport)!;
+            counters.Add
+            (
+                session
+                    .GetType()
+                    .GetProperty("CopiedRowBytes", members)!.GetMethod!.CreateDelegate<Func<long>>(session)
+            );
         }
         return () => counters.Sum(read => read());
     }
-    internal static async Task<BenchmarkRun> CreateAsync(VersionContext context, string name,
-        string method, string scenario)
+    internal static async Task<BenchmarkRun> CreateAsync(
+        VersionContext context, string name,
+        string method, string scenario
+    )
     {
         if (name == "LegacyConnection")
         {
@@ -199,7 +250,9 @@ internal sealed class BenchmarkRun : IAsyncDisposable
         }
         var type = context.Benchmarks.GetType("Mpgsql.Benchmarks." + name, true)!;
         var instance = Activator.CreateInstance(type)!;
-        type.GetProperty("Case")?.SetValue(instance, scenario);
+        type
+            .GetProperty("Case")
+            ?.SetValue(instance, scenario);
         await (Task)(type.GetMethod("SetupMpgsql") ?? type.GetMethod("Setup"))!.Invoke(instance, null)!;
         var run = new BenchmarkRun(instance, type, method);
         run._prepare?.Invoke();
@@ -214,24 +267,51 @@ internal sealed class BenchmarkRun : IAsyncDisposable
         type.GetProperty("Case")!.SetValue(instance, scenario);
         await (Task)type.GetMethod("SetupMpgsql")!.Invoke(instance, null)!;
         var fixture = type.GetField("_m", members)!.GetValue(instance)!;
-        var source = fixture.GetType().GetProperty("Source", members)!.GetValue(fixture)!;
-        var opening = source.GetType().GetMethod("OpenConnectionAsync")!.Invoke(source, [default(CancellationToken)])!;
-        var openTask = (Task)opening.GetType().GetMethod("AsTask")!.Invoke(opening, null)!;
+        var source = fixture
+            .GetType()
+            .GetProperty("Source", members)!.GetValue(fixture)!;
+        var opening = source
+            .GetType()
+            .GetMethod("OpenConnectionAsync")!.Invoke(source, [default(CancellationToken)])!;
+        var openTask = (Task)opening
+            .GetType()
+            .GetMethod("AsTask")!.Invoke(opening, null)!;
         await openTask;
-        var connection = openTask.GetType().GetProperty("Result")!.GetValue(openTask)!;
-        var creator = connection.GetType().GetMethod("CreateCommand", [typeof(string)])!.CreateDelegate<Func<string, object>>(connection);
+        var connection = openTask
+            .GetType()
+            .GetProperty("Result")!.GetValue(openTask)!;
+        var creator = connection
+            .GetType()
+            .GetMethod("CreateCommand", [typeof(string)])!.CreateDelegate<Func<string, object>>(connection);
         var query = type.GetField("_scenario", members)!.GetValue(instance)!;
-        var sql = (string)query.GetType().GetProperty("Sql")!.GetValue(query)!;
+        var sql = (string)query
+            .GetType()
+            .GetProperty("Sql")!.GetValue(query)!;
         var catalog = type.GetField("_catalog", members)!.GetValue(instance)!;
-        var inputs = (Array)catalog.GetType().GetProperty("Inputs", members)!.GetValue(catalog)!;
+        var inputs = (Array)catalog
+            .GetType()
+            .GetProperty("Inputs", members)!.GetValue(catalog)!;
         var values = (Array)((Array)inputs.GetValue(0)!).GetValue(0)!;
-        var buffers = (byte[][])fixture.GetType().GetProperty("Buffers", members)!.GetValue(fixture)!;
+        var buffers = (byte[][])fixture
+            .GetType()
+            .GetProperty("Buffers", members)!.GetValue(fixture)!;
         var command = creator(sql);
         var commandArgument = Expression.Parameter(typeof(object));
         var parameters = Expression.Property(Expression.Convert(commandArgument, command.GetType()), "Parameters");
-        var add = parameters.Type.GetMethod("Add", [values.GetType().GetElementType()!])!;
-        var adds = Enumerable.Range(0, values.Length).Select(i => Expression.Call(parameters, add, Expression.ArrayIndex(Expression.Constant(values), Expression.Constant(i))));
-        var copyParameters = Expression.Lambda<Action<object>>(Expression.Block(adds), commandArgument).Compile();
+        var add = parameters.Type.GetMethod
+        (
+            "Add", [
+                values
+                    .GetType()
+                    .GetElementType()!
+            ]
+        )!;
+        var adds = Enumerable
+            .Range(0, values.Length)
+            .Select(i => Expression.Call(parameters, add, Expression.ArrayIndex(Expression.Constant(values), Expression.Constant(i))));
+        var copyParameters = Expression
+            .Lambda<Action<object>>(Expression.Block(adds), commandArgument)
+            .Compile();
 
         void Prepare()
         {
@@ -240,48 +320,76 @@ internal sealed class BenchmarkRun : IAsyncDisposable
         }
 
         Prepare();
-        var execute = command!.GetType().GetMethod("ExecuteReaderAsync")!;
-        var reader = execute.ReturnType.GetGenericArguments()[0];
+        var execute = command!
+            .GetType()
+            .GetMethod("ExecuteReaderAsync")!;
+        var reader = execute
+            .ReturnType.GetGenericArguments()[0];
         var consumer = context.Benchmarks.GetType("Mpgsql.Benchmarks.Comparison.TcpQueryOperations", true)!
-            .GetMethods(BindingFlags.NonPublic | BindingFlags.Static).Single(m => m.Name == "ConsumeAsync" && m.GetParameters()[0].ParameterType == reader);
+            .GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
+            .Single
+            (m => m.Name == "ConsumeAsync" && m
+                    .GetParameters()[0].ParameterType == reader
+            );
         var bridge = (Func<object, Task<long>>)typeof(BenchmarkRun).GetMethod(nameof(CreateLegacyBridge), BindingFlags.NonPublic | BindingFlags.Static)!
-            .MakeGenericMethod(reader).Invoke(null, [execute, consumer, query, buffers[0]])!;
+            .MakeGenericMethod(reader)
+            .Invoke(null, [execute, consumer, query, buffers[0]])!;
         var cleanup = type.GetMethod("Cleanup")!.CreateDelegate<Func<Task>>(instance);
-        var run = new BenchmarkRun(() => bridge(command!), async () =>
-        {
-            await ((IAsyncDisposable)connection).DisposeAsync();
-            await cleanup();
-        }, Prepare, CreateCopiedCounter(fixture));
+        var run = new BenchmarkRun
+        (
+            () => bridge(command!), async () =>
+            {
+                await ((IAsyncDisposable)connection).DisposeAsync();
+                await cleanup();
+            }, Prepare, CreateCopiedCounter(fixture)
+        );
         run.Checksum = await run._run();
         return run;
     }
-    private static Func<object, Task<long>> CreateLegacyBridge<T>(MethodInfo method, MethodInfo consumer,
-        object scenario, byte[] buffer)
+    private static Func<object, Task<long>> CreateLegacyBridge<T>(
+        MethodInfo method, MethodInfo consumer,
+        object scenario, byte[] buffer
+    )
     {
         var parameter = Expression.Parameter(typeof(object));
-        var execute = Expression.Lambda<Func<object, ValueTask<T>>>(Expression.Call(Expression.Convert(parameter, method.DeclaringType!), method, Expression.Constant(default(CancellationToken))), parameter).Compile();
+        var execute = Expression
+            .Lambda<Func<object, ValueTask<T>>>(Expression.Call(Expression.Convert(parameter, method.DeclaringType!), method, Expression.Constant(default(CancellationToken))), parameter)
+            .Compile();
         var reader = Expression.Parameter(typeof(T));
-        var consume = Expression.Lambda<Func<T, Task<long>>>(Expression.Call(consumer, reader, Expression.Constant(scenario), Expression.Constant(buffer)), reader).Compile();
+        var consume = Expression
+            .Lambda<Func<T, Task<long>>>(Expression.Call(consumer, reader, Expression.Constant(scenario), Expression.Constant(buffer)), reader)
+            .Compile();
         return async command =>
         {
             try
             {
-                var value = await execute(command).ConfigureAwait(false);
+                var value = await execute(command)
+                    .ConfigureAwait(false);
                 await using ((IAsyncDisposable)value!)
                 {
-                    return await consume(value).ConfigureAwait(false);
+                    return await consume(value)
+                        .ConfigureAwait(false);
                 }
             }
-            finally { await ((IAsyncDisposable)command).DisposeAsync().ConfigureAwait(false); }
+            finally
+            {
+                await ((IAsyncDisposable)command)
+                    .DisposeAsync()
+                    .ConfigureAwait(false);
+            }
         };
     }
     internal async Task<Measurement> MeasureAsync(int invocations)
     {
-        long elapsed = 0, allocated = 0;
+        long elapsed = 0,
+            allocated = 0;
         if (_prepare is null)
         {
-            long bytes = GC.GetTotalAllocatedBytes(true), start = Stopwatch.GetTimestamp();
-            for (var i = 0; i < invocations; i++)
+            long bytes = GC.GetTotalAllocatedBytes(true),
+                start = Stopwatch.GetTimestamp();
+            for (var i = 0;
+                 i < invocations;
+                 i++)
             {
                 if (await _run() != Checksum)
                 {
@@ -293,10 +401,13 @@ internal sealed class BenchmarkRun : IAsyncDisposable
         }
         else
         {
-            for (var i = 0; i < invocations; i++)
+            for (var i = 0;
+                 i < invocations;
+                 i++)
             {
                 _prepare();
-                long bytes = GC.GetTotalAllocatedBytes(true), start = Stopwatch.GetTimestamp();
+                long bytes = GC.GetTotalAllocatedBytes(true),
+                    start = Stopwatch.GetTimestamp();
                 if (await _run() != Checksum)
                 {
                     throw new InvalidDataException("Unstable checksum.");

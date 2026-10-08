@@ -20,6 +20,6 @@
         </PackageReference>
     </ItemGroup>
     <ItemGroup>
-      <None Remove="Queries\ReceiveCompletionNotificationTests.cs~" />
+        <None Remove="Queries\ReceiveCompletionNotificationTests.cs~"/>
     </ItemGroup>
 </Project>

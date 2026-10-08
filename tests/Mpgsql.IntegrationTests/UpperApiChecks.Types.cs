@@ -23,8 +23,31 @@ internal static partial class UpperApiChecks
         await Value(source, "timestamp", "'1999-12-31 23:59:59.999999'::timestamp", new PgTimestamp(-1), MpgsqlParameterValue.Timestamp, MpgsqlParameterValue.NullableTimestampArray, token);
         await Value(source, "timestamptz", "'2000-01-01 00:00:01.000001+00'::timestamptz", new PgTimestampTz(1000001), MpgsqlParameterValue.TimestampTz, MpgsqlParameterValue.NullableTimestampTzArray, token);
         await Value(source, "interval", "'-2 mons 3 days -00:00:01.000001'::interval", new PgInterval(-2, 3, -1000001), MpgsqlParameterValue.Interval, MpgsqlParameterValue.NullableIntervalArray, token);
-        await Value(source, "bytea", "decode('000180ff','hex')", new ReadOnlyMemory<byte>(new byte[] {0, 1, 128, 255}), MpgsqlParameterValue.Bytea, MpgsqlParameterValue.NullableByteaArray, token);
-        await Value(source, "numeric", "-12345.67::numeric", new PgNumeric(1, 2, PgNumericSign.Negative, new ushort[] {1, 2345, 6700}), MpgsqlParameterValue.Numeric, MpgsqlParameterValue.NullableNumericArray, token);
+        await Value
+        (
+            source, "bytea", "decode('000180ff','hex')", new ReadOnlyMemory<byte>
+            (
+                new byte[]
+                {
+                    0,
+                    1,
+                    128,
+                    255
+                }
+            ), MpgsqlParameterValue.Bytea, MpgsqlParameterValue.NullableByteaArray, token
+        );
+        await Value
+        (
+            source, "numeric", "-12345.67::numeric", new PgNumeric
+            (
+                1, 2, PgNumericSign.Negative, new ushort[]
+                {
+                    1,
+                    2345,
+                    6700
+                }
+            ), MpgsqlParameterValue.Numeric, MpgsqlParameterValue.NullableNumericArray, token
+        );
         await Value(source, "inet", "'192.0.2.129/24'::inet", PgInet.FromIPAddress(IPAddress.Parse("192.0.2.129"), 24), MpgsqlParameterValue.Inet, MpgsqlParameterValue.NullableInetArray, token);
         await Value(source, "cidr", "'192.0.2.0/24'::cidr", PgInet.FromIPAddress(IPAddress.Parse("192.0.2.0"), 24), MpgsqlParameterValue.Cidr, MpgsqlParameterValue.NullableCidrArray, token);
         await ReferenceValue(source, "text", "'Я😀'::text", "Я😀", MpgsqlParameterValue.Text, MpgsqlParameterValue.TextArray, token);
@@ -41,19 +64,45 @@ internal static partial class UpperApiChecks
     {
         Memory<byte> json = "{\"x\": \"Я😀\"}"u8.ToArray();
         Memory<byte> jsonNull = "null"u8.ToArray();
-        MpgsqlParameterValue[] parameters = [MpgsqlParameterValue.JsonbArray(new[] {json, jsonNull}), MpgsqlParameterValue.Jsonb(jsonNull)];
+        MpgsqlParameterValue[] parameters =
+        [
+            MpgsqlParameterValue.JsonbArray
+            (
+                new[]
+                {
+                    json,
+                    jsonNull
+                }
+            ),
+            MpgsqlParameterValue.Jsonb(jsonNull)
+        ];
         var reader = await source.ExecuteReaderAsync("select $1, ARRAY['{\"x\": \"Я😀\"}'::jsonb, 'null'::jsonb], $2, 'null'::jsonb", parameters, token);
         await using (reader)
         {
             Check(await reader.ReadAsync(), "jsonb owned memory row");
-            for (var i = 0; i < 4; i += 2)
+            for (var i = 0;
+                 i < 4;
+                 i += 2)
             {
-                Check(reader.GetRawValue(i)!.Value.ToArray().AsSpan().SequenceEqual(reader.GetRawValue(i + 1)!.Value.ToArray()), "jsonb non-null array and JSON null bytes");
+                Check
+                (
+                    reader.GetRawValue(i)!
+                        .Value.ToArray()
+                        .AsSpan()
+                        .SequenceEqual(reader.GetRawValue(i + 1)!.Value.ToArray()), "jsonb non-null array and JSON null bytes"
+                );
             }
             var array = reader.GetFieldValue<ReadOnlyMemory<Memory<byte>>>(0);
             var nullable = reader.GetFieldValue<ReadOnlyMemory<Memory<byte>?>?>(0)!.Value;
             var scalar = reader.GetFieldValue<Memory<byte>?>(2)!.Value;
-            Check(array.Length == 2 && array.Span[0].Span.SequenceEqual(json.Span) && array.Span[1].Span.SequenceEqual(jsonNull.Span), "jsonb non-null array getter");
+            Check
+            (
+                array.Length == 2 && array
+                    .Span[0]
+                    .Span.SequenceEqual(json.Span) && array
+                    .Span[1]
+                    .Span.SequenceEqual(jsonNull.Span), "jsonb non-null array getter"
+            );
             Check(nullable.Span[0]!.Value.Span.SequenceEqual(json.Span) && nullable.Span[1]!.Value.Span.SequenceEqual(jsonNull.Span), "jsonb nullable array getter without NULL elements");
             Check(!reader.IsDBNull(2) && scalar.Span.SequenceEqual(jsonNull.Span), "JSON null differs from SQL NULL");
             try
@@ -64,14 +113,21 @@ internal static partial class UpperApiChecks
             catch (InvalidCastException) { }
             Check(!await reader.NextResultAsync(), "jsonb result boundary");
             await reader.DisposeAsync();
-            Check(array.Span[0].Span.SequenceEqual(json.Span) && scalar.Span.SequenceEqual(jsonNull.Span), "jsonb memory outlives the result reader");
+            Check
+            (
+                array
+                    .Span[0]
+                    .Span.SequenceEqual(json.Span) && scalar.Span.SequenceEqual(jsonNull.Span), "jsonb memory outlives the result reader"
+            );
         }
     }
 
-    private static async Task Value<T>(MpgsqlMultiplexingDataSource source, string sqlType,
+    private static async Task Value<T>(
+        MpgsqlMultiplexingDataSource source, string sqlType,
         string literal, T value,
         Func<T?, MpgsqlParameterValue> scalar, Func<ReadOnlyMemory<T?>?, MpgsqlParameterValue> array,
-        CancellationToken token) where T : struct
+        CancellationToken token
+    ) where T : struct
     {
         T?[] items = [value, null, value];
         MpgsqlParameterValue[] parameters = [scalar(value), array(items), array(ReadOnlyMemory<T?>.Empty), scalar(null), array(null)];
@@ -80,16 +136,28 @@ internal static partial class UpperApiChecks
         Compare(reader, sqlType);
         var decoded = scalar(reader.GetFieldValue<T>(0));
         var decodedArray = array(reader.GetFieldValue<ReadOnlyMemory<T?>>(2));
-        Check(Encode(decoded).AsSpan().SequenceEqual(reader.GetRawValue(0)!.Value.ToArray()), sqlType + " scalar getter");
-        Check(Encode(decodedArray).AsSpan().SequenceEqual(reader.GetRawValue(2)!.Value.ToArray()), sqlType + " array getter");
+        Check
+        (
+            Encode(decoded)
+                .AsSpan()
+                .SequenceEqual(reader.GetRawValue(0)!.Value.ToArray()), sqlType + " scalar getter"
+        );
+        Check
+        (
+            Encode(decodedArray)
+                .AsSpan()
+                .SequenceEqual(reader.GetRawValue(2)!.Value.ToArray()), sqlType + " array getter"
+        );
         Check(reader.GetFieldValue<T?>(6) is null && reader.GetFieldValue<ReadOnlyMemory<T?>?>(7) is null, sqlType + " nullable getters");
         Check(!await reader.NextResultAsync(), sqlType + " result boundary");
     }
 
-    private static async Task ReferenceValue(MpgsqlMultiplexingDataSource source, string sqlType,
+    private static async Task ReferenceValue(
+        MpgsqlMultiplexingDataSource source, string sqlType,
         string literal, string value,
         Func<string?, MpgsqlParameterValue> scalar, Func<ReadOnlyMemory<string?>?, MpgsqlParameterValue> array,
-        CancellationToken token)
+        CancellationToken token
+    )
     {
         string?[] items = [value, null, value];
         MpgsqlParameterValue[] parameters = [scalar(value), array(items), array(ReadOnlyMemory<string?>.Empty), scalar(null), array(null)];
@@ -97,7 +165,12 @@ internal static partial class UpperApiChecks
         Check(await reader.ReadAsync(), sqlType + " typed row");
         Compare(reader, sqlType);
         Check(reader.GetFieldValue<string>(0) == value, sqlType + " string getter");
-        Check(reader.GetFieldValue<ReadOnlyMemory<string?>>(2).Span.SequenceEqual(items), sqlType + " reference array getter");
+        Check
+        (
+            reader
+                .GetFieldValue<ReadOnlyMemory<string?>>(2)
+                .Span.SequenceEqual(items), sqlType + " reference array getter"
+        );
         Check(reader.GetFieldValue<string>(6) is null, sqlType + " nullable reference getter");
         Check(!await reader.NextResultAsync(), sqlType + " result boundary");
     }
@@ -109,9 +182,17 @@ internal static partial class UpperApiChecks
 
     private static void Compare(MpgsqlResultReader reader, string type)
     {
-        for (var i = 0; i < 6; i += 2)
+        for (var i = 0;
+             i < 6;
+             i += 2)
         {
-            Check(reader.GetRawValue(i)!.Value.ToArray().AsSpan().SequenceEqual(reader.GetRawValue(i + 1)!.Value.ToArray()), type + " independent SQL bytes");
+            Check
+            (
+                reader.GetRawValue(i)!
+                    .Value.ToArray()
+                    .AsSpan()
+                    .SequenceEqual(reader.GetRawValue(i + 1)!.Value.ToArray()), type + " independent SQL bytes"
+            );
         }
         Check(reader.IsDBNull(6) && reader.IsDBNull(7), type + " outer SQL NULL");
     }

@@ -26,7 +26,11 @@ public sealed class PreparedStatementLifecycleTests
         }
         Assert.False(wire.HasOutput());
         Assert.True(wire.Session.IsHealthy);
-        Assert.Equal("mpgsql_ps_1001", wire.Session.CreatePreparedStatement("select 1").Name);
+        Assert.Equal
+        (
+            "mpgsql_ps_1001", wire.Session.CreatePreparedStatement("select 1")
+                .Name
+        );
     }
 
     [Fact]
@@ -52,10 +56,24 @@ public sealed class PreparedStatementLifecycleTests
     {
         await using var wire = new ScriptedSession();
         await using var foreign = new ScriptedSession();
-        Assert.Throws<ArgumentException>(() => wire.Session.CreatePreparedStatement("select $1", new uint[] {0}));
+        Assert.Throws<ArgumentException>
+        (() => wire.Session.CreatePreparedStatement
+            (
+                "select $1", new uint[]
+                {
+                    0
+                }
+            )
+        );
         Assert.Throws<ArgumentNullException>(() => wire.Session.CreatePreparedStatement(null!));
         Assert.Throws<ArgumentOutOfRangeException>(() => wire.Session.CreatePreparedStatement("select 1", new uint[65536]));
-        var statement = wire.Session.CreatePreparedStatement("select $1", new uint[] {20});
+        var statement = wire.Session.CreatePreparedStatement
+        (
+            "select $1", new uint[]
+            {
+                20
+            }
+        );
         await using var wrongOwner = foreign.Session.CreateBatch(TestContext.Current.CancellationToken);
         Assert.Throws<ArgumentException>(() => wrongOwner.SendPrepareAsync(statement));
         Assert.Equal(0, wire.Session.TrackedStatementCount);
@@ -75,7 +93,15 @@ public sealed class PreparedStatementLifecycleTests
         await batch.SendPrepareAsync(statement);
         Assert.Equal(1, wire.Session.TrackedStatementCount);
         Assert.Throws<ArgumentException>(() => batch.SendQueryAsync(statement));
-        Assert.Throws<ArgumentException>(() => batch.SendQueryAsync(statement, new[] {MpgsqlParameterValue.Int64Array(null)}));
+        Assert.Throws<ArgumentException>
+        (() => batch.SendQueryAsync
+            (
+                statement, new[]
+                {
+                    MpgsqlParameterValue.Int64Array(null)
+                }
+            )
+        );
         Assert.Equal(1, wire.Session.TrackedStatementCount);
         await batch.SendCloseAsync(statement);
         await batch.SendSyncAsync();
@@ -93,10 +119,14 @@ public sealed class PreparedStatementLifecycleTests
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await using var wire = new ScriptedSession(true);
         await using var batch = wire.Session.CreateBatch(request.Token);
-        var published = batch.SendQueryAsync("select 11::bigint").AsTask();
+        var published = batch
+            .SendQueryAsync("select 11::bigint")
+            .AsTask();
         var held = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
         var (handle, send, prepared) = QueueAbandonedPreparation(wire.Session, batch);
-        var sync = batch.SendSyncAsync().AsTask();
+        var sync = batch
+            .SendSyncAsync()
+            .AsTask();
         Assert.Equal(1, wire.Session.TrackedStatementCount);
         request.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Wait(published));
@@ -139,7 +169,11 @@ public sealed class PreparedStatementLifecycleTests
         // Keep the failed batch and both completion tasks alive while checking handle ownership.
         Collect();
         Assert.False(IsAlive(handle));
-        await Assert.ThrowsAsync<MpgsqlServerException>(() => batch.DisposeAsync().AsTask());
+        await Assert.ThrowsAsync<MpgsqlServerException>
+        (() => batch
+            .DisposeAsync()
+            .AsTask()
+        );
         Assert.False(wire.HasOutput());
         Assert.True(wire.Session.IsHealthy);
     }
@@ -150,10 +184,14 @@ public sealed class PreparedStatementLifecycleTests
         await using var wire = new ScriptedSession(true);
         var statement = wire.Session.CreatePreparedStatement("select 1");
         await using var preparing = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        var prepare = preparing.SendPrepareAsync(statement).AsTask();
+        var prepare = preparing
+            .SendPrepareAsync(statement)
+            .AsTask();
         Assert.Equal("P", new string(Tags(await wire.ReadOutputAsync())));
         await Wait(prepare);
-        var prepareSync = preparing.SendSyncAsync().AsTask();
+        var prepareSync = preparing
+            .SendSyncAsync()
+            .AsTask();
         Assert.Equal("S", new string(Tags(await wire.ReadOutputAsync())));
         await Wait(prepareSync);
         await wire.WriteAsync(Join(Packet('1'), Ready()));
@@ -161,10 +199,16 @@ public sealed class PreparedStatementLifecycleTests
 
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await using var canceled = wire.Session.CreateBatch(request.Token);
-        var published = canceled.SendQueryAsync("select 11::bigint").AsTask();
+        var published = canceled
+            .SendQueryAsync("select 11::bigint")
+            .AsTask();
         var held = await wire.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
-        var close = canceled.SendCloseAsync(statement).AsTask();
-        var sync = canceled.SendSyncAsync().AsTask();
+        var close = canceled
+            .SendCloseAsync(statement)
+            .AsTask();
+        var sync = canceled
+            .SendSyncAsync()
+            .AsTask();
         request.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Wait(published));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Wait(close));
@@ -179,10 +223,14 @@ public sealed class PreparedStatementLifecycleTests
         Assert.Equal(1, wire.Session.TrackedStatementCount);
 
         await using var retry = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        var retryClose = retry.SendCloseAsync(statement).AsTask();
+        var retryClose = retry
+            .SendCloseAsync(statement)
+            .AsTask();
         Assert.Equal("C", new string(Tags(await wire.ReadOutputAsync())));
         await Wait(retryClose);
-        var retrySync = retry.SendSyncAsync().AsTask();
+        var retrySync = retry
+            .SendSyncAsync()
+            .AsTask();
         Assert.Equal("S", new string(Tags(await wire.ReadOutputAsync())));
         await Wait(retrySync);
         await wire.WriteAsync(Join(Packet('3'), Ready()));
@@ -286,9 +334,17 @@ public sealed class PreparedStatementLifecycleTests
         CreateAbandonedHandles(MpgsqlMessageSession session)
     {
         var references = new (WeakReference<MpgsqlPreparedStatement>, WeakReference<string>, WeakReference<uint[]>)[1000];
-        for (var i = 0; i < references.Length; i++)
+        for (var i = 0;
+             i < references.Length;
+             i++)
         {
-            var statement = session.CreatePreparedStatement($"select $1 /* {i} {new string('x', 1024)} */", new uint[] {20});
+            var statement = session.CreatePreparedStatement
+            (
+                $"select $1 /* {i} {new string('x', 1024)} */", new uint[]
+                {
+                    20
+                }
+            );
             Assert.True(MemoryMarshal.TryGetArray(statement.ParameterTypes, out var ownedTypes));
             references[i] = (new WeakReference<MpgsqlPreparedStatement>(statement), new WeakReference<string>(statement.Sql), new WeakReference<uint[]>(ownedTypes.Array!));
         }
@@ -300,7 +356,9 @@ public sealed class PreparedStatementLifecycleTests
         QueueAbandonedPreparation(MpgsqlMessageSession session, MpgsqlQueryBatch batch)
     {
         var statement = session.CreatePreparedStatement("select 1");
-        return (new WeakReference<MpgsqlPreparedStatement>(statement), batch.SendPrepareAsync(statement).AsTask(), statement.Prepared);
+        return (new WeakReference<MpgsqlPreparedStatement>(statement), batch
+            .SendPrepareAsync(statement)
+            .AsTask(), statement.Prepared);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -308,7 +366,9 @@ public sealed class PreparedStatementLifecycleTests
     {
         Assert.True(reference.TryGetTarget(out var statement));
         Assert.Throws<InvalidOperationException>(statement.Dispose);
-        return batch.SendCloseAsync(statement).AsTask();
+        return batch
+            .SendCloseAsync(statement)
+            .AsTask();
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

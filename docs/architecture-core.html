@@ -2338,7 +2338,8 @@
                         <div class="graph core-graph">
                             <svg aria-hidden="true" class="edges" viewBox="0 0 940 715">
                                 <defs>
-                                    <marker id="core-arrow" markerHeight="5" markerWidth="5" orient="auto-start-reverse" refX="8"
+                                    <marker id="core-arrow" markerHeight="5" markerWidth="5" orient="auto-start-reverse"
+                                            refX="8"
                                             refY="5" viewBox="0 0 10 10">
                                         <path d="M0 1 8 5 0 9" fill="none" stroke="context-stroke" stroke-width="1.5"/>
                                     </marker>
@@ -2352,11 +2353,13 @@
                                           data-to="converters"/>
                                     <path class="edge" d="M470 118V182" data-from="converters" data-route="payload"
                                           data-to="engine"/>
-                                    <path class="edge" d="M675 224H647V79H603" data-from="copycodec" data-route="payload"
+                                    <path class="edge" d="M675 224H647V79H603" data-from="copycodec"
+                                          data-route="payload"
                                           data-to="converters"/>
                                     <path class="edge" d="M25 224H12V650H22" data-from="writer" data-route="frontend"
                                           data-to="buffers"/>
-                                    <path class="edge" d="M80 615V590H20V369H22" data-from="buffers" data-route="backend"
+                                    <path class="edge" d="M80 615V590H20V369H22" data-from="buffers"
+                                          data-route="backend"
                                           data-to="reader"/>
                                     <path class="edge" d="M270 369H332" data-from="reader" data-route="backend"
                                           data-to="message"/>
@@ -2366,7 +2369,8 @@
                                           data-to="indexed"/>
                                     <path class="edge" d="M600 369H672" data-from="message" data-route="backend payload"
                                           data-to="copyop"/>
-                                    <path class="edge" d="M920 224H934V519H923" data-from="copycodec" data-route="payload"
+                                    <path class="edge" d="M920 224H934V519H923" data-from="copycodec"
+                                          data-route="payload"
                                           data-to="framer"/>
                                     <path class="edge" d="M795 558V649H603" data-from="framer" data-route="payload"
                                           data-to="buffers"/>
@@ -2383,7 +2387,8 @@
                                     class="node-kicker">Protocol · construction</span><strong>FrontendMessage</strong><span
                                     class="node-sub">Фабрики · typed structs · raw</span></button>
                             <button aria-pressed="false" class="node"
-                                    data-node="converters" style="left:36.17%;top:5.59%;width:27.66%;height:10.91%"><span
+                                    data-node="converters"
+                                    style="left:36.17%;top:5.59%;width:27.66%;height:10.91%"><span
                                     class="node-kicker">Converters · public API</span><strong>Scalar / array
                                 converters</strong><span class="node-sub">Span · Sequence · IBufferWriter</span>
                             </button>
@@ -2400,7 +2405,8 @@
                                     class="node-kicker">Converters · internal</span><strong>Binary* ·
                                 IBinaryCodec</strong><span class="node-sub">Измерение · encoding · SIMD</span></button>
                             <button aria-pressed="false" class="node"
-                                    data-node="copycodec" style="left:71.81%;top:25.87%;width:26.06%;height:10.91%"><span
+                                    data-node="copycodec"
+                                    style="left:71.81%;top:25.87%;width:26.06%;height:10.91%"><span
                                     class="node-kicker">Copy · stream codec</span><strong>BinaryCopyWriter /
                                 Reader</strong><span class="node-sub">Header · tuples · trailer</span></button>
                             <button aria-pressed="false" class="node"
