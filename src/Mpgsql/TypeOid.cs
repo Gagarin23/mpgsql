@@ -26,6 +26,12 @@ public enum TypeOid : uint
 
     Text = 25,
     TextArray = 1009,
+    VarChar = 1043, // varchar / character varying
+    VarCharArray = 1015,
+    BpChar = 1042, // bpchar / character(n), distinct from internal "char"
+    BpCharArray = 1014,
+    Name = 19,
+    NameArray = 1003,
     Uuid = 2950,
     UuidArray = 2951,
     Json = 114,

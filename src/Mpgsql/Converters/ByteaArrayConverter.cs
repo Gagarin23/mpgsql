@@ -3,7 +3,7 @@ using Mpgsql.Types;
 
 namespace Mpgsql.Converters;
 
-/// <summary>Binary PostgreSQL Bytea[] for ReadOnlyMemory&lt;ReadOnlyMemory<byte>&gt;.</summary>
+/// <summary>Binary PostgreSQL Bytea[] for ReadOnlyMemory&lt;ReadOnlyMemory&lt;byte&gt;&gt;.</summary>
 /// <remarks>
 /// Supports empty and one-dimensional arrays; lower bounds are normalized to zero-based memory.
 /// Writes only payload, with big-endian headers and element lengths. Capacity/overlap are checked

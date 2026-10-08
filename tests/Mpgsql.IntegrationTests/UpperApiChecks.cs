@@ -4,7 +4,8 @@ namespace Mpgsql.IntegrationTests;
 
 internal static partial class UpperApiChecks
 {
-    internal static async Task RunAsync(string host, int port, string user, string password, string database, bool transactionPool)
+    internal static async Task RunAsync(string host, int port, string user, string password, string database,
+        bool transactionPool, bool activeTerminalEofOnly = false)
     {
         using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(90));
         var token = lifetime.Token;
@@ -14,12 +15,16 @@ internal static partial class UpperApiChecks
                 (await fixture.Source.ExecuteScalarAsync<long>("select $1", new[] {MpgsqlParameter.Int64(i)}, token)).Value));
             Check(values.SequenceEqual(Enumerable.Range(0, 32).Select(i => (long)i)), "multiplexed scalar results");
             await TypedValuesAsync(fixture.Source, token);
+            await StringAliasesAsync(fixture.Source, token);
             await ErrorAndDrainAsync(fixture.Source, token);
             await CancelAsync(fixture, token);
         }
+        await LogicalCancellationAsync(host, port, user, password, database, token);
+        if (!transactionPool) await SharedSyncAsync(host, port, user, password, database, token);
+        await TerminalDiagnosticsAsync(host, port, user, password, database, transactionPool, activeTerminalEofOnly, token);
         await SessionStateAsync(host, port, user, password, database, transactionPool, token);
         if (transactionPool) await BackendSwapAsync(host, port, user, password, database, token);
-        Console.WriteLine($"PASS upper API: multiplexing, all 46 OIDs, error/drain recovery, server cancellation, explicit cleanup, prepared statements; mode={(transactionPool ? "transaction" : "session/direct")}");
+        Console.WriteLine($"PASS upper API: multiplexing, all {Enum.GetValues<TypeOid>().Length} OIDs, string table/catalog reads, error/drain recovery, logical/server cancellation, {(activeTerminalEofOnly ? "terminal diagnostics/EOF retirement" : "terminal diagnostics")}, explicit cleanup, prepared statements; mode={(transactionPool ? "transaction" : "session/direct")}");
     }
 
     private static async Task ErrorAndDrainAsync(MpgsqlDataSource source, CancellationToken token)

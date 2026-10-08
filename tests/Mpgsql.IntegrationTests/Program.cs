@@ -10,10 +10,18 @@ try
     string? requestedDatabase = Environment.GetEnvironmentVariable("MPGSQL_TEST_DATABASE");
     string database = requestedDatabase ?? user;
 
+    if (Environment.GetEnvironmentVariable("MPGSQL_TEST_SHARED_SYNC_ONLY") == "1")
+    {
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+        await UpperApiChecks.SharedSyncAsync(host, port, user, password, database, lifetime.Token);
+        return;
+    }
+
     if (Environment.GetEnvironmentVariable("MPGSQL_TEST_UPPER_ONLY") == "1")
     {
         await UpperApiChecks.RunAsync(host, port, user, password, database,
-            Environment.GetEnvironmentVariable("MPGSQL_TEST_POOL_MODE") == "transaction");
+            Environment.GetEnvironmentVariable("MPGSQL_TEST_POOL_MODE") == "transaction",
+            activeTerminalEofOnly: Environment.GetEnvironmentVariable("MPGSQL_TEST_ACTIVE_TERMINAL_EOF_ONLY") == "1");
         return;
     }
 
@@ -39,6 +47,12 @@ try
     using (connection)
     {
         Console.WriteLine($"Connected to PostgreSQL {connection.ServerVersion}, database {database}, {connection.Authentication}.");
+        if (Environment.GetEnvironmentVariable("MPGSQL_TEST_CONVERTERS_ONLY") == "1")
+        {
+            BuiltinConverterChecks.Run(connection);
+            connection.Send(Mpgsql.Protocol.FrontendMessage.Terminate());
+            return;
+        }
         LiveProtocolChecks.Run(connection);
         await MessageSessionChecks.RunAsync(connection);
         connection.Send(Mpgsql.Protocol.FrontendMessage.Terminate());

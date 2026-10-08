@@ -4,12 +4,31 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <IsPackable>true</IsPackable>
+        <PackageId>Mpgsql</PackageId>
+        <Version>0.1.0-alpha.1</Version>
+        <Title>Mpgsql: Minimalistic postgresql driver</Title>
+        <Description>Minimalistic PostgreSQL driver for .NET: protocol 3.0 message codecs, binary type converters, and binary COPY primitives.</Description>
+        <Authors>Mpgsql contributors</Authors>
+        <PackageTags>postgresql;postgres;protocol;binary;copy;dotnet</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageProjectUrl>https://github.com/Gagarin23/mpgsql</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/Gagarin23/mpgsql</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);CS1591</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
+        <!-- The client reuses wire/codec internals without widening the public API. -->
+        <InternalsVisibleTo Include="Mpgsql.Client" />
         <InternalsVisibleTo Include="Mpgsql.Tests" />
         <InternalsVisibleTo Include="Mpgsql.Benchmarks" />
         <InternalsVisibleTo Include="Mpgsql.IntegrationTests" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Update="README.md" Pack="true" PackagePath="/" />
     </ItemGroup>
 
 </Project>

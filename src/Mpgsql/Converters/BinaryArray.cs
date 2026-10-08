@@ -3,7 +3,7 @@ using System.Buffers.Binary;
 
 namespace Mpgsql.Converters;
 
-internal static class BinaryArray<T, TCodec> where TCodec : struct, IBinaryCodec<T>
+internal static partial class BinaryArray<T, TCodec> where TCodec : struct, IBinaryCodec<T>
 {
     internal static int Measure(ReadOnlySpan<T> source)
     {
@@ -63,6 +63,12 @@ internal static class BinaryArray<T, TCodec> where TCodec : struct, IBinaryCodec
     {
         ArrayPayload.WriteHeader(bytes, source.Length, false, TCodec.Oid);
         int offset = source.IsEmpty ? ArrayPayload.EmptyHeaderSize : ArrayPayload.HeaderSize;
+        if (CanUseNumericSimd && source.Length >= NumericVectorCount)
+        {
+            int written = WriteNumericVectors(source, bytes[offset..]);
+            offset += written * (4 + TCodec.FixedSize);
+            source = source[written..];
+        }
         foreach (var item in source)
         {
             int lengthOffset = offset;
@@ -122,7 +128,11 @@ internal static class BinaryArray<T, TCodec> where TCodec : struct, IBinaryCodec
     private static void ReadFixedRecords(ReadOnlySpan<byte> records, Span<T> destination)
     {
         int recordSize = 4 + TCodec.FixedSize;
-        int offset = 0;
+        int read = CanUseNumericSimd && destination.Length >= NumericVectorCount
+            ? ReadNumericVectors(records, destination)
+            : 0;
+        int offset = read * recordSize;
+        destination = destination[read..];
         foreach (ref var item in destination)
         {
             int length = BinaryPrimitives.ReadInt32BigEndian(records[offset..]);

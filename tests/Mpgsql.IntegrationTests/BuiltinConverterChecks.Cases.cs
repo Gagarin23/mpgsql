@@ -10,6 +10,7 @@ internal static partial class BuiltinConverterChecks
     internal static void Run(TestConnection connection)
     {
         connection.Query("set lc_monetary = 'C'");
+        NumericSimd(connection);
         Value<bool>(connection, TypeOid.Boolean, "boolean", "true::boolean", true,
             BooleanConverter.GetByteCount, BooleanConverter.Write, BooleanConverter.Read,
             NullableBooleanArrayConverter.GetByteCount, NullableBooleanArrayConverter.Write, NullableBooleanArrayConverter.Read);
@@ -70,6 +71,15 @@ internal static partial class BuiltinConverterChecks
         ReferenceValue(connection, TypeOid.Text, "text", "'Я😀'::text", "Я😀",
             TextConverter.GetByteCount, TextConverter.Write, TextConverter.Read,
             TextArrayConverter.GetByteCount, TextArrayConverter.Write, TextArrayConverter.Read);
+        ReferenceValue(connection, TypeOid.VarChar, "varchar", "'Я😀'::varchar", "Я😀",
+            VarCharConverter.GetByteCount, VarCharConverter.Write, VarCharConverter.Read,
+            VarCharArrayConverter.GetByteCount, VarCharArrayConverter.Write, VarCharArrayConverter.Read);
+        ReferenceValue(connection, TypeOid.BpChar, "bpchar", "'Я😀  '::bpchar", "Я😀  ",
+            BpCharConverter.GetByteCount, BpCharConverter.Write, BpCharConverter.Read,
+            BpCharArrayConverter.GetByteCount, BpCharArrayConverter.Write, BpCharArrayConverter.Read);
+        ReferenceValue(connection, TypeOid.Name, "name", "'Я😀'::name", "Я😀",
+            NameConverter.GetByteCount, NameConverter.Write, NameConverter.Read,
+            NameArrayConverter.GetByteCount, NameArrayConverter.Write, NameArrayConverter.Read);
         ReferenceValue(connection, TypeOid.Json, "json", "'{\"x\":\"Я😀\"}'::json", "{\"x\":\"Я😀\"}",
             JsonConverter.GetByteCount, JsonConverter.Write, JsonConverter.Read,
             JsonArrayConverter.GetByteCount, JsonArrayConverter.Write, JsonArrayConverter.Read);

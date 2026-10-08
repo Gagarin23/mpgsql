@@ -18,7 +18,7 @@ internal sealed class UpperApiTestSource : IAsyncDisposable
     internal MpgsqlPreparedStatement Statement(MpgsqlMessageSession session) => _prepared[session];
 
     internal UpperApiTestSource(string host, int port, string user, string password, string database,
-        int maxConnections = 2, bool prepare = false)
+        int maxConnections = 2, bool prepare = false, int syncGroupSize = 1, TimeSpan? syncGroupTimeout = null)
     {
         Source = new(async token =>
         {
@@ -51,6 +51,7 @@ internal sealed class UpperApiTestSource : IAsyncDisposable
         }, new()
         {
             MaxConnections = maxConnections, MaxInFlightPerConnection = 8,
+            SyncGroupSize = syncGroupSize, SyncGroupTimeout = syncGroupTimeout ?? TimeSpan.FromMilliseconds(1),
             MaxBufferedRowBytesPerConnection = 64 * 1024, RecoveryTimeout = TimeSpan.FromSeconds(5)
         });
     }

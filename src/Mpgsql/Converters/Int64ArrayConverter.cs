@@ -12,7 +12,7 @@ namespace Mpgsql.Converters;
 /// Only zero/one-dimensional arrays without NULL elements are supported.
 /// Reading normalizes PostgreSQL lower bounds to the memory's zero-based indexing.
 /// </remarks>
-public static partial class Int64ArrayConverter
+public static class Int64ArrayConverter
 {
     public const uint ElementTypeOid = (uint)TypeOid.Int64;
     public const uint ArrayTypeOid = (uint)TypeOid.Int64Array;
@@ -50,6 +50,7 @@ public static partial class Int64ArrayConverter
     }
 
     /// <summary>Reserves the complete payload and advances only the written region.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void Write(ReadOnlyMemory<long> value,
         IBufferWriter<byte> destination)
     {
@@ -76,7 +77,7 @@ public static partial class Int64ArrayConverter
             return ReadOnlyMemory<long>.Empty;
         }
         var result = GC.AllocateUninitializedArray<long>(count);
-        ReadRecords(payload[headerSize..],
+        ReadSharedRecords(payload[headerSize..],
             result);
         return result;
     }
@@ -99,7 +100,7 @@ public static partial class Int64ArrayConverter
         destination = destination[..count];
         RequireSeparateStorage(payload,
             MemoryMarshal.AsBytes(destination));
-        ReadRecords(payload[headerSize..],
+        ReadSharedRecords(payload[headerSize..],
             destination);
         return count;
     }
@@ -179,8 +180,37 @@ public static partial class Int64ArrayConverter
             source.Length);
         BinaryPrimitives.WriteInt32BigEndian(destination[16..],
             1);
-        WriteRecords(source,
+        WriteSharedRecords(source,
             destination[HeaderSize..]);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void WriteSharedRecords(ReadOnlySpan<long> source, Span<byte> destination)
+    {
+        int i = BinaryArray<long, Int64Codec>.CanUseNumericSimd && source.Length >= 4
+            ? BinaryArray<long, Int64Codec>.WriteNumericVectors(source, destination)
+            : 0;
+        for (int offset = i * RecordSize; i < source.Length; i++, offset += RecordSize)
+        {
+            BinaryPrimitives.WriteInt32BigEndian(destination[offset..], sizeof(long));
+            BinaryPrimitives.WriteInt64BigEndian(destination[(offset + 4)..], source[i]);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void ReadSharedRecords(ReadOnlySpan<byte> source, Span<long> destination)
+    {
+        int i = BinaryArray<long, Int64Codec>.CanUseNumericSimd && destination.Length >= 4
+            ? BinaryArray<long, Int64Codec>.ReadNumericVectors(source, destination)
+            : 0;
+        for (int offset = i * RecordSize; i < destination.Length; i++, offset += RecordSize)
+        {
+            if (BinaryPrimitives.ReadInt32BigEndian(source[offset..]) != sizeof(long))
+            {
+                throw new InvalidDataException("A non-NULL bigint[] element must have length 8.");
+            }
+            destination[i] = BinaryPrimitives.ReadInt64BigEndian(source[(offset + 4)..]);
+        }
     }
 
     private static int ReadHeader(ref SequenceReader<byte> reader,
@@ -346,7 +376,7 @@ public static partial class Int64ArrayConverter
             if (count != 0)
             {
                 int byteCount = count * RecordSize;
-                ReadRecords(reader.UnreadSpan[..byteCount],
+                ReadSharedRecords(reader.UnreadSpan[..byteCount],
                     destination.Slice(written,
                         count));
                 reader.Advance(byteCount);

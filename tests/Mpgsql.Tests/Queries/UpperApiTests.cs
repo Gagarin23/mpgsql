@@ -339,7 +339,8 @@ public sealed class UpperApiTests
         await using var source = Source(wire, rowBytes: 14);
         await using var connection = await source.OpenConnectionAsync(TestContext.Current.CancellationToken);
         await using var batch = connection.CreateBatch();
-        batch.Commands.Add(batch.CreateCommand("select first"));
+        // Keep the first flush blocked even when the producer queues the entire batch up front.
+        batch.Commands.Add(batch.CreateCommand("select first" + new string(' ', 65536)));
         var second = batch.CreateCommand("select $1"); second.Parameters.Add(MpgsqlParameter.Text(new string('x', 10000)));
         batch.Commands.Add(second);
         var opening = batch.ExecuteReaderAsync(TestContext.Current.CancellationToken).AsTask();

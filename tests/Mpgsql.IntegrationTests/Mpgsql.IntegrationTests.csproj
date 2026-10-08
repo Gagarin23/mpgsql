@@ -8,5 +8,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Mpgsql/Mpgsql.csproj" />
+    <ProjectReference Include="../../src/Mpgsql.Client/Mpgsql.Client.csproj" />
   </ItemGroup>
 </Project>

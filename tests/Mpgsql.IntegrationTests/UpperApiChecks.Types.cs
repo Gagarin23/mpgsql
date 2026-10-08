@@ -28,6 +28,9 @@ internal static partial class UpperApiChecks
         await Value<PgInet>(source, "inet", "'192.0.2.129/24'::inet", PgInet.FromIPAddress(IPAddress.Parse("192.0.2.129"), 24), MpgsqlParameter.Inet, MpgsqlParameter.NullableInetArray, token);
         await Value<PgInet>(source, "cidr", "'192.0.2.0/24'::cidr", PgInet.FromIPAddress(IPAddress.Parse("192.0.2.0"), 24), MpgsqlParameter.Cidr, MpgsqlParameter.NullableCidrArray, token);
         await ReferenceValue(source, "text", "'Я😀'::text", "Я😀", MpgsqlParameter.Text, MpgsqlParameter.TextArray, token);
+        await ReferenceValue(source, "varchar", "'Я😀'::varchar", "Я😀", MpgsqlParameter.VarChar, MpgsqlParameter.VarCharArray, token);
+        await ReferenceValue(source, "bpchar", "'Я😀  '::bpchar", "Я😀  ", MpgsqlParameter.BpChar, MpgsqlParameter.BpCharArray, token);
+        await ReferenceValue(source, "name", "'Я😀'::name", "Я😀", MpgsqlParameter.Name, MpgsqlParameter.NameArray, token);
         await ReferenceValue(source, "json", "'{\"x\":\"Я😀\"}'::json", "{\"x\":\"Я😀\"}", MpgsqlParameter.Json, MpgsqlParameter.JsonArray, token);
         await Value<Memory<byte>>(source, "jsonb", "'{\"x\": \"Я😀\"}'::jsonb", "{\"x\": \"Я😀\"}"u8.ToArray(), MpgsqlParameter.Jsonb, MpgsqlParameter.NullableJsonbArray, token);
         await JsonbMemoryAsync(source, token);

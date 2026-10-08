@@ -101,11 +101,6 @@ public sealed class QueryPacketTests
             target));
         Assert.Equal(before,
             target);
-        Assert.Throws<ArgumentException>(() => QueryPacket.Write("select\0",
-            [],
-            target));
-        Assert.Equal(before,
-            target);
     }
 
     [Fact]

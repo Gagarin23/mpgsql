@@ -12,6 +12,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Mpgsql/Mpgsql.csproj" />
+    <ProjectReference Include="../../src/Mpgsql.Client/Mpgsql.Client.csproj" />
     <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageReference Include="Npgsql" Version="10.0.3" />
   </ItemGroup>

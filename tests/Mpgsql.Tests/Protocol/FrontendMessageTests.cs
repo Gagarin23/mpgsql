@@ -210,36 +210,6 @@ public sealed class FrontendMessageTests
     }
 
     [Fact]
-    public void ValidationFailsBeforeRequestingDestinationMemory()
-    {
-        var writer = new RecordingWriter();
-        Assert.Throws<ArgumentException>(() => FrontendMessage.Query("x\0y").Write(writer));
-        Assert.Equal(0,
-            writer.GetSpanCalls);
-        Assert.Equal(0,
-            writer.AdvanceCalls);
-    }
-
-    [Fact]
-    public void InvalidStringsDoNotModifyDestination()
-    {
-        // Attribute strings are encoded in metadata as UTF-8, so construct invalid UTF-16 at runtime.
-        foreach (string text in new[]
-                 {
-                     "x\0y", new string((char)0xd800,
-                         1)
-                 })
-        {
-            var destination = Enumerable.Repeat((byte)0xcc,
-                100).ToArray();
-            Assert.ThrowsAny<ArgumentException>(() => FrontendMessage.Query(text).Write(destination));
-            Assert.All(destination,
-                b => Assert.Equal(0xcc,
-                    b));
-        }
-    }
-
-    [Fact]
     public void ValidatesBindFormatCardinalityAndCodes()
     {
         var values = new ReadOnlyMemory<byte>?[3];

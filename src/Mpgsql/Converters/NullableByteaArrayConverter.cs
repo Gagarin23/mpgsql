@@ -3,7 +3,7 @@ using Mpgsql.Types;
 
 namespace Mpgsql.Converters;
 
-/// <summary>Binary PostgreSQL Bytea[] with NULL elements for ReadOnlyMemory&lt;ReadOnlyMemory<byte>?&gt;.</summary>
+/// <summary>Binary PostgreSQL Bytea[] with NULL elements for ReadOnlyMemory&lt;ReadOnlyMemory&lt;byte&gt;?&gt;.</summary>
 /// <remarks>Same framing/buffer contract as ByteaArrayConverter; NULL elements have length -1 and no payload.</remarks>
 public static partial class NullableByteaArrayConverter
 {

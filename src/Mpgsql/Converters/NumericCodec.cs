@@ -1,11 +1,12 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Mpgsql.Types;
 
 namespace Mpgsql.Converters;
 
-internal readonly struct NumericCodec : IBinaryCodec<PgNumeric>
+internal readonly partial struct NumericCodec : IBinaryCodec<PgNumeric>
 {
     public static uint Oid => (uint)TypeOid.Numeric;
     public static int FixedSize => 0;
@@ -25,8 +26,14 @@ internal readonly struct NumericCodec : IBinaryCodec<PgNumeric>
     public static void CheckOverlap(PgNumeric value, Span<byte> destination)
         => BinaryPayload.RequireSeparate(MemoryMarshal.AsBytes(value.Digits.Span), destination);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int Write(PgNumeric value, Span<byte> destination)
-        => WriteParts(value.Weight, value.Scale, value.Sign, value.Digits.Span, destination);
+    {
+        var digits = value.Digits.Span;
+        return digits.Length >= 8
+            ? WriteVectorParts(value.Weight, value.Scale, value.Sign, digits, destination)
+            : WriteParts(value.Weight, value.Scale, value.Sign, digits, destination);
+    }
 
     internal static int WriteParts(short weight, ushort scale,
         PgNumericSign sign, ReadOnlySpan<ushort> digits,
@@ -89,8 +96,15 @@ internal readonly struct NumericCodec : IBinaryCodec<PgNumeric>
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void ReadDigits(ReadOnlySpan<byte> records, Span<ushort> destination)
     {
+        if (CanShuffleDigits && destination.Length >= 8)
+        {
+            int read = ReadDigitVectors(records, destination);
+            records = records[(read * 2)..];
+            destination = destination[read..];
+        }
         foreach (ref ushort item in destination)
         {
             item = BinaryPrimitives.ReadUInt16BigEndian(records);
@@ -104,13 +118,22 @@ internal readonly struct NumericCodec : IBinaryCodec<PgNumeric>
 
     private static void ReadDigits(ref SequenceReader<byte> reader, Span<ushort> destination)
     {
-        foreach (ref ushort item in destination)
+        while (!destination.IsEmpty)
         {
+            int count = Math.Min(reader.UnreadSpan.Length / 2, destination.Length);
+            if (count != 0)
+            {
+                ReadDigits(reader.UnreadSpan[..(count * 2)], destination[..count]);
+                reader.Advance(count * 2);
+                destination = destination[count..];
+                continue;
+            }
             if (!reader.TryReadBigEndian(out short digit) || unchecked((ushort)digit) > 9999)
             {
                 throw new InvalidDataException("Invalid base-10000 numeric digit.");
             }
-            item = unchecked((ushort)digit);
+            destination[0] = unchecked((ushort)digit);
+            destination = destination[1..];
         }
     }
 

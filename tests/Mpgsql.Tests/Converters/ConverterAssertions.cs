@@ -246,7 +246,7 @@ internal static class ConverterAssertions
         }
     }
 
-    private sealed class RecordingWriter(int size) : IBufferWriter<byte>
+    internal sealed class RecordingWriter(int size) : IBufferWriter<byte>
     {
         internal byte[] Bytes { get; } = Enumerable.Repeat((byte)0xcc, size + 17).ToArray();
         internal int SizeHint { get; private set; }

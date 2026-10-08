@@ -3,6 +3,8 @@ general:
   admin_password: "mpgsql-local-only"
   host: "0.0.0.0"
   port: 6432
+  # The isolated PostgreSQL fixture uses plain TCP, including after backend termination.
+  server_tls_mode: "disable"
   prepared_statements: true
   prepared_statements_cache_size: 100
 pools:

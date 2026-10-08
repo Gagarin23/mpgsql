@@ -4,6 +4,18 @@ internal static class PreparedStatementChecks
 {
     internal static async Task RunAsync(MpgsqlMessageSession session)
     {
+        int baseline = session.TrackedStatementCount;
+        var local = session.CreatePreparedStatement("select 1::bigint");
+        Check(session.TrackedStatementCount == baseline, "Local handle is not strongly registered");
+        local.Dispose();
+        local.Dispose();
+        try
+        {
+            await local.Prepared;
+            throw new InvalidOperationException("Expected local disposal to fault unqueued preparation.");
+        }
+        catch (ObjectDisposedException) { }
+        Check(await Count(session, local) == 0, "Local disposal creates no server statement");
         var scalar = session.CreatePreparedStatement("select $1", new uint[] {20});
         var arrays = session.CreatePreparedStatement("select $1, $2, $3", new uint[] {20, 1016, 1016});
         await using (var batch = session.CreateBatch())
@@ -36,6 +48,8 @@ internal static class PreparedStatementChecks
             await Task.WhenAll(producer, consumer);
             await Task.WhenAll(scalar.Prepared, arrays.Prepared);
         }
+        Check(session.TrackedStatementCount == baseline + 2, "Confirmed statements remain strongly registered");
+        CheckRejectedDispose(scalar);
         Check(await Count(session, scalar) == 1, "Named statement exists in its server session");
         await using (var first = session.CreateBatch())
         await using (var second = session.CreateBatch())
@@ -76,12 +90,17 @@ internal static class PreparedStatementChecks
         await Close(session, scalar, arrays);
         Check(await Count(session, scalar) == 0 && await Count(session, arrays) == 0 && await Count(session, empty) == 0,
             "Close removes named statements");
+        Check(session.TrackedStatementCount == baseline, "Confirmed Close releases statement registry");
+        scalar.Dispose();
+        arrays.Dispose();
+        empty.Dispose();
         Console.WriteLine("PASS prepared named Parse, binary reuse, mixed pipeline, multiple groups, NULL/arrays and Close");
         await Errors(session);
     }
 
     private static async Task Errors(MpgsqlMessageSession session)
     {
+        int baseline = session.TrackedStatementCount;
         var bad = session.CreatePreparedStatement("select from");
         await using (var batch = session.CreateBatch())
         {
@@ -91,6 +110,8 @@ internal static class PreparedStatementChecks
             var error = await ExpectError(batch, "42601", null);
             await ExpectPreparationFailure(bad, error);
         }
+        Check(session.TrackedStatementCount == baseline && await Count(session, bad) == 0,
+            "Failed Parse releases registry and creates no server statement");
         var skipped = session.CreatePreparedStatement("select $1", new uint[] {20});
         await using (var batch = session.CreateBatch())
         {
@@ -102,6 +123,7 @@ internal static class PreparedStatementChecks
             await ExpectPreparationFailure(skipped, error);
         }
         Check(await Count(session, skipped) == 0, "Skipped Parse creates no server statement");
+        Check(session.TrackedStatementCount == baseline, "Skipped Parse releases registry");
         var divide = session.CreatePreparedStatement("select 100::bigint / $1", new uint[] {20});
         await using (var failed = session.CreateBatch())
         {
@@ -111,6 +133,8 @@ internal static class PreparedStatementChecks
             await ExpectError(failed, "22012", 0);
             await divide.Prepared;
         }
+        Check(session.TrackedStatementCount == baseline + 1, "Execution error preserves confirmed preparation ownership");
+        CheckRejectedDispose(divide);
         await using (var recovered = session.CreateBatch())
         {
             await recovered.SendQueryAsync(divide, new[] {MpgsqlParameter.Int64(4)});
@@ -125,9 +149,22 @@ internal static class PreparedStatementChecks
             await ExpectError(failedClose, "22012", 0);
         }
         Check(await Count(session, divide) == 1, "Skipped Close preserves the server statement");
+        Check(session.TrackedStatementCount == baseline + 1, "Skipped Close preserves registry for explicit retry");
         await Close(session, bad, skipped, divide);
         Check(await Count(session, divide) == 0, "Close retry after recovery removes the statement");
+        Check(session.TrackedStatementCount == baseline, "Failed preparations need no Close and confirmed Close releases ownership");
+        bad.Dispose();
+        skipped.Dispose();
+        divide.Dispose();
         Console.WriteLine("PASS prepared Parse/Execute errors, skipped Parse/Close, recovery, survival after rollback and Close retry");
+    }
+
+    private static void CheckRejectedDispose(MpgsqlPreparedStatement statement)
+    {
+        bool rejected = false;
+        try { statement.Dispose(); }
+        catch (InvalidOperationException) { rejected = true; }
+        Check(rejected, "Confirmed statement requires explicit server Close before local disposal");
     }
 
     private static async Task ReadOne(MpgsqlQueryBatch batch, long expected)

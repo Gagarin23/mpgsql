@@ -13,7 +13,10 @@ without a concrete use in the driver.
 
 ## Repository layout
 
-- `src/Mpgsql/` contains the library and targets `net10.0`.
+- `src/Mpgsql/` contains protocol, converters, PostgreSQL types, and binary COPY;
+  it targets `net10.0` and produces the `Mpgsql` NuGet package.
+- `src/Mpgsql.Client/` contains sessions, query helpers, scheduling, and the upper
+  API; it references `Mpgsql` and is not packed.
 - `src/Mpgsql.slnx` is the solution entry point.
 - `docs/ideas.md` holds goals and unresolved product decisions.
 - `docs/extended-query-protocol.md` is the living description of Extended Query

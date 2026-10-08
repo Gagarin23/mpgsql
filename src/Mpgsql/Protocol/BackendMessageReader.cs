@@ -17,6 +17,15 @@ public static class BackendMessageReader
         ref ReadOnlySequence<byte> input,
         out BackendMessage message,
         int maxMessageLength = DefaultMaxMessageLength)
+        => TryReadFrame(ref input, out message, maxMessageLength, deferRowValues: false);
+
+    // The session validates and indexes owned DataRow values together, or validates discarded
+    // values without retaining them. Public readers always validate the entire body here.
+    internal static bool TryReadForSession(ref ReadOnlySequence<byte> input, out BackendMessage message)
+        => TryReadFrame(ref input, out message, DefaultMaxMessageLength, deferRowValues: true);
+
+    private static bool TryReadFrame(ref ReadOnlySequence<byte> input, out BackendMessage message,
+        int maxMessageLength, bool deferRowValues)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maxMessageLength,
             4);
@@ -41,7 +50,8 @@ public static class BackendMessageReader
             payload,
             default,
             indexRows: false,
-            out int rowCount);
+            out int rowCount,
+            deferRowValues);
         message = new BackendMessage(type,
             kind,
             payload,
@@ -132,7 +142,8 @@ public static class BackendMessageReader
         ReadOnlySequence<byte> payload,
         Span<ReadOnlySequence<byte>?> rowValues,
         bool indexRows,
-        out int rowCount)
+        out int rowCount,
+        bool deferRowValues = false)
     {
         // Known enum values are the wire tags: one dispatch performs classification and validation.
         var kind = (BackendMessageKind)type;
@@ -179,6 +190,12 @@ public static class BackendMessageReader
                 ValidateRowDescription(ref reader);
                 break;
             case BackendMessageKind.DataRow:
+                if (deferRowValues)
+                {
+                    rowCount = reader.Count();
+                    reader.RequireElements(rowCount, 4);
+                    return kind;
+                }
                 rowCount = ValidateDataRow(ref reader,
                     rowValues,
                     indexRows);

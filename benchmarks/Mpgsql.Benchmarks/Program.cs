@@ -7,7 +7,94 @@ using OriginalBackend = baseline::Mpgsql.Protocol.BackendMessage;
 using System.Runtime.CompilerServices;
 using BenchmarkDotNet.Running;
 using Mpgsql.Benchmarks;
+using Mpgsql.Benchmarks.Queries;
+using Mpgsql.Benchmarks.Comparison;
 using Mpgsql.Protocol;
+
+if (args.Contains("--verify-converters"))
+{
+    try
+    {
+        int index = Array.IndexOf(args, "--converter-catalog");
+        Mpgsql.Benchmarks.Converters.ConverterVerification.Run(index < 0 ? null : args[index + 1]);
+    }
+    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    return;
+}
+
+if (args.Contains("--verify-int64-simd-regression"))
+{
+    Int64ArraySimdRegressionVerification.Run();
+    return;
+}
+
+if (args.Contains("--verify-profiler-api"))
+{
+    try
+    {
+        int apiIndex = Array.IndexOf(args, "--profiler-api");
+        if (apiIndex < 0 || apiIndex + 1 == args.Length) throw new ArgumentException("--profiler-api is required.");
+        BatchProfilerControl.VerifyApi(args[apiIndex + 1]);
+    }
+    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    return;
+}
+
+if (args.Contains("--query-pipeline-profile"))
+{
+    try { await TcpPipelineProfileRunner.RunAsync(args).WaitAsync(TimeSpan.FromMinutes(3)); }
+    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    return;
+}
+
+if (args.Contains("--verify-query-pipeline-profile"))
+{
+    try { await TcpPipelineProfileRunner.VerifyAsync().WaitAsync(TimeSpan.FromMinutes(2)); }
+    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    return;
+}
+
+if (args.Contains("--query-batch-profile"))
+{
+    try { await TcpBatchProfileRunner.RunAsync(args).WaitAsync(TimeSpan.FromMinutes(3)); }
+    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    return;
+}
+
+if (args.Contains("--verify-query-batch-profile"))
+{
+    try { await TcpBatchProfileRunner.VerifyAsync().WaitAsync(TimeSpan.FromMinutes(2)); }
+    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    return;
+}
+
+if (args.Contains("--query-compare-load"))
+{
+    try { await TcpComparisonLoadRunner.RunAsync(args); }
+    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    return;
+}
+
+if (args.Contains("--verify-query-compare"))
+{
+    try { await TcpComparisonVerification.RunAsync().WaitAsync(TimeSpan.FromMinutes(3)); }
+    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    return;
+}
+
+if (args.Contains("--query-load"))
+{
+    try { await QueryLoadRunner.RunAsync(args); }
+    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    return;
+}
+
+if (args.Contains("--verify-query"))
+{
+    try { await QueryBenchmarkVerification.RunAsync(); }
+    catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }
+    return;
+}
 
 if (args.Contains("--copy-live"))
 {
@@ -22,7 +109,7 @@ if (args.Contains("--copy-live"))
 
 if (args.Contains("--verify"))
 {
-    try { BuiltinConverterVerification.Run(); }
+    try { BuiltinConverterVerification.Run(); await QueryBenchmarkVerification.RunAsync(); await TcpComparisonVerification.RunAsync().WaitAsync(TimeSpan.FromMinutes(3)); }
     catch (Exception error)
     {
         Console.Error.WriteLine(error);
@@ -74,4 +161,7 @@ if (args.Contains("--verify"))
     return;
 }
 
-BenchmarkSwitcher.FromAssembly(typeof(SyncBenchmarks).Assembly).Run(args);
+var summaries = BenchmarkSwitcher.FromAssembly(typeof(SyncBenchmarks).Assembly).Run(args).ToArray();
+if (summaries.Length == 0 || summaries.Any(summary => summary.HasCriticalValidationErrors
+    || summary.Reports.Any(report => !report.Success || report.ResultStatistics is null)))
+    Environment.ExitCode = 1;

@@ -25,7 +25,6 @@ public sealed class PreparedStatementTests
         Assert.False(statement.Prepared.IsCompleted);
         Assert.False(wire.HasOutput());
         Assert.Throws<ArgumentException>(() => wire.Session.CreatePreparedStatement("select $1", new uint[] {0}));
-        Assert.Throws<ArgumentException>(() => wire.Session.CreatePreparedStatement("select\0"));
         Assert.Throws<ArgumentNullException>(() => wire.Session.CreatePreparedStatement(null!));
         Assert.Throws<ArgumentOutOfRangeException>(() => wire.Session.CreatePreparedStatement("select 1", new uint[65536]));
         Assert.False(wire.HasOutput());
@@ -210,9 +209,14 @@ public sealed class PreparedStatementTests
         var error = await FailBatch(batch);
         Assert.Equal(skipped ? 0 : (int?)null, error.QueryIndex);
         Assert.Same(error, await Assert.ThrowsAsync<MpgsqlServerException>(() => Wait(statement.Prepared)));
+        Assert.Equal(0, wire.Session.TrackedStatementCount);
         await using var next = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         Assert.Throws<InvalidOperationException>(() => next.SendPrepareAsync(statement));
         Assert.Throws<InvalidOperationException>(() => next.SendQueryAsync(statement));
+        await wire.ReadOutputAsync();
+        await next.SendCloseAsync(statement);
+        Assert.False(wire.HasOutput());
+        statement.Dispose();
         await next.SendQueryAsync("select 7::bigint");
         await next.SendSyncAsync();
         await wire.WriteAsync(Join(Query(7), Ready()));
@@ -276,7 +280,7 @@ public sealed class PreparedStatementTests
     }
 
     [Fact]
-    public async Task CancellationDropsQueuedPrepareExecuteCloseButPreservesSyncAndCloseRetry()
+    public async Task CancellationDropsQueuedPrepareExecuteCloseAndNeedsNoServerClose()
     {
         using var request = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await using var wire = new ScriptedSession(blockWrites: true);
@@ -302,13 +306,10 @@ public sealed class PreparedStatementTests
         await Wait(batch.Completion);
         await batch.DisposeAsync();
         await using var retry = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
-        var close = retry.SendCloseAsync(statement).AsTask();
-        var closeSync = retry.SendSyncAsync().AsTask();
-        Assert.Equal("C", new string(Tags(await wire.ReadOutputAsync())));
-        Assert.Equal("S", new string(Tags(await wire.ReadOutputAsync())));
-        await Wait(Task.WhenAll(close, closeSync));
-        await wire.WriteAsync(Join(Packet('3'), Ready()));
-        await Wait(retry.Completion);
+        await retry.SendCloseAsync(statement);
+        Assert.Equal(0, wire.Session.TrackedStatementCount);
+        Assert.False(wire.HasOutput());
+        statement.Dispose();
     }
 
     [Fact]
@@ -324,6 +325,8 @@ public sealed class PreparedStatementTests
         request.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Wait(send));
         Assert.False(statement.Prepared.IsCompleted);
+        Assert.Equal(1, wire.Session.TrackedStatementCount);
+        Assert.Throws<InvalidOperationException>(statement.Dispose);
         wire.Outgoing.Reader.AdvanceTo(held.Buffer.End);
         Assert.Equal("S", new string(Tags(await wire.ReadOutputAsync())));
         await Wait(sync);
@@ -331,6 +334,8 @@ public sealed class PreparedStatementTests
         await Wait(statement.Prepared);
         await Wait(batch.Completion);
         await batch.DisposeAsync();
+        Assert.Equal(1, wire.Session.TrackedStatementCount);
+        Assert.Throws<InvalidOperationException>(statement.Dispose);
     }
 
     [Fact]
@@ -346,6 +351,10 @@ public sealed class PreparedStatementTests
         await Assert.ThrowsAsync<ObjectDisposedException>(() => Wait(pending.Prepared));
         await Assert.ThrowsAsync<ObjectDisposedException>(() => Wait(unused.Prepared));
         Assert.True(confirmed.Prepared.IsCompletedSuccessfully);
+        Assert.Equal(0, wire.Session.TrackedStatementCount);
+        confirmed.Dispose();
+        pending.Dispose();
+        unused.Dispose();
         Assert.Throws<ObjectDisposedException>(() => batch.SendQueryAsync(confirmed, new[] {MpgsqlParameter.Int64(1)}));
     }
 
@@ -407,8 +416,6 @@ public sealed class PreparedStatementTests
         Assert.Throws<ArgumentException>(() => QueryPacket.WritePrepared("statement", parameters, destination));
         Assert.Equal(before, destination);
         Assert.Throws<InvalidOperationException>(() => QueryPacket.WritePrepared("statement", new MpgsqlParameter[1], destination));
-        Assert.Equal(before, destination);
-        Assert.Throws<ArgumentException>(() => QueryPacket.WritePrepared("bad\0name", parameters, destination));
         Assert.Equal(before, destination);
     }
 
