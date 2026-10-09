@@ -148,7 +148,7 @@ public sealed class UpperApiTests
             .ExecuteReaderValueTaskAsync(cancellationToken: TestContext.Current.CancellationToken)
             .AsTask()
         );
-        await wire.WriteAsync(Join(Query(9), Ready()));
+        var writing = wire.WriteAsync(Join(Query(9), Ready()));
         await using var reader = await opening;
         Assert.True(await reader.ReadAsync(TestContext.Current.CancellationToken));
         await Assert.ThrowsAsync<InvalidOperationException>
@@ -157,6 +157,7 @@ public sealed class UpperApiTests
             .AsTask()
         );
         Assert.False(await reader.NextResultAsync(TestContext.Current.CancellationToken));
+        await writing;
         command.CommandText = "select 2";
         command.Parameters[0].Value = 2L;
         await reader.DisposeAsync();
@@ -188,7 +189,7 @@ public sealed class UpperApiTests
         Assert.Throws<InvalidOperationException>(() => batch.BatchCommands.Clear());
         Assert.Throws<InvalidOperationException>(() => second.CommandText = "select 3");
         Assert.Equal("PBDEPBDES", new string(Tags(await ThroughSync(wire))));
-        await wire.WriteAsync(Join(Query(1), Query(2), Ready()));
+        var writing = wire.WriteAsync(Join(Query(1), Query(2), Ready()));
         await using var reader = await opening;
         Assert.True(await reader.ReadAsync(TestContext.Current.CancellationToken));
         Assert.Equal(1, reader.GetInt64(0));
@@ -197,6 +198,7 @@ public sealed class UpperApiTests
         Assert.True(await reader.ReadAsync(TestContext.Current.CancellationToken));
         Assert.Equal(2, reader.GetInt64(0));
         Assert.False(await reader.NextResultAsync(TestContext.Current.CancellationToken));
+        await writing;
         batch.BatchCommands[0].CommandText = "select changed";
     }
 

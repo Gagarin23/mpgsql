@@ -167,6 +167,9 @@ public sealed class PackedExecutionTests
         await using var batch = connection.CreateBatch();
         ArrayCommand(batch, active.Memory);
         ArrayCommand(batch, queued.Memory);
+        // Failure is observed by the concurrent input owner while the background
+        // encoder is blocked; select its existing large-group duplex path explicitly.
+        batch.BatchCommands[0].CommandText += " /*" + new string('x', 64 * 1024) + "*/";
         var opening = batch
             .ExecuteReaderValueTaskAsync(cancellationToken: TestContext.Current.CancellationToken)
             .AsTask();

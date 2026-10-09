@@ -14,4 +14,11 @@ internal readonly record struct QueryDefinition
             ? QueryPacket.GetPreparedByteCount(statement.Name, Parameters.Span)
             : QueryPacket.GetByteCount(Sql, Parameters.Span);
     }
+
+    internal int Measure(int sqlCStringLength)
+    {
+        return PreparedStatement is { } statement
+            ? QueryPacket.GetPreparedByteCount(statement.Name, Parameters.Span)
+            : QueryPacket.GetByteCount(sqlCStringLength, Parameters.Span);
+    }
 }

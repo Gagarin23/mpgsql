@@ -26,7 +26,7 @@ public sealed class CustomTypeReaderTests
         command.CommandText = "select custom";
         var opening = command.ExecuteReaderAsync(token);
         await wire.ReadOutputAsync();
-        await wire.WriteAsync(Join(Begin(90001), Row(Int64(42)), Row((byte[]?)null), Command("SELECT 2"), Ready()));
+        var writing = wire.WriteAsync(Join(Begin(90001), Row(Int64(42)), Row((byte[]?)null), Command("SELECT 2"), Ready()));
         await using var reader = await opening;
         Assert.True(await reader.ReadAsync(token));
         Assert.Equal
@@ -38,6 +38,7 @@ public sealed class CustomTypeReaderTests
         Assert.True(await reader.ReadAsync(token));
         Assert.Null(reader.GetFieldValue<Identifier>(0));
         Assert.False(await reader.NextResultAsync(token));
+        await writing;
     }
 
     private sealed record Identifier(long Value);

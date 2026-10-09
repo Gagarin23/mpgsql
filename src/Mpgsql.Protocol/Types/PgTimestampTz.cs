@@ -24,10 +24,10 @@ public readonly record struct PgTimestampTz(long MicrosecondsSinceEpoch)
     }
     public DateTime ToDateTime()
     {
-        return DateTime.SpecifyKind(new PgTimestamp(MicrosecondsSinceEpoch).ToDateTime(), DateTimeKind.Utc);
+        return new DateTime(new PgTimestamp(MicrosecondsSinceEpoch).GetDateTimeTicks(), DateTimeKind.Utc);
     }
     public DateTimeOffset ToDateTimeOffset()
     {
-        return new DateTimeOffset(ToDateTime());
+        return new DateTimeOffset(new PgTimestamp(MicrosecondsSinceEpoch).GetDateTimeTicks(), TimeSpan.Zero);
     }
 }

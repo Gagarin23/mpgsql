@@ -7,12 +7,14 @@
         <IsPackable>true</IsPackable>
         <PackageId>Mpgsql.Protocol</PackageId>
         <AssemblyName>Mpgsql.Protocol</AssemblyName>
-        <Version>0.1.0-alpha.1</Version>
-        <Title>Mpgsql.Protocol: PostgreSQL protocol and binary converters for manual use</Title>
-        <Description>Standalone PostgreSQL protocol 3.0 message codecs, binary type converters, PostgreSQL value types, and binary COPY primitives for .NET.</Description>
-        <Authors>Mpgsql contributors</Authors>
+        <Version>0.1.0-alpha.2</Version>
+        <Title>Mpgsql.Protocol: Minimalistic PostgreSQL protocol and binary converters for manual use</Title>
+        <Description>Minimalistic standalone PostgreSQL protocol 3.0 message codecs, binary type converters, PostgreSQL value types, and binary COPY primitives for .NET.</Description>
+        <Authors>Belov Ilya and contributors</Authors>
         <PackageTags>postgresql;postgres;protocol;binary;copy;dotnet</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageIcon>mpgsql-icon.png</PackageIcon>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageProjectUrl>https://github.com/Gagarin23/mpgsql</PackageProjectUrl>
         <RepositoryUrl>https://github.com/Gagarin23/mpgsql</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
@@ -32,6 +34,7 @@
 
     <ItemGroup>
         <None Update="README.md" Pack="true" PackagePath="/"/>
+        <None Include="../../assets/branding/mpgsql-icon.png" Pack="true" PackagePath="/"/>
         <None Remove="Converters\NumericCodec.Simd.cs~"/>
     </ItemGroup>
 

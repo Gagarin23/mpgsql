@@ -12,6 +12,8 @@ public class TcpFacadeBatchComparisonBenchmarks
 {
     internal const int GroupsPerIteration = 32;
     internal const int QueriesPerGroup = 16;
+    public bool InstrumentTransport { get; set; } = true;
+    public bool CoalesceReplies { get; set; }
     private QueryCatalog _catalog = null!;
     private MpgsqlConnection? _connection;
     private TcpMpgsqlFixture? _m;
@@ -32,11 +34,12 @@ public class TcpFacadeBatchComparisonBenchmarks
         NpgsqlBatches = [];
     }
 
-    [GlobalSetup(Target = nameof(MpgsqlFacadeBatch))]
+    [GlobalSetup(Targets = [nameof(MpgsqlFacadeBatch), nameof(MpgsqlFacadeBatchStandard)])]
     public async Task SetupMpgsql()
     {
         _catalog = new QueryCatalog([QueryScenario.One], QueriesPerGroup);
-        _m = await TcpMpgsqlFixture.CreateAsync(_catalog, multiplexing: false);
+        _m = await TcpMpgsqlFixture.CreateAsync(_catalog, multiplexing: false, instrumentTransport: InstrumentTransport,
+            coalesceReplies: CoalesceReplies);
         _connection = await _m.OpenClientConnectionAsync();
     }
 
@@ -44,10 +47,10 @@ public class TcpFacadeBatchComparisonBenchmarks
     public async Task SetupNpgsql()
     {
         _catalog = new QueryCatalog([QueryScenario.One], QueriesPerGroup);
-        _n = await TcpNpgsqlFixture.CreateAsync(_catalog, exclusive: true);
+        _n = await TcpNpgsqlFixture.CreateAsync(_catalog, exclusive: true, coalesceReplies: CoalesceReplies);
     }
 
-    [IterationSetup(Target = nameof(MpgsqlFacadeBatch))]
+    [IterationSetup(Targets = [nameof(MpgsqlFacadeBatch), nameof(MpgsqlFacadeBatchStandard)])]
     public void PrepareMpgsql()
     {
         MpgsqlBatches = new MpgsqlBatch[PreparedGroupsPerIteration];
@@ -118,6 +121,29 @@ public class TcpFacadeBatchComparisonBenchmarks
                 sum += await TcpQueryOperations
                     .ConsumeAsync(reader, QueryScenario.One, _m!.Buffers[0])
                     .ConfigureAwait(false);
+            }
+        }
+        return sum;
+    }
+
+    [Benchmark(OperationsPerInvoke = GroupsPerIteration)]
+    public async Task<long> MpgsqlFacadeBatchStandard()
+    {
+        long sum = 0;
+        foreach (var batch in MpgsqlBatches)
+        {
+            await using (batch.ConfigureAwait(false))
+            {
+                await using var reader = await batch.ExecuteReaderAsync().ConfigureAwait(false);
+                do
+                {
+                    while (await reader.ReadAsync().ConfigureAwait(false))
+                    {
+                        // Match the existing native batch consumer, including its NULL check.
+                        sum += reader.IsDBNull(0) ? 0 : reader.GetInt64(0);
+                    }
+                }
+                while (await reader.NextResultAsync().ConfigureAwait(false));
             }
         }
         return sum;

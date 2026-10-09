@@ -9,5 +9,6 @@ internal readonly record struct ResultEvent
     OwnedRow? Row = null,
     string? CommandTag = null,
     bool IsEnd = false,
-    bool IsRowSet = false
+    bool IsRowSet = false,
+    bool IsBorrowedRow = false
 );

@@ -6,7 +6,7 @@ namespace Mpgsql.Internal;
 // One exclusive lease, including the CancelRequest channel and the final ReadyForQuery.
 internal sealed class QueryExecution : IResultExecutionOwner
 {
-    private readonly MpgsqlQueryBatch _batch;
+    private readonly AdoCursor _cursor;
     private readonly Action _completed;
     private readonly MpgsqlConnection _connection;
     private readonly Lock _gate = new Lock();
@@ -31,7 +31,6 @@ internal sealed class QueryExecution : IResultExecutionOwner
     private Task _producer = Task.CompletedTask,
         _control = Task.CompletedTask;
 
-    private MpgsqlResultReader? _reader;
     private Task _readerIdle = Task.CompletedTask;
     private OutboundWork? _send;
 
@@ -50,9 +49,9 @@ internal sealed class QueryExecution : IResultExecutionOwner
         _request = _cancellationToken = request;
         _completed = completed;
         _ownsConnection = ownsConnection;
-        _batch = _session.CreateBatch(request);
-        _batch.CollectAffectedRows(affectedRows);
-        _batch.RecoveryTimeout = connection.RecoveryTimeout;
+        _cursor = _session.CreateAdoCursor(request, this);
+        _cursor.CollectAffectedRows(affectedRows);
+        _cursor.RecoveryTimeout = connection.RecoveryTimeout;
         if (request.CanBeCanceled)
         {
             _registration = request.UnsafeRegister(static state => ((QueryExecution)state!).Cancel(), this);
@@ -75,7 +74,9 @@ internal sealed class QueryExecution : IResultExecutionOwner
         }
     }
 
-    internal long RecordsAffected => _batch.RecordsAffected;
+    internal long RecordsAffected => _cursor.RecordsAffected;
+    internal AdoCursor Cursor => _cursor;
+    internal MpgsqlConnection Connection => _connection;
 
     public ValueTask EndReaderAsync(bool discard)
     {
@@ -87,12 +88,12 @@ internal sealed class QueryExecution : IResultExecutionOwner
         try
         {
             _request.ThrowIfCancellationRequested();
-            _send = _batch.SendExecution(single, queries);
+            _send = _cursor.SendExecution(single, queries);
             _producer = _send.Completion;
         }
         catch (Exception error)
         {
-            _batch.CompleteIfUnpublished();
+            _cursor.CompleteIfUnpublished();
             _producer = Task.FromException(error);
         }
     }
@@ -110,13 +111,13 @@ internal sealed class QueryExecution : IResultExecutionOwner
             {
                 if (close)
                 {
-                    await _batch
+                    await _cursor
                         .SendCloseAsync(statement)
                         .ConfigureAwait(false);
                 }
                 else
                 {
-                    await _batch
+                    await _cursor
                         .SendPrepareAsync(statement)
                         .ConfigureAwait(false);
                 }
@@ -124,7 +125,7 @@ internal sealed class QueryExecution : IResultExecutionOwner
         }
         finally
         {
-            await _batch
+            await _cursor
                 .SendSyncAsync()
                 .ConfigureAwait(false);
         }
@@ -149,13 +150,18 @@ internal sealed class QueryExecution : IResultExecutionOwner
             _timedOut = timedOut;
             _cancellationToken = token;
             _cancelled = true;
-            _batch.ProcessCancellation();
+            _cursor.ProcessCancellation();
             if (_finishing)
             {
                 _ = EnforceRecoveryAsync(_finish ?? (_finishSignal ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).Task);
             }
             // External transport delegates and TLS must run outside the token and reader callbacks.
             _control = Task.Run(CancelCoreAsync);
+            // Serialize the wake with _ended before a recovered lease can be reused.
+            if (_session.IsAdoSession)
+            {
+                _session.WakeAdoReader();
+            }
         }
     }
 
@@ -164,19 +170,25 @@ internal sealed class QueryExecution : IResultExecutionOwner
         using var deadline = new CancellationTokenSource(_connection.RecoveryTimeout);
         try
         {
-            if (!await _batch
+            if (!await _cursor
                     .FirstPublished.WaitAsync(deadline.Token)
                     .ConfigureAwait(false))
             {
                 return;
             }
-            if (!_batch.Completion.IsCompleted)
+            if (!_cursor.Completion.IsCompleted)
             {
                 await _connection
                     .SendCancelAsync(_session, deadline.Token)
                     .AsTask()
                     .WaitAsync(deadline.Token)
                     .ConfigureAwait(false);
+            }
+            if (_session.IsAdoSession)
+            {
+                // Read while delivery can still be pending: cancellation does not remove
+                // duplex backpressure. FinishCore awaits _control only after protocol drain.
+                _ = FinishAdoCancellationAsync();
             }
             Task producer;
             OutboundWork? send;
@@ -200,7 +212,7 @@ internal sealed class QueryExecution : IResultExecutionOwner
             }
             try
             {
-                await _batch
+                await _cursor
                     .Completion.WaitAsync(deadline.Token)
                     .ConfigureAwait(false);
             }
@@ -213,8 +225,22 @@ internal sealed class QueryExecution : IResultExecutionOwner
         }
     }
 
+    private async Task FinishAdoCancellationAsync()
+    {
+        try
+        {
+            await FinishAsync(true)
+                .ConfigureAwait(false);
+        }
+        catch { } // The public execution observes the mapped cancellation/failure.
+    }
+
     internal Exception Map(Exception error)
     {
+        // An idle terminal fault can finish the execution before cursor admission.
+        // Preserve this cursor's original fault instead of its subsequent disposal.
+        if (error is ObjectDisposedException && _cursor.Completion.IsFaulted)
+            error = _cursor.Completion.Exception!.InnerException!;
         return _cancelled
             ? _timedOut ? new MpgsqlException("The command timed out.", new TimeoutException()) : new OperationCanceledException("The execution was canceled.", error, _cancellationToken)
             : MpgsqlException.Map(error);
@@ -232,39 +258,126 @@ internal sealed class QueryExecution : IResultExecutionOwner
         _session.Abort(new IOException("An active execution was disposed synchronously."));
     }
 
-    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
-    internal async ValueTask<MpgsqlResultReader> OpenReaderAsync()
+    internal void CompleteReaderInitialization()
+    {
+        lock (_gate)
+        {
+            if (_discard || _cursor.IsDisposed)
+                throw new ObjectDisposedException("Execution");
+        }
+        ThrowIfCancelled();
+    }
+
+    internal async ValueTask<long> ExecuteNonQueryAsync()
     {
         try
         {
-            var reader = await _batch
-                .ReadResultsAsync()
-                .ConfigureAwait(false);
-            lock (_gate)
-            {
-                _reader = reader;
-                reader.Execution = this;
-                if (_discard)
-                {
-                    throw new ObjectDisposedException("Execution");
-                }
-            }
-            ThrowIfCancelled();
-            return reader;
+            await FinishAsync(false, true).ConfigureAwait(false);
+            return RecordsAffected;
         }
         catch (Exception error)
         {
-            try
-            {
-                await FinishAsync(true)
-                    .ConfigureAwait(false);
-            }
-            catch { }
+            await RecoverExecutionAsync().ConfigureAwait(false);
             ExceptionDispatchInfo.Throw(Map(error));
-            return null!;
+            return 0;
         }
     }
 
+    internal async ValueTask<object?> ExecuteScalarAsync()
+    {
+        try
+        {
+            var hasRow = await ReadScalarRowAsync().ConfigureAwait(false);
+            object? result = hasRow ? ReadObject(_cursor, 0) : null;
+            await FinishAsync(false, true).ConfigureAwait(false);
+            return result;
+        }
+        catch (Exception error)
+        {
+            await RecoverExecutionAsync().ConfigureAwait(false);
+            ExceptionDispatchInfo.Throw(Map(error));
+            return null;
+        }
+    }
+
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+    internal async ValueTask<MpgsqlScalarResult<T>> ExecuteScalarAsync<T>()
+    {
+        try
+        {
+            MpgsqlScalarResult<T> result = default;
+            if (await ReadScalarRowAsync().ConfigureAwait(false))
+            {
+                result = _cursor.IsDBNull(0)
+                    ? new MpgsqlScalarResult<T>(true, default)
+                    : new MpgsqlScalarResult<T>(false, ReadField<T>(_cursor, 0, _connection.TypeMapper));
+            }
+            await FinishAsync(false, true).ConfigureAwait(false);
+            return result;
+        }
+        catch (Exception error)
+        {
+            await RecoverExecutionAsync().ConfigureAwait(false);
+            ExceptionDispatchInfo.Throw(Map(error));
+            return default;
+        }
+    }
+
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+    private async ValueTask<bool> ReadScalarRowAsync()
+    {
+        var hasRow = await _cursor.InitializeAsync().ConfigureAwait(false);
+        CompleteReaderInitialization();
+        // An empty first row set still selects the scalar result. Later row sets
+        // cannot supply a value for it, although FinishAsync drains them all.
+        if (_cursor.IsRowSet)
+            return hasRow && _cursor.Columns.Length != 0;
+        while (await _cursor.NextResultAsync().ConfigureAwait(false))
+        {
+            ThrowIfCancelled();
+            if (_cursor.IsRowSet)
+            {
+                hasRow = await _cursor.ReadAsync().ConfigureAwait(false);
+                ThrowIfCancelled();
+                return hasRow && _cursor.Columns.Length != 0;
+            }
+        }
+        return false;
+    }
+
+    private async ValueTask RecoverExecutionAsync()
+    {
+        try { await FinishAsync(true).ConfigureAwait(false); }
+        catch { } // Preserve the error that triggered recovery.
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static object ReadObject(AdoCursor cursor, int ordinal)
+    {
+        if (cursor.TryGetBorrowedBigint(ordinal, out var bigint))
+            return bigint.HasValue ? (object)bigint.GetValueOrDefault() : DBNull.Value;
+        var payload = cursor.GetRawValue(ordinal);
+        return payload is { } bytes
+            ? ResultValue.Read(cursor.Columns.Span[ordinal].DataTypeOid, bytes)
+            : DBNull.Value;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static T ReadField<T>(AdoCursor cursor, int ordinal, MpgsqlTypeMapper? mapper)
+    {
+        if (typeof(T) == typeof(long) && cursor.TryGetBorrowedBigint(ordinal, out var bigint))
+            return (T)(object)(bigint ?? throw new InvalidCastException("The value is SQL NULL."));
+        if (typeof(T) == typeof(object))
+            return (T)ReadObject(cursor, ordinal);
+        try
+        {
+            return mapper is null ? cursor.GetFieldValue<T>(ordinal) : cursor.GetFieldValue<T>(ordinal, mapper);
+        }
+        catch (InvalidOperationException) when (cursor.IsDBNull(ordinal))
+        {
+            throw new InvalidCastException("The value is SQL NULL.");
+        }
+    }
     internal ValueTask FinishAsync(bool discard, bool primaryObserver = false)
     {
         Task? finish;
@@ -272,11 +385,14 @@ internal sealed class QueryExecution : IResultExecutionOwner
             enforceRecovery = false;
         lock (_gate)
         {
-            if (discard && !_discard)
+            // _ended follows protocol completion (including its recovery attempt),
+            // while the shared finish task still owns cancellation and lease cleanup.
+            // A late old-reader disposal must not wake the next connection owner.
+            if (discard && !_discard && !_ended)
             {
                 _discard = true;
-                _batch.BeginDiscard();
-                _readerIdle = _reader?.InvalidateFromOwner() ?? Task.CompletedTask;
+                _cursor.BeginDiscard();
+                _readerIdle = _cursor.InvalidateFromOwner();
                 enforceRecovery = _finishing;
             }
             finish = _finish;
@@ -289,6 +405,10 @@ internal sealed class QueryExecution : IResultExecutionOwner
             {
                 finish = (_finishSignal ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
             }
+            // Serialize the wake itself with FinishCore's _ended publication,
+            // rather than letting a captured decision outlive connection ownership.
+            if (discard && !_ended && _session.IsAdoSession)
+                _session.WakeAdoReader();
         }
         if (start)
         {
@@ -346,6 +466,9 @@ internal sealed class QueryExecution : IResultExecutionOwner
     private async Task FinishProtocolAsync()
     {
         Exception? error = null;
+        // Start input consumption before waiting for a pending output flush. A large
+        // batch can otherwise deadlock when both TCP directions encounter backpressure.
+        var draining = _session.IsAdoSession ? DrainAdoProtocolAsync() : null;
         try
         {
             await _producer.ConfigureAwait(false);
@@ -355,9 +478,14 @@ internal sealed class QueryExecution : IResultExecutionOwner
             }
         }
         catch (Exception failure) { error = failure; }
+        if (draining is not null)
+        {
+            try { await draining.ConfigureAwait(false); }
+            catch (Exception failure) { error ??= failure; }
+        }
         try
         {
-            await _batch
+            await _cursor
                 .ObserveCompletionAsync()
                 .ConfigureAwait(false);
         }
@@ -366,6 +494,14 @@ internal sealed class QueryExecution : IResultExecutionOwner
         {
             ExceptionDispatchInfo.Throw(error);
         }
+    }
+
+    private async Task DrainAdoProtocolAsync()
+    {
+        await _readerIdle.ConfigureAwait(false);
+        await _session
+            .DrainAdoAsync(_cursor)
+            .ConfigureAwait(false);
     }
 
     private async Task FinishCoreAsync()
@@ -415,10 +551,10 @@ internal sealed class QueryExecution : IResultExecutionOwner
         try { await control.ConfigureAwait(false); }
         catch (Exception failure) { error ??= failure; }
         await idle.ConfigureAwait(false);
-        _reader?.ReleaseCurrent();
+        _cursor.ReleaseCurrent();
         try
         {
-            await _batch
+            await _cursor
                 .DisposeAsync()
                 .ConfigureAwait(false);
         }

@@ -1,9 +1,10 @@
 # Mpgsql benchmarks
 
-The executable targets .NET 10. Query benchmarks use BenchmarkDotNet 0.15.8.
-They require no PostgreSQL installation and do not establish TCP/TLS connections.
-Npgsql query comparisons and live query benchmarks are deferred. Existing codec
-and live COPY benchmarks remain available.
+The executable targets .NET 10 and BenchmarkDotNet 0.15.8. Converter and loopback
+TCP comparisons use native Npgsql 10.0.3. The in-memory Pipe and loopback TCP query
+fixtures require no PostgreSQL installation; the TCP fixture implements fixed
+wire transcripts without executing SQL. Live binary COPY comparisons require a
+PostgreSQL server. Live ADO.NET query comparisons are not yet implemented.
 
 ## Build and verify
 
@@ -219,8 +220,8 @@ independent requests. Npgsql has result ordinals; only Mpgsql has QueryIndex.
 connection Batch path. Both sides use fresh batch/command groups, constructed in
 IterationSetup outside the timed method. One invocation consumes and disposes 32
 sequential groups, each containing 16 queries and one Sync; OperationsPerInvoke
-normalizes the result to one whole group. The Mpgsql API retains its one-shot
-lifetime. This series is distinct from raw Session versus a reused native
+normalizes the result to one whole group. Both public APIs now permit reuse, but
+this series deliberately creates and disposes fresh groups. It remains distinct from raw Session versus a reused native
 NpgsqlBatch in `TcpBatchComparisonBenchmarks`. Verification checks ordinals,
 Mpgsql QueryIndex, values, all rows, Sync counts, the complete wave checksum and
 disposal. Allocation figures retain BDN's process-wide scope; they are not a
@@ -298,6 +299,46 @@ this synthetic TCP workload and command lifecycle, not real PostgreSQL performan
 Treat small gaps within timing uncertainty cautiously. Slow-reader delay and
 ThreadPool/OS scheduling can dominate. All load latency is closed-loop; no fixed
 arrival-rate claims or speed threshold are imposed.
+
+## ADO.NET reader comparisons
+
+`TcpAdoReaderBenchmarks` compares the current Mpgsql ADO.NET provider with native
+Npgsql over the same loopback TCP transcript fixture. It contains 30 cases:
+Empty, OneBigint, Rows128Columns8, Rows4096 and Bytea64KiB, each with three pairs.
+The Npgsql method is the BenchmarkDotNet baseline within each category:
+
+| Category | Mpgsql method | Npgsql method | Caller work in timing |
+|---|---|---|---|
+| ReusedTyped | ReusedTyped | NpgsqlReusedTyped | Reused command and typed parameters; complete typed reader consumption and disposal |
+| FreshTyped | FreshTyped | NpgsqlFreshTyped | Command and typed parameter construction, execution, complete consumption and disposal |
+| ReusedObject | ReusedObject | NpgsqlReusedObject | Reused command through DbCommand/DbDataReader; GetValue boxing and GetBytes |
+
+Both sides hold an open exclusive connection, use `$1`/`$2`, explicit bigint/bytea
+types and generic typed parameters, disable command timeouts, and consume every
+result and ReadyForQuery before completing the operation. All input values and
+reply payloads are identical. Connection establishment, authentication and SQL
+execution are outside measurement. No pool lease or multiplexing is timed here.
+Setup checks all three consumption methods against the independent expected
+checksum before measurement.
+
+Typed bigint reads use `GetFieldValue<long>` on both providers. Typed bytea reads
+use Mpgsql's borrowed `GetRawValue`/`CopyTo` and Npgsql's `GetBytes`; both copy the
+entire payload once into an equally sized reusable caller destination. The
+standard object category uses one shared DbDataReader consumer and `GetBytes`
+on both sides. Borrowed bytea inspection alone is not used in this comparison.
+Allocations include the in-process peer and transport. Prepared statements need
+a separate fixture: the existing peer deliberately rejects named statements.
+
+Run from `benchmarks/Mpgsql.Benchmarks` after a Release build:
+
+```powershell
+dotnet bin/Release/net10.0/Mpgsql.Benchmarks.dll --filter '*TcpAdoReaderBenchmarks*' `
+  --join --exporters fulljson csv markdown --artifacts ../../artifacts/ado-npgsql-comparison
+```
+
+Ratios within each category now have the same orientation: Mpgsql/Npgsql latency,
+so lower values favor Mpgsql. Compare fresh and reused command results separately
+and retain repeat runs and confidence intervals when evaluating a speed target.
 
 ## Admission window experiments
 

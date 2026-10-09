@@ -26,10 +26,14 @@ public readonly record struct PgTime(long Microseconds)
     }
     public TimeOnly ToTimeOnly()
     {
-        if (Microseconds == MicrosecondsPerDay)
+        if ((ulong)Microseconds >= MicrosecondsPerDay)
         {
-            throw new OverflowException("TimeOnly cannot represent 24:00:00.");
+            if (Microseconds == MicrosecondsPerDay)
+            {
+                throw new OverflowException("TimeOnly cannot represent 24:00:00.");
+            }
+            throw new OverflowException("Invalid PostgreSQL time.");
         }
-        return TimeOnly.FromTimeSpan(ToTimeSpan());
+        return new TimeOnly(Microseconds * 10);
     }
 }

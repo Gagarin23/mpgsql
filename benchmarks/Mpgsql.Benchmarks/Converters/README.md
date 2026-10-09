@@ -2,9 +2,12 @@
 
 `ConverterScalarBenchmarks`, `ConverterArrayBenchmarks`, and
 `ConverterNullableArrayBenchmarks` compare all 72 public Mpgsql converter classes
-against actual Npgsql **10.0.3** converters. The catalog has 34 scalar, 34 array,
-and 34 nullable-array profiles: all 26 PostgreSQL types, CLR date/time/numeric
-overloads, the byte-array representation, and a wide numeric fixture.
+against actual Npgsql **10.0.3** converters. The catalog covers scalar, array and
+nullable-array profiles for all 26 PostgreSQL types, CLR date/time/numeric
+overloads (including the UTC DateTime timestamptz scalar), the byte-array
+representation, and a wide numeric fixture. `--verify-converters` reports the
+actual class/profile/fixture counts from the running build and writes every
+profile to the catalog JSON; each profile has four benchmark cases.
 
 Run from `benchmarks/Mpgsql.Benchmarks` after a Release solution build:
 
@@ -46,14 +49,14 @@ representative matrix. One launch, 3 warmups, 8 measured iterations, and 150 ms 
 iteration are configured in `ConverterBenchmarkConfig`; the machine's power
 policy is preserved. Avoid competing CPU workloads during the run.
 
-Write the measured matrix into `src/Mpgsql/README.md` using the joined full JSON
-report (all 408 results, Count=256 only):
+Write the measured matrix into `src/Mpgsql.Protocol/README.md` using the joined
+full JSON report (every profile from the matching catalog, Count=256 only):
 
 ```powershell
 ./Converters/Write-ConverterResults.ps1 `
   -Report ../../artifacts/converter-comparison/run/results/BenchmarkRun-joined-<timestamp>-report-full.json `
   -Catalog ../../artifacts/converter-comparison/catalog.json `
-  -Readme ../../src/Mpgsql/README.md `
+  -Readme ../../src/Mpgsql.Protocol/README.md `
   -ResultsCsv ./Converters/results-2026-10-08.csv `
   -Cpu 'AMD Ryzen 7 5800X' -Date '2026-10-08'
 ```

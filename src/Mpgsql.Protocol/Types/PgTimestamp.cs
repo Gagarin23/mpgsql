@@ -23,15 +23,19 @@ public readonly record struct PgTimestamp(long MicrosecondsSinceEpoch)
     }
     public DateTime ToDateTime()
     {
+        return new DateTime(GetDateTimeTicks(), DateTimeKind.Unspecified);
+    }
+    internal long GetDateTimeTicks()
+    {
         if (!IsFinite)
         {
             throw new OverflowException("DateTime cannot represent timestamp infinity.");
         }
         var ticks = checked(MicrosecondsSinceEpoch * 10 + EpochTicks);
-        if (ticks < 0 || ticks > DateTime.MaxValue.Ticks)
+        if ((ulong)ticks > (ulong)DateTime.MaxValue.Ticks)
         {
             throw new OverflowException("The PostgreSQL timestamp is outside DateTime's range.");
         }
-        return new DateTime(ticks, DateTimeKind.Unspecified);
+        return ticks;
     }
 }

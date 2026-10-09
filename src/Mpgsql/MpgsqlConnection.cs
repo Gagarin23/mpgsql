@@ -136,7 +136,7 @@ public sealed class MpgsqlConnection : DbConnection
                     .RentAsync(opening.Token)
                     .ConfigureAwait(false)
                 : await MpgsqlMessageSession
-                    .OpenAsync(new MpgsqlConnectionStringBuilder(_connectionString).ToSessionOptions(), opening.Token)
+                    .OpenAdoAsync(new MpgsqlConnectionStringBuilder(_connectionString).ToSessionOptions(), opening.Token)
                     .ConfigureAwait(false);
             lock (Gate)
             {
@@ -227,14 +227,17 @@ public sealed class MpgsqlConnection : DbConnection
     internal QueryExecution Start(
         QueryDefinition single, QueryDefinition[]? queries,
         CancellationToken token, int timeout,
-        Action completed, bool ownsConnection = false,
+        Action completed, out QueryExecution? owner, bool ownsConnection = false,
         long[]? affectedRows = null
     )
     {
         lock (Gate)
         {
             CheckAvailable();
-            var execution = _active = new QueryExecution(this, token, timeout, completed, ownsConnection, affectedRows);
+            var execution = _active = CreateExecution(token, timeout, completed, ownsConnection, affectedRows);
+            // Inline encoding may synchronously reenter Cancel on the command/batch.
+            // Attach that provider owner before publishing any part of its execution.
+            owner = execution;
             execution.Publish(single, queries);
             return execution;
         }
@@ -248,11 +251,26 @@ public sealed class MpgsqlConnection : DbConnection
         lock (Gate)
         {
             CheckAvailable();
-            var execution = _active = new QueryExecution(this, token, timeout, completed, false);
+            var execution = _active = CreateExecution(token, timeout, completed, false);
             execution.PublishAdministration(statements, close);
             return execution;
         }
     }
+    private QueryExecution CreateExecution(CancellationToken token, int timeout, Action completed, bool ownsConnection, long[]? affectedRows = null)
+    {
+        try
+        {
+            return new QueryExecution(this, token, timeout, completed, ownsConnection, affectedRows);
+        }
+        catch (Exception error)
+        {
+            // A session can fail after CheckAvailable, before cursor registration.
+            // Keep transport/server failures inside the provider's DbException contract.
+            ExceptionDispatchInfo.Throw(MpgsqlException.Map(error));
+            return null!;
+        }
+    }
+
     internal void ExecutionCompleted(QueryExecution execution)
     {
         lock (Gate)

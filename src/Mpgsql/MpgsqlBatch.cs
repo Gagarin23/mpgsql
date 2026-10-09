@@ -9,6 +9,7 @@ namespace Mpgsql;
 public sealed class MpgsqlBatch : DbBatch
 {
     internal readonly Lock Gate = new Lock();
+    private readonly Action _completed;
     private long[] _affectedRows = [];
     private MpgsqlConnection? _connection;
 
@@ -21,6 +22,7 @@ public sealed class MpgsqlBatch : DbBatch
     private MpgsqlTransaction? _transaction;
     public MpgsqlBatch()
     {
+        _completed = Complete;
         BatchCommands = new MpgsqlBatchCommandCollection(this);
     }
     public MpgsqlBatch(MpgsqlConnection connection) : this()
@@ -206,6 +208,27 @@ public sealed class MpgsqlBatch : DbBatch
     public async ValueTask<MpgsqlDataReader> ExecuteReaderValueTaskAsync(CommandBehavior behavior = CommandBehavior.Default, CancellationToken cancellationToken = default)
     {
         MpgsqlDataReader.ValidateBehavior(behavior);
+        var execution = BeginExecution(cancellationToken);
+        try
+        {
+            var cursor = execution.Cursor;
+            var hasRows = await cursor.InitializeAsync().ConfigureAwait(false);
+            execution.CompleteReaderInitialization();
+            var reader = new MpgsqlDataReader(cursor, execution, execution.Connection, behavior);
+            reader.Initialize(hasRows);
+            return reader;
+        }
+        catch (Exception error)
+        {
+            try { await execution.FinishAsync(true).ConfigureAwait(false); }
+            catch { }
+            ExceptionDispatchInfo.Throw(execution.Map(error));
+            return null!;
+        }
+    }
+
+    private QueryExecution BeginExecution(CancellationToken cancellationToken)
+    {
         cancellationToken.ThrowIfCancellationRequested();
         MpgsqlConnection connection;
         QueryExecution execution;
@@ -232,7 +255,7 @@ public sealed class MpgsqlBatch : DbBatch
                         .Snapshot();
                     BatchCommands[i].RecordsAffected64 = -1;
                 }
-                execution = _execution = connection.Start(default, _queries, cancellationToken, _timeout, Complete, affectedRows: _affectedRows);
+                execution = connection.Start(default, _queries, cancellationToken, _timeout, _completed, out _execution, affectedRows: _affectedRows);
             }
             catch
             {
@@ -241,31 +264,7 @@ public sealed class MpgsqlBatch : DbBatch
                 throw;
             }
         }
-        var raw = await execution
-            .OpenReaderAsync()
-            .ConfigureAwait(false);
-        var reader = new MpgsqlDataReader(raw, execution, connection, behavior);
-        try
-        {
-            reader.Initialize
-            (
-                await raw
-                    .ReadAsync()
-                    .ConfigureAwait(false)
-            );
-        }
-        catch (Exception error)
-        {
-            try
-            {
-                await execution
-                    .FinishAsync(true)
-                    .ConfigureAwait(false);
-            }
-            catch { }
-            ExceptionDispatchInfo.Throw(execution.Map(error));
-        }
-        return reader;
+        return execution;
     }
     private void Complete()
     {
@@ -296,72 +295,19 @@ public sealed class MpgsqlBatch : DbBatch
     }
     public async ValueTask<long> ExecuteNonQuery64Async(CancellationToken cancellationToken = default)
     {
-        await using var reader = await ExecuteReaderValueTaskAsync(cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
-        do
-        {
-            while (await reader
-                       .ReadValueTaskAsync()
-                       .ConfigureAwait(false)) { }
-        }
-        while (await reader
-                   .NextResultValueTaskAsync()
-                   .ConfigureAwait(false));
-        return reader.RecordsAffected64;
+        var execution = BeginExecution(cancellationToken);
+        return await execution.ExecuteNonQueryAsync().ConfigureAwait(false);
     }
     public override async Task<object?> ExecuteScalarAsync(CancellationToken cancellationToken = default)
     {
-        await using var reader = await ExecuteReaderValueTaskAsync(cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
-        object? result = null;
-        var selected = false;
-        do
-        {
-            if (!selected && reader.IsRowSet)
-            {
-                selected = true;
-                if (await reader
-                        .ReadValueTaskAsync()
-                        .ConfigureAwait(false) && reader.FieldCount > 0)
-                {
-                    result = reader.GetValue(0);
-                }
-            }
-            while (await reader
-                       .ReadValueTaskAsync()
-                       .ConfigureAwait(false)) { }
-        }
-        while (await reader
-                   .NextResultValueTaskAsync()
-                   .ConfigureAwait(false));
-        return result;
+        var execution = BeginExecution(cancellationToken);
+        return await execution.ExecuteScalarAsync().ConfigureAwait(false);
     }
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     public async ValueTask<MpgsqlScalarResult<T>> ExecuteScalarAsync<T>(CancellationToken cancellationToken = default)
     {
-        await using var reader = await ExecuteReaderValueTaskAsync(cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
-        MpgsqlScalarResult<T> result = default;
-        var selected = false;
-        do
-        {
-            if (!selected && reader.IsRowSet)
-            {
-                selected = true;
-                if (await reader
-                        .ReadValueTaskAsync()
-                        .ConfigureAwait(false) && reader.FieldCount > 0)
-                {
-                    result = reader.IsDBNull(0) ? new MpgsqlScalarResult<T>(true, default) : new MpgsqlScalarResult<T>(false, reader.GetFieldValue<T>(0));
-                }
-            }
-            while (await reader
-                       .ReadValueTaskAsync()
-                       .ConfigureAwait(false)) { }
-        }
-        while (await reader
-                   .NextResultValueTaskAsync()
-                   .ConfigureAwait(false));
-        return result;
+        var execution = BeginExecution(cancellationToken);
+        return await execution.ExecuteScalarAsync<T>().ConfigureAwait(false);
     }
     public override Task PrepareAsync(CancellationToken cancellationToken = default)
     {

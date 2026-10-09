@@ -11,11 +11,15 @@ internal sealed class TcpMpgsqlFixture : IAsyncDisposable
     private TcpMpgsqlFixture(
         QueryCatalog catalog, int connections,
         int inFlight, long budget,
-        int syncGroupSize, int syncTimeoutMs
+        int syncGroupSize, int syncTimeoutMs, int readBufferSize, bool instrumentTransport, bool coalesceReplies
     )
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(readBufferSize);
+        ReadBufferSize = readBufferSize == 0 ? MpgsqlMessageSession.DefaultReadBufferSize : readBufferSize;
+        InstrumentTransport = instrumentTransport;
+        CoalesceReplies = coalesceReplies;
         Catalog = catalog;
-        Peer = new TcpQueryPeer(new TcpQueryCatalog(catalog));
+        Peer = new TcpQueryPeer(new TcpQueryCatalog(catalog), coalesceReplies);
         Buffers =
         [
             .. catalog
@@ -27,7 +31,7 @@ internal sealed class TcpMpgsqlFixture : IAsyncDisposable
             async token =>
             {
                 var transport = await MpgsqlTcpTransport
-                    .OpenAsync(Peer.Port, token)
+                    .OpenAsync(Peer.Port, token, ReadBufferSize, InstrumentTransport)
                     .ConfigureAwait(false);
                 lock (_gate)
                 {
@@ -45,6 +49,9 @@ internal sealed class TcpMpgsqlFixture : IAsyncDisposable
         );
     }
     internal QueryCatalog Catalog { get; }
+    internal int ReadBufferSize { get; }
+    internal bool InstrumentTransport { get; }
+    internal bool CoalesceReplies { get; }
     internal TcpQueryPeer Peer { get; }
     internal MpgsqlMultiplexingDataSource Source { get; }
     internal MpgsqlDataSource? ClientSource { get; private set; }
@@ -76,7 +83,7 @@ internal sealed class TcpMpgsqlFixture : IAsyncDisposable
         (
             async token =>
             {
-                var transport = await MpgsqlTcpTransport.OpenAsync(Peer.Port, token);
+                var transport = await MpgsqlTcpTransport.OpenAsync(Peer.Port, token, ReadBufferSize, InstrumentTransport);
                 lock (_gate)
                 {
                     _transports.Add(transport);
@@ -91,10 +98,10 @@ internal sealed class TcpMpgsqlFixture : IAsyncDisposable
         QueryCatalog catalog, int connections = 1,
         int inFlight = 1, long budget = 8 * 1024 * 1024,
         int syncGroupSize = 1, int syncTimeoutMs = 1,
-        bool multiplexing = true
+        bool multiplexing = true, int readBufferSize = 0, bool instrumentTransport = true, bool coalesceReplies = false
     )
     {
-        var fixture = new TcpMpgsqlFixture(catalog, connections, inFlight, budget, syncGroupSize, syncTimeoutMs);
+        var fixture = new TcpMpgsqlFixture(catalog, connections, inFlight, budget, syncGroupSize, syncTimeoutMs, readBufferSize, instrumentTransport, coalesceReplies);
         var leases = new PooledSession[multiplexing ? connections * inFlight : 0];
         try
         {
@@ -169,6 +176,8 @@ internal sealed class TcpMpgsqlFixture : IAsyncDisposable
     internal void CheckIdle()
     {
         Peer.CheckHealthy();
+        if (Peer.CoalesceReplies != CoalesceReplies)
+            throw new InvalidOperationException("Mpgsql TCP peer reply policy changed.");
         lock (_gate)
         {
             if (_transports.Count != Transports.Length)
@@ -178,6 +187,10 @@ internal sealed class TcpMpgsqlFixture : IAsyncDisposable
         }
         foreach (var transport in Transports)
         {
+            if (transport.ReadBufferSize != ReadBufferSize || transport.InstrumentTransport != InstrumentTransport)
+            {
+                throw new InvalidOperationException("Mpgsql TCP read-buffer configuration changed.");
+            }
             if (!transport.Session.IsHealthy || transport.Session.BufferedRowBytes != 0)
             {
                 throw new InvalidOperationException("Mpgsql.Protocol TCP transport retains rows or is unhealthy.");

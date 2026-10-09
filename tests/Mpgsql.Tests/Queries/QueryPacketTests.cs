@@ -194,5 +194,11 @@ public sealed class QueryPacketTests
             TestWire.Bytes("50 00000013 00 73656c6563742027d18f2700 0000 " + "42 00000010 00 00 0001 0001 0000 0001 0001 " + "44 00000006 50 00 45 00000009 00 00000000"),
             actual
         );
+        var query = new QueryDefinition(sql, ReadOnlyMemory<MpgsqlParameterValue>.Empty);
+        var size = query.Measure(WireEncoding.CStringLength(sql));
+        Assert.Equal(actual.Length, size);
+        var cached = new byte[size];
+        Assert.Equal(size, QueryPacket.WriteMeasured(sql, [], cached, size));
+        Assert.Equal(actual, cached);
     }
 }

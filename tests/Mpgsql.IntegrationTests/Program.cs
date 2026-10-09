@@ -28,13 +28,16 @@ try
         return;
     }
 
-    if (Environment.GetEnvironmentVariable("MPGSQL_TEST_UPPER_ONLY") == "1")
+    var adoOnly = Environment.GetEnvironmentVariable("MPGSQL_TEST_ADO_ONLY") == "1";
+    if (adoOnly || Environment.GetEnvironmentVariable("MPGSQL_TEST_UPPER_ONLY") == "1")
     {
         await AdoNetChecks.RunAsync
         (
             host, port, user, password, database,
             Environment.GetEnvironmentVariable("MPGSQL_TEST_CANCEL_MAPPING_ONCE") == "1"
         );
+        if (adoOnly)
+            return;
         await UpperApiChecks.RunAsync
         (
             host, port, user, password, database,

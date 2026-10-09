@@ -16,14 +16,16 @@ internal sealed class TcpQueryPeer : IAsyncDisposable
     private readonly object _gate = new object();
     private readonly TcpListener _listener = new TcpListener(IPAddress.Loopback, 0);
     private readonly CancellationTokenSource _stop = new CancellationTokenSource();
-    internal TcpQueryPeer(TcpQueryCatalog catalog)
+    internal TcpQueryPeer(TcpQueryCatalog catalog, bool coalesceReplies = false)
     {
         _catalog = catalog;
+        CoalesceReplies = coalesceReplies;
         _listener.Start();
         Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
         _accept = AcceptAsync();
     }
     internal int Port { get; }
+    internal bool CoalesceReplies { get; }
     public async ValueTask DisposeAsync()
     {
         _stop.Cancel();
@@ -52,7 +54,7 @@ internal sealed class TcpQueryPeer : IAsyncDisposable
                     .AcceptTcpClientAsync(_stop.Token)
                     .ConfigureAwait(false);
                 client.NoDelay = true;
-                var connection = new Connection(client, _catalog, _stop.Token);
+                var connection = new Connection(client, _catalog, _stop.Token, CoalesceReplies);
                 lock (_gate)
                 {
                     _connections.Add(connection);
@@ -93,6 +95,7 @@ internal sealed class TcpQueryPeer : IAsyncDisposable
         private readonly PipeReader _input;
         private readonly PipeWriter _output;
         private readonly TcpQueryProtocol _protocol;
+        private readonly Channel<Reply>? _coalescedReplies;
 
         private readonly Task _read,
             _write;
@@ -117,17 +120,22 @@ internal sealed class TcpQueryPeer : IAsyncDisposable
         private Exception? _failure;
         internal Connection(
             TcpClient client, TcpQueryCatalog catalog,
-            CancellationToken stop
+            CancellationToken stop, bool coalesceReplies
         )
         {
             _client = client;
             _stream = client.GetStream();
             _stop = stop;
+            if (coalesceReplies)
+                _coalescedReplies = Channel.CreateBounded<Reply>(new BoundedChannelOptions(256)
+                {
+                    SingleReader = true, SingleWriter = true, AllowSynchronousContinuations = false
+                });
             _input = PipeReader.Create(_stream, new StreamPipeReaderOptions(leaveOpen: true));
             _output = PipeWriter.Create(_stream, new StreamPipeWriterOptions(leaveOpen: true));
             _protocol = new TcpQueryProtocol(catalog);
             _read = ReadAsync();
-            _write = WriteAsync();
+            _write = _coalescedReplies is null ? WriteAsync() : WriteCoalescedAsync();
         }
         public async ValueTask DisposeAsync()
         {
@@ -159,9 +167,11 @@ internal sealed class TcpQueryPeer : IAsyncDisposable
                 {
                     throw new InvalidDataException("Only protocol 3.0 Startup is supported.");
                 }
-                await _replies
-                    .Writer.WriteAsync(TcpQueryCatalog.StartupReply, _stop)
-                    .ConfigureAwait(false);
+                if (_coalescedReplies is { } coalescedStartup)
+                    await coalescedStartup.Writer.WriteAsync(new Reply(TcpQueryCatalog.StartupReply, Flush: true), _stop)
+                        .ConfigureAwait(false);
+                else
+                    await _replies.Writer.WriteAsync(TcpQueryCatalog.StartupReply, _stop).ConfigureAwait(false);
                 while (true)
                 {
                     var read = await _input
@@ -175,11 +185,17 @@ internal sealed class TcpQueryPeer : IAsyncDisposable
                             var response = _protocol.Process(tag, payload);
                             Interlocked.Exchange(ref Queries, _protocol.Queries);
                             Interlocked.Exchange(ref Syncs, _protocol.Syncs);
-                            if (!response.IsEmpty)
+                            // Extended replies remain buffered until frontend Sync/Flush.
+                            // Setup-only Simple Query already includes ReadyForQuery.
+                            if (_coalescedReplies is { } coalesced)
                             {
-                                await _replies
-                                    .Writer.WriteAsync(response, _stop)
-                                    .ConfigureAwait(false);
+                                var boundary = tag is (byte)'S' or (byte)'H' or (byte)'Q';
+                                if (!response.IsEmpty || boundary)
+                                    await coalesced.Writer.WriteAsync(new Reply(response, boundary), _stop).ConfigureAwait(false);
+                            }
+                            else if (!response.IsEmpty)
+                            {
+                                await _replies.Writer.WriteAsync(response, _stop).ConfigureAwait(false);
                             }
                             if (_protocol.Terminated)
                             {
@@ -209,6 +225,7 @@ internal sealed class TcpQueryPeer : IAsyncDisposable
             finally
             {
                 _replies.Writer.TryComplete(failure);
+                _coalescedReplies?.Writer.TryComplete(failure);
                 await _input
                     .CompleteAsync(failure)
                     .ConfigureAwait(false);
@@ -252,6 +269,40 @@ internal sealed class TcpQueryPeer : IAsyncDisposable
                     .ConfigureAwait(false);
             }
         }
+        // Diagnostic only. The original default writer above retains its channel
+        // item representation and flush wave policy for existing comparisons.
+        private async Task WriteCoalescedAsync()
+        {
+            Exception? failure = null;
+            try
+            {
+                var replies = _coalescedReplies!.Reader;
+                while (await replies.WaitToReadAsync(_stop).ConfigureAwait(false))
+                {
+                    while (replies.TryRead(out var response))
+                    {
+                        _output.Write(response.Payload.Span);
+                        Interlocked.Add(ref ReplyBytes, response.Payload.Length);
+                        if (response.Flush)
+                        {
+                            var flush = await _output.FlushAsync(_stop).ConfigureAwait(false);
+                            if (flush.IsCompleted)
+                                return;
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (_stop.IsCancellationRequested) { }
+            catch (IOException) when (_stop.IsCancellationRequested) { }
+            catch (Exception error)
+            {
+                failure = error;
+                Interlocked.CompareExchange(ref _failure, error, null);
+                _client.Dispose();
+            }
+            finally { await _output.CompleteAsync(failure).ConfigureAwait(false); }
+        }
+        private readonly record struct Reply(ReadOnlyMemory<byte> Payload, bool Flush);
         internal void ThrowIfFailed()
         {
             if (_failure is { } error)

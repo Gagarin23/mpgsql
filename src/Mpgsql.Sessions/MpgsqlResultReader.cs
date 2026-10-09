@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
+using System.Runtime.InteropServices;
 using Mpgsql.Converters;
 using Mpgsql.Internal;
 using Mpgsql.Protocol;
@@ -19,17 +20,37 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
     private TaskCompletionSource? _idle;
     private int _movementState;
     private OwnedRow? _row;
+    private bool _borrowedRow;
+    private RowField[]? _columnArray;
+    private int _columnArrayOffset;
 
     internal MpgsqlResultReader(MpgsqlQueryBatch batch)
     {
         _batch = batch;
     }
     internal bool IsDisposed => _disposed;
+    internal bool IsAdoReader => _batch.IsAdoSession;
+    internal bool AdoInitialHasRows { get; private set; }
     internal IResultExecutionOwner? Execution { get; set; }
     internal bool IsRowSet { get; private set; }
     public int QueryIndex { get; private set; } = -1;
     public ReadOnlyMemory<RowField> Columns { get; private set; }
     public string? CommandTag { get; private set; }
+
+    private void SetColumns(ReadOnlyMemory<RowField> columns)
+    {
+        Columns = columns;
+        if (MemoryMarshal.TryGetArray(columns, out var storage))
+        {
+            _columnArray = storage.Array;
+            _columnArrayOffset = storage.Offset;
+        }
+        else
+        {
+            _columnArray = null;
+            _columnArrayOffset = 0;
+        }
+    }
 
     public async ValueTask DisposeAsync()
     {
@@ -68,6 +89,9 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
     {
         return MoveAsync(Movement.FirstResult);
     }
+    // ADO HasRows requires first-row prefetch. Keep metadata and that first row/end
+    // within the initial movement instead of releasing and reacquiring ownership.
+    internal ValueTask<bool> InitializeAdoAsync() => MoveAsync(Movement.FirstResult, prefetchFirstRow: true);
     public ValueTask<bool> ReadAsync()
     {
         var entered = false;
@@ -82,6 +106,19 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
                 Exit();
                 return new ValueTask<bool>(false);
             }
+            // Complete buffered ADO rows stay with the exclusive movement owner.
+            // Descriptions, completion and fragmented input use the event path.
+            if (_batch.TryReadAdoRow())
+            {
+                if (_disposed)
+                {
+                    _batch.ReleaseAdoRow();
+                    throw new ObjectDisposedException(nameof(MpgsqlResultReader));
+                }
+                _borrowedRow = true;
+                Exit();
+                return new ValueTask<bool>(true);
+            }
             if (!_batch.TryReadEvent(out var value))
             {
                 return MoveAsync(Movement.Row, true);
@@ -92,7 +129,12 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
                 throw new ObjectDisposedException(nameof(MpgsqlResultReader));
             }
             bool result;
-            if (value.Row is { } row)
+            if (value.IsBorrowedRow)
+            {
+                _borrowedRow = true;
+                result = true;
+            }
+            else if (value.Row is { } row)
             {
                 _row = row;
                 result = true;
@@ -128,7 +170,7 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
 
     // Each movement awaits the availability source directly: no nested row/event async machines.
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
-    private async ValueTask<bool> MoveAsync(Movement movement, bool entered = false)
+    private async ValueTask<bool> MoveAsync(Movement movement, bool entered = false, bool prefetchFirstRow = false)
     {
         if (!entered)
         {
@@ -159,18 +201,35 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
                         }
                         if (description)
                         {
-                            if (value.Row is not null || value.IsEnd)
+                            if (value.Row is not null || value.IsBorrowedRow || value.IsEnd)
                             {
                                 value.Row?.Dispose();
                                 throw new InvalidDataException("Expected a result description.");
                             }
                             QueryIndex = value.QueryIndex;
-                            Columns = value.Columns;
+                            SetColumns(value.Columns);
                             IsRowSet = value.IsRowSet;
                             CommandTag = null;
                             _end = false;
+                            if (prefetchFirstRow)
+                            {
+                                description = false;
+                                movement = Movement.Row;
+                                continue;
+                            }
                             result = true;
                             break;
+                        }
+                        if (value.IsBorrowedRow)
+                        {
+                            if (movement == Movement.Row)
+                            {
+                                _borrowedRow = true;
+                                result = true;
+                                break;
+                            }
+                            _batch.ReleaseAdoRow();
+                            continue;
                         }
                         if (value.Row is { } row)
                         {
@@ -248,6 +307,8 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
             return await FailMovementAsync(error)
                 .ConfigureAwait(false);
         }
+        if (prefetchFirstRow)
+            AdoInitialHasRows = result;
         if (_finished && movement == Movement.NextResult && Execution is { } owner)
         {
             await owner
@@ -281,6 +342,8 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
             _disposed,
             this
         );
+        if (_borrowedRow)
+            return _batch.AdoRow.GetValue(ordinal);
         if (_row is not { } row)
         {
             throw new InvalidOperationException("ReadAsync must position the reader on a row.");
@@ -344,6 +407,27 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
             throw new InvalidOperationException("SQL NULL requires a nullable CLR representation.");
         }
         return builtin ? FieldValueDecoder<T>.Read(column.DataTypeOid, bytes) : custom!(bytes);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetBorrowedBigint(int ordinal, out long? value)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        value = null;
+        if (!_borrowedRow || !_batch.AdoRow.TryGetContiguousValue(ordinal, out var bytes, out var isNull))
+        {
+            return false;
+        }
+        var columns = _columnArray;
+        ref readonly var column = ref (columns is not null
+            ? ref columns[ordinal + _columnArrayOffset]
+            : ref Columns.Span[ordinal]);
+        if (column.Format != FormatCode.Binary || column.DataTypeOid != Int64Converter.TypeOid)
+        {
+            return false;
+        }
+        value = isNull ? null : Int64Converter.Read(bytes);
+        return true;
     }
 
     public ReadOnlyMemory<long>? GetInt64Array(int ordinal)
@@ -467,6 +551,11 @@ public sealed class MpgsqlResultReader : IAsyncDisposable
 
     internal void ReleaseCurrent()
     {
+        if (_borrowedRow)
+        {
+            _borrowedRow = false;
+            _batch.ReleaseAdoRow();
+        }
         _row?.Dispose();
         _row = null;
     }

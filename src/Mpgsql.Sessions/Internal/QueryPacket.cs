@@ -12,7 +12,16 @@ internal static class QueryPacket
         ReadOnlySpan<MpgsqlParameterValue> parameters
     )
     {
-        var size = checked(5 + 1 + WireEncoding.CStringLength(sql) + 2 + 4 * parameters.Length);
+        return GetByteCount(WireEncoding.CStringLength(sql), parameters);
+    }
+
+    // A command can retain this length while its immutable SQL text stays unchanged.
+    internal static int GetByteCount(
+        int sqlCStringLength,
+        ReadOnlySpan<MpgsqlParameterValue> parameters
+    )
+    {
+        var size = checked(5 + 1 + sqlCStringLength + 2 + 4 * parameters.Length);
         return checked(size + GetPreparedByteCount("", parameters));
     }
 

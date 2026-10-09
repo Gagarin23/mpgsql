@@ -72,7 +72,11 @@ public static class NumericConverter
     }
     public static int Write(decimal value, Span<byte> destination)
     {
-        return BinaryScalar<decimal, DecimalCodec>.Write(value, destination);
+        Span<ushort> digits = stackalloc ushort[8];
+        var count = NumericCodec.DecimalParts(value, digits, out var weight, out var scale, out var sign);
+        var size = 8 + count * 2;
+        BinaryPayload.RequireCapacity(size, destination.Length);
+        return NumericCodec.WriteParts(weight, scale, sign, digits[..count], destination[..size]);
     }
     public static int Write(decimal? value, Span<byte> destination)
     {
@@ -80,7 +84,13 @@ public static class NumericConverter
     }
     public static void Write(decimal value, IBufferWriter<byte> destination)
     {
-        BinaryScalar<decimal, DecimalCodec>.Write(value, destination);
+        ArgumentNullException.ThrowIfNull(destination);
+        Span<ushort> digits = stackalloc ushort[8];
+        var count = NumericCodec.DecimalParts(value, digits, out var weight, out var scale, out var sign);
+        var size = 8 + count * 2;
+        var bytes = destination.GetSpan(size)[..size];
+        NumericCodec.WriteParts(weight, scale, sign, digits[..count], bytes);
+        destination.Advance(size);
     }
     public static void Write(decimal? value, IBufferWriter<byte> destination)
     {

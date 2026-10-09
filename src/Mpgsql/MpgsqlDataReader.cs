@@ -9,12 +9,14 @@ using Mpgsql.Protocol;
 
 namespace Mpgsql;
 
-public sealed class MpgsqlDataReader : DbDataReader
+public sealed partial class MpgsqlDataReader : DbDataReader
 {
+    private static readonly Task<bool> ReadTrueTask = Task.FromResult(true);
+    private static readonly Task<bool> ReadFalseTask = Task.FromResult(false);
     private readonly bool _closeConnection;
     private readonly MpgsqlConnection _connection;
     private readonly QueryExecution _execution;
-    private readonly MpgsqlResultReader _reader;
+    private readonly AdoCursor _reader;
     private readonly MpgsqlTypeMapper? _typeMapper;
     private Task? _close;
 
@@ -25,7 +27,7 @@ public sealed class MpgsqlDataReader : DbDataReader
         _complete;
 
     internal MpgsqlDataReader(
-        MpgsqlResultReader reader, QueryExecution execution,
+        AdoCursor reader, QueryExecution execution,
         MpgsqlConnection connection, CommandBehavior behavior
     )
     {
@@ -113,9 +115,19 @@ public sealed class MpgsqlDataReader : DbDataReader
         CheckRow();
         return _reader.IsDBNull(ordinal);
     }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override T GetFieldValue<T>(int ordinal)
     {
         CheckRow();
+        if (typeof(T) == typeof(long) && _reader.TryGetBorrowedBigint(ordinal, out var bigint))
+        {
+            return (T)(object)(bigint ?? throw new InvalidCastException("The value is SQL NULL."));
+        }
+        return GetFieldValueSlow<T>(ordinal);
+    }
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private T GetFieldValueSlow<T>(int ordinal)
+    {
         if (typeof(T) == typeof(object))
         {
             return (T)GetValue(ordinal);
@@ -126,10 +138,16 @@ public sealed class MpgsqlDataReader : DbDataReader
         }
         catch (InvalidOperationException) when (_reader.IsDBNull(ordinal)) { throw new InvalidCastException("The value is SQL NULL."); }
     }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override object GetValue(int ordinal)
     {
         CheckRow();
-        return _reader.IsDBNull(ordinal) ? DBNull.Value : ResultValue.Read(_reader, ordinal);
+        if (_reader.TryGetBorrowedBigint(ordinal, out var bigint))
+        {
+            return bigint.HasValue ? (object)bigint.GetValueOrDefault() : DBNull.Value;
+        }
+        var payload = _reader.GetRawValue(ordinal);
+        return payload is { } bytes ? ResultValue.Read(_reader.Columns.Span[ordinal].DataTypeOid, bytes) : DBNull.Value;
     }
     public override int GetValues(object[] values)
     {
@@ -278,50 +296,114 @@ public sealed class MpgsqlDataReader : DbDataReader
     {
         throw new NotSupportedException("Use ReadAsync.");
     }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override Task<bool> ReadAsync(CancellationToken cancellationToken)
     {
-        return ReadValueTaskAsync(cancellationToken)
-            .AsTask();
+        return TryReadRow(cancellationToken, out var row, out var pending)
+            ? row ? ReadTrueTask : ReadFalseTask
+            : pending.AsTask();
     }
     public override Task<bool> NextResultAsync(CancellationToken cancellationToken)
     {
         return NextResultValueTaskAsync(cancellationToken)
             .AsTask();
     }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ValueTask<bool> ReadValueTaskAsync(CancellationToken cancellationToken = default)
     {
+        return TryReadRow(cancellationToken, out var row, out var pending)
+            ? new ValueTask<bool>(row)
+            : pending;
+    }
+    // Both public APIs use one movement. A pending movement retains its lower
+    // reader ownership and follows the existing cancellation/recovery path.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryReadRow(CancellationToken cancellationToken, out bool row, out ValueTask<bool> pending)
+    {
+        row = false;
+        pending = default;
         ObjectDisposedException.ThrowIf(_closed, this);
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return CancelMovementAsync(cancellationToken);
-        }
-        if (_execution.IsCancellationRequested)
-        {
-            return FailCancelledMovementAsync();
-        }
         if (_complete)
         {
-            return new ValueTask<bool>(false);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                pending = CancelMovementAsync(cancellationToken);
+                return false;
+            }
+            if (_execution.IsCancellationRequested)
+            {
+                pending = FailCancelledMovementAsync();
+                return false;
+            }
+            return true;
         }
+        // Admission must precede all facade state changes, including prefetch.
+        // A rejected competing operation must not recover/discard its owner.
+        if (!TryEnterReaderMovement())
+        {
+            pending = FailCancelledMovementAsync();
+            return false;
+        }
+        var ownsMovement = true;
+        try
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                ownsMovement = false;
+                _reader.ExitReaderMovement();
+                pending = CancelMovementAsync(cancellationToken);
+                return false;
+            }
+            if (_execution.IsCancellationRequested)
+            {
+                ownsMovement = false;
+                _reader.ExitReaderMovement();
+                pending = FailCancelledMovementAsync();
+                return false;
+            }
+            if (cancellationToken.CanBeCanceled)
+            {
+                ownsMovement = false;
+                pending = AwaitReadAsync(default, cancellationToken, startMovement: true);
+                return false;
+            }
+            var next = ReadWithinMovementAsync();
+            if (next.IsCompletedSuccessfully)
+            {
+                row = next.Result;
+                _positioned = row;
+                ownsMovement = false;
+                _reader.ExitReaderMovement();
+                return true;
+            }
+            ownsMovement = false; // AwaitReadAsync releases before recovery.
+            pending = AwaitReadAsync(next, cancellationToken);
+            return false;
+        }
+        catch (Exception error)
+        {
+            if (ownsMovement)
+                _reader.ExitReaderMovement();
+            pending = FailReadAsync(error);
+            return false;
+        }
+    }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ValueTask<bool> ReadWithinMovementAsync()
+    {
         if (_prefetched)
         {
             _prefetched = false;
             _positioned = true;
-            return new ValueTask<bool>(true);
+            return new(true);
         }
         _positioned = false;
-        if (!cancellationToken.CanBeCanceled)
-        {
-            var next = _reader.ReadAsync();
-            if (next.IsCompletedSuccessfully)
-            {
-                var row = next.Result;
-                _positioned = row;
-                return new ValueTask<bool>(row);
-            }
-            return AwaitReadAsync(next, default);
-        }
-        return AwaitReadAsync(_reader.ReadAsync(), cancellationToken);
+        return _reader.ReadWithinMovementAsync();
+    }
+    private async ValueTask<bool> FailReadAsync(Exception error)
+    {
+        await FailAsync(error).ConfigureAwait(false);
+        return false;
     }
     private async ValueTask<bool> CancelMovementAsync(CancellationToken token)
     {
@@ -336,45 +418,75 @@ public sealed class MpgsqlDataReader : DbDataReader
             .ConfigureAwait(false);
         return false;
     }
-    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
-    private async ValueTask<bool> AwaitReadAsync(ValueTask<bool> movement, CancellationToken token)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryEnterReaderMovement()
     {
-        using var registration = token.CanBeCanceled ? token.UnsafeRegister(static (state, cancelled) => ((QueryExecution)state!).Cancel(cancelled), _execution) : default;
         try
         {
-            var row = await movement.ConfigureAwait(false);
-            _execution.ThrowIfCancelled();
-            _positioned = row;
-            return row;
+            _reader.EnterReaderMovement();
+            return true;
         }
-        catch (Exception error)
+        catch (ObjectDisposedException) when (_execution.IsCancellationRequested)
         {
-            await FailAsync(error)
-                .ConfigureAwait(false);
+            // Cancellation can hand an idle cursor to recovery before this call.
+            // Join that recovery without changing state or interrupting an owner.
             return false;
         }
+    }
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+    private async ValueTask<bool> AwaitReadAsync(ValueTask<bool> movement, CancellationToken token, bool startMovement = false)
+    {
+        CancellationTokenRegistration registration = default;
+        Exception? failure = null;
+        var row = false;
+        try
+        {
+            registration = token.CanBeCanceled ? token.UnsafeRegister(static (state, cancelled) => ((QueryExecution)state!).Cancel(cancelled), _execution) : default;
+            if (startMovement)
+            {
+                // Register before starting input: even a throwing cancellation
+                // callback cannot leave an unawaited movement behind recovery.
+                _execution.ThrowIfCancelled();
+                movement = ReadWithinMovementAsync();
+            }
+            row = await movement.ConfigureAwait(false);
+            _execution.ThrowIfCancelled();
+            _positioned = row;
+        }
+        catch (Exception error) { failure = error; }
+        finally
+        {
+            _reader.ExitReaderMovement();
+            registration.Dispose();
+        }
+        if (failure is not null)
+            await FailAsync(failure).ConfigureAwait(false);
+        return row;
     }
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     public async ValueTask<bool> NextResultValueTaskAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_closed, this);
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return await CancelMovementAsync(cancellationToken)
-                .ConfigureAwait(false);
-        }
         if (_complete)
         {
+            if (cancellationToken.IsCancellationRequested)
+                return await CancelMovementAsync(cancellationToken).ConfigureAwait(false);
             return false;
         }
-        using var registration = cancellationToken.CanBeCanceled ? cancellationToken.UnsafeRegister(static (state, cancelled) => ((QueryExecution)state!).Cancel(cancelled), _execution) : default;
+        if (!TryEnterReaderMovement())
+            return await FailCancelledMovementAsync().ConfigureAwait(false);
+        CancellationTokenRegistration registration = default;
+        Exception? failure = null;
+        var next = false;
         try
         {
+            registration = cancellationToken.CanBeCanceled ? cancellationToken.UnsafeRegister(static (state, cancelled) => ((QueryExecution)state!).Cancel(cancelled), _execution) : default;
+            _execution.ThrowIfCancelled();
             _prefetched = _positioned = false;
             // The session reader already drains the current result in NextResultAsync.
             // Do not perform a second movement just to rediscover CommandComplete.
-            var next = await _reader
-                .NextResultAsync()
+            next = await _reader
+                .NextResultWithinMovementAsync()
                 .ConfigureAwait(false);
             _execution.ThrowIfCancelled();
             _complete = !next;
@@ -382,17 +494,22 @@ public sealed class MpgsqlDataReader : DbDataReader
             if (next)
             {
                 _prefetched = _hasRows = await _reader
-                    .ReadAsync()
+                    .ReadWithinMovementAsync()
                     .ConfigureAwait(false);
+                _execution.ThrowIfCancelled();
             }
-            return next;
         }
-        catch (Exception error)
+        catch (Exception error) { failure = error; }
+        finally
         {
-            await FailAsync(error)
-                .ConfigureAwait(false);
-            return false;
+            _reader.ExitReaderMovement();
+            registration.Dispose();
         }
+        if (failure is not null)
+            await FailAsync(failure).ConfigureAwait(false);
+        else if (!next)
+            await _execution.FinishAsync(false).ConfigureAwait(false);
+        return next;
     }
     private async ValueTask FailAsync(Exception error)
     {
@@ -439,8 +556,8 @@ public sealed class MpgsqlDataReader : DbDataReader
     {
         try
         {
-            await _reader
-                .DisposeAsync()
+            await _execution
+                .FinishAsync(true)
                 .ConfigureAwait(false);
         }
         finally

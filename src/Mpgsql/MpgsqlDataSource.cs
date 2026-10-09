@@ -28,7 +28,7 @@ public sealed class MpgsqlDataSource : DbDataSource
         }).CopyValidated();
         DefaultCommandTimeout = builder.CommandTimeout;
         OpenTimeout = settings.ConnectTimeout;
-        _factory = token => MpgsqlMessageSession.OpenAsync(settings, token);
+        _factory = token => MpgsqlMessageSession.OpenAdoAsync(settings, token);
         _cancel = static (session, token) => session.SendCancelRequestAsync(token);
         _slots = new SemaphoreSlim(Options.MaxConnections, Options.MaxConnections);
     }
@@ -152,7 +152,9 @@ public sealed class MpgsqlDataSource : DbDataSource
             {
                 created = await _factory(lifetime)
                     .ConfigureAwait(false) ?? throw new InvalidOperationException("The session factory returned null.");
-                created.ClaimForDataSource(Options.MaxBufferedRowBytesPerConnection);
+                await created
+                    .ClaimForAdoDataSourceAsync(Options.MaxBufferedRowBytesPerConnection, lifetime)
+                    .ConfigureAwait(false);
                 owned = true;
                 lock (_gate)
                 {

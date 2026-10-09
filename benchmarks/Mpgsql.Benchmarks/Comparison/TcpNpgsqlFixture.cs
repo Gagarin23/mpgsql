@@ -10,11 +10,13 @@ internal sealed class TcpNpgsqlFixture : IAsyncDisposable
     private readonly int _connections;
     private TcpNpgsqlFixture(
         QueryCatalog catalog, int connections,
-        bool multiplexing
+        bool multiplexing, int readBufferSize, bool coalesceReplies
     )
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(readBufferSize);
         _connections = connections;
-        Peer = new TcpQueryPeer(new TcpQueryCatalog(catalog));
+        CoalesceReplies = coalesceReplies;
+        Peer = new TcpQueryPeer(new TcpQueryCatalog(catalog), coalesceReplies);
         var settings = new NpgsqlConnectionStringBuilder
         {
             Host = "127.0.0.1",
@@ -31,8 +33,10 @@ internal sealed class TcpNpgsqlFixture : IAsyncDisposable
             MaxAutoPrepare = 0,
             Enlist = false,
             Timeout = 10,
-            CommandTimeout = 0
+            CommandTimeout = 0,
+            ReadBufferSize = readBufferSize == 0 ? 8192 : readBufferSize
         };
+        ReadBufferSize = settings.ReadBufferSize;
         ConnectionString = settings.ConnectionString;
         var builder = new NpgsqlDataSourceBuilder(ConnectionString);
         builder.ConfigureTypeLoading(options => options.EnableTypeLoading(false));
@@ -58,6 +62,8 @@ internal sealed class TcpNpgsqlFixture : IAsyncDisposable
         }
     }
     internal TcpQueryPeer Peer { get; }
+    internal bool CoalesceReplies { get; }
+    internal int ReadBufferSize { get; }
     internal NpgsqlDataSource Source { get; }
     internal NpgsqlCommand[][] Commands { get; }
     internal byte[][] Buffers { get; }
@@ -114,10 +120,10 @@ internal sealed class TcpNpgsqlFixture : IAsyncDisposable
     }
     internal static async Task<TcpNpgsqlFixture> CreateAsync(
         QueryCatalog catalog, int connections = 1,
-        bool multiplexing = false, bool exclusive = false
+        bool multiplexing = false, bool exclusive = false, int readBufferSize = 0, bool coalesceReplies = false
     )
     {
-        var fixture = new TcpNpgsqlFixture(catalog, connections, multiplexing);
+        var fixture = new TcpNpgsqlFixture(catalog, connections, multiplexing, readBufferSize, coalesceReplies);
         var leases = new NpgsqlConnection[connections];
         var transactions = new NpgsqlTransaction[connections];
         try
@@ -208,6 +214,8 @@ internal sealed class TcpNpgsqlFixture : IAsyncDisposable
     internal void CheckIdle()
     {
         Peer.CheckHealthy();
+        if (Peer.CoalesceReplies != CoalesceReplies)
+            throw new InvalidOperationException("Npgsql TCP peer reply policy changed.");
         if (Peer.Counters()
                 .Connections != _connections)
         {

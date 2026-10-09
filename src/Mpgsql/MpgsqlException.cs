@@ -13,7 +13,7 @@ public class MpgsqlException : DbException
         return error switch
         {
             MpgsqlServerException server => new MpgsqlPostgresException(server),
-            IOException or TimeoutException or SocketException or AuthenticationException or CryptographicException
+            IOException or InvalidDataException or TimeoutException or SocketException or AuthenticationException or CryptographicException
                 => new MpgsqlException(error.Message, error),
             _ => error
         };

@@ -57,7 +57,23 @@ internal sealed class RowBufferBudget(long limit) : IValueTaskSource<bool>
         return used != 0 && bytes > limit - used;
     }
 
-    internal async ValueTask<bool> ReserveAsync(
+    internal ValueTask<bool> ReserveAsync(
+        long bytes, MpgsqlQueryBatch batch,
+        CancellationToken token
+    )
+    {
+        if (batch.DiscardsRows)
+        {
+            return new ValueTask<bool>(false);
+        }
+        if (TryReserve(bytes))
+        {
+            return new ValueTask<bool>(true);
+        }
+        return ReserveSlowAsync(bytes, batch, token);
+    }
+
+    private async ValueTask<bool> ReserveSlowAsync(
         long bytes, MpgsqlQueryBatch batch,
         CancellationToken token
     )

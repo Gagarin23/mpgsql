@@ -1,6 +1,8 @@
 using System.Buffers;
 using System.Data;
 using System.Data.Common;
+using System.Text;
+using Mpgsql.Protocol;
 using Mpgsql.Tests.Protocol;
 using static Mpgsql.Tests.Queries.ScriptedSession;
 
@@ -22,6 +24,19 @@ public sealed class AdoNetTests
         return [.. bytes];
     }
 
+    private static void ExpectedQuery(ArrayBufferWriter<byte> output, string sql, long? value = null)
+    {
+        FrontendMessage.Parse(sql, parameterTypes: value.HasValue ? new uint[] { 20 } : ReadOnlyMemory<uint>.Empty).Write(output);
+        FrontendMessage.Bind
+        (
+            parameters: value.HasValue ? new ReadOnlyMemory<byte>?[] { Int64(value.Value) } : ReadOnlyMemory<ReadOnlyMemory<byte>?>.Empty,
+            parameterFormats: new[] { FormatCode.Binary },
+            resultFormats: new[] { FormatCode.Binary }
+        ).Write(output);
+        FrontendMessage.Describe(StatementOrPortal.Portal).Write(output);
+        FrontendMessage.Execute().Write(output);
+    }
+
     [Fact]
     public async Task DbCommandReusesTypedParametersAndReturnsStandardNullSemantics()
     {
@@ -39,9 +54,13 @@ public sealed class AdoNetTests
         {
             parameter.TypedValue = i + 7;
             var scalar = command.ExecuteScalarAsync(Token);
-            Assert.Equal("PBDES", new string(Tags(await Sync(wire))));
+            var expected = new ArrayBufferWriter<byte>();
+            ExpectedQuery(expected, command.CommandText, i + 7);
+            FrontendMessage.Sync().Write(expected);
+            Assert.Equal(expected.WrittenSpan.ToArray(), await Sync(wire));
             Assert.Throws<InvalidOperationException>(() => parameter.TypedValue = 99);
             Assert.Throws<InvalidOperationException>(() => command.Connection = null);
+            Assert.Throws<InvalidOperationException>(() => command.CommandText = "select changed");
             await wire.WriteAsync(i == 0 ? Join(Query(7), Ready()) : i == 1 ? Join(Begin(20), Row((byte[]?)null), Command(), Ready()) : Join(Begin(20), Command("SELECT 0"), Ready()));
             var result = await scalar.WaitAsync(TestTimeout, Token);
             if (i == 0)
@@ -61,6 +80,97 @@ public sealed class AdoNetTests
     }
 
     [Fact]
+    public async Task ReusedCommandSqlChangesPreserveCompleteUtf8AndEmptyPayloads()
+    {
+        await using var wire = new ScriptedSession();
+        await using var source = Source(wire);
+        await using var connection = await source.OpenConnectionAsync(Token);
+        await using var command = connection.CreateCommand();
+        foreach (var sql in new[] { "select 1", "select 1", "select 'я'", "select '🙂'", "", "select 1" })
+        {
+            command.CommandText = sql;
+            var pending = command.ExecuteNonQueryAsync(Token);
+            var expected = new ArrayBufferWriter<byte>();
+            ExpectedQuery(expected, sql);
+            FrontendMessage.Sync().Write(expected);
+            Assert.Equal(expected.WrittenSpan.ToArray(), await Sync(wire));
+            Assert.Throws<InvalidOperationException>(() => command.CommandText = "changed while executing");
+            await wire.WriteAsync(Join(Packet('1'), Packet('2'), Packet('n'), sql.Length == 0 ? Packet('I') : Command("SELECT 0"), Ready()));
+            Assert.Equal(-1, await pending.WaitAsync(TestTimeout, Token));
+            Assert.True(wire.Session.IsIdleAndHealthy);
+        }
+    }
+
+    [Fact]
+    public async Task ReusedBatchSqlChangesPreserveEveryCompletePacketBeforeSingleSync()
+    {
+        await using var wire = new ScriptedSession();
+        await using var source = Source(wire);
+        await using var connection = await source.OpenConnectionAsync(Token);
+        await using var batch = connection.CreateBatch();
+        var first = new MpgsqlBatchCommand("update first");
+        var second = new MpgsqlBatchCommand("update second");
+        batch.BatchCommands.Add(first);
+        batch.BatchCommands.Add(second);
+        foreach (var sql in new[] { "update second", "update 'я'", "update '🙂'", "", "update second" })
+        {
+            second.CommandText = sql;
+            var pending = batch.ExecuteNonQueryAsync(Token);
+            var expected = new ArrayBufferWriter<byte>();
+            ExpectedQuery(expected, first.CommandText);
+            ExpectedQuery(expected, sql);
+            FrontendMessage.Sync().Write(expected);
+            Assert.Equal(expected.WrittenSpan.ToArray(), await Sync(wire));
+            Assert.Throws<InvalidOperationException>(() => second.CommandText = "changed while executing");
+            await wire.WriteAsync
+            (
+                Join
+                (
+                    Packet('1'), Packet('2'), Packet('n'), Command("UPDATE 2"),
+                    Packet('1'), Packet('2'), Packet('n'), sql.Length == 0 ? Packet('I') : Command("UPDATE 3"), Ready()
+                )
+            );
+            Assert.Equal(sql.Length == 0 ? 2 : 5, await pending.WaitAsync(TestTimeout, Token));
+            Assert.True(wire.Session.IsIdleAndHealthy);
+        }
+    }
+
+    [Theory, InlineData(false), InlineData(true)]
+    public async Task InvalidUtf16AfterValidExecutionFailsBeforeAnyCommandIsPublished(bool grouped)
+    {
+        await using var wire = new ScriptedSession();
+        await using var source = Source(wire);
+        await using var connection = await source.OpenConnectionAsync(Token);
+        await using var command = connection.CreateCommand("select 1");
+        await using var batch = connection.CreateBatch();
+        var second = new MpgsqlBatchCommand("select 2");
+        batch.BatchCommands.Add(new MpgsqlBatchCommand("select 1"));
+        batch.BatchCommands.Add(second);
+        if (grouped)
+        {
+            var pending = batch.ExecuteNonQueryAsync(Token);
+            await Sync(wire);
+            await wire.WriteAsync(Join(Packet('1'), Packet('2'), Packet('n'), Command("SELECT 0"), Packet('1'), Packet('2'), Packet('n'), Command("SELECT 0"), Ready()));
+            await pending.WaitAsync(TestTimeout, Token);
+            second.CommandText = "select '\ud800'";
+            await Assert.ThrowsAsync<EncoderFallbackException>(() => batch.ExecuteReaderAsync(Token));
+            second.CommandText = "select recovered";
+        }
+        else
+        {
+            var pending = command.ExecuteNonQueryAsync(Token);
+            await Sync(wire);
+            await wire.WriteAsync(Join(Packet('1'), Packet('2'), Packet('n'), Command("SELECT 0"), Ready()));
+            await pending.WaitAsync(TestTimeout, Token);
+            command.CommandText = "select '\ud800'";
+            await Assert.ThrowsAsync<EncoderFallbackException>(() => command.ExecuteReaderAsync(Token));
+            command.CommandText = "select recovered";
+        }
+        Assert.False(wire.HasOutput());
+        Assert.True(wire.Session.IsIdleAndHealthy);
+    }
+
+    [Fact]
     public async Task DbReaderPrefetchesHasRowsAndPreservesMetadataAndBorrowedPayload()
     {
         await using var wire = new ScriptedSession();
@@ -70,7 +180,7 @@ public sealed class AdoNetTests
         command.CommandText = "select values";
         var opening = command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, Token);
         await Sync(wire);
-        await wire.WriteAsync(Join(Begin(20, 25), Row(Int64(42), "hello"u8.ToArray()), Command(), Ready()), 1);
+        var writing = wire.WriteAsync(Join(Begin(20, 25), Row(Int64(42), "hello"u8.ToArray()), Command(), Ready()), 1);
         await using var reader = await opening.WaitAsync(TestTimeout, Token);
         Assert.True(reader.HasRows);
         Assert.Equal(2, reader.FieldCount);
@@ -87,6 +197,7 @@ public sealed class AdoNetTests
         Assert.False(await reader.ReadAsync(Token));
         Assert.True(reader.HasRows);
         Assert.False(await reader.NextResultAsync(Token));
+        await writing.WaitAsync(TestTimeout, Token);
         Assert.Equal(-1, reader.RecordsAffected);
         Assert.False(reader.IsClosed);
         Assert.False(await reader.ReadAsync(Token));
@@ -165,7 +276,7 @@ public sealed class AdoNetTests
                 RecoveryTimeout = TimeSpan.FromMilliseconds(100)
             }
         );
-        await using var connection = await source.OpenConnectionAsync(Token);
+        using var connection = await source.OpenConnectionAsync(Token);
         await using var command = connection.CreateCommand("select delayed");
         var preparing = command.PrepareAsync(Token);
         await Sync(wire);
@@ -252,13 +363,16 @@ public sealed class AdoNetTests
         await using var command = connection.CreateCommand("select delayed");
         var opening = command.ExecuteReaderAsync(Token);
         await Sync(wire);
-        await wire.WriteAsync(Join(Begin(20), Row(Int64(42))));
+        var initialWrite = wire.WriteAsync(Join(Begin(20), Row(Int64(42))));
         await using var reader = await opening.WaitAsync(TestTimeout, Token);
         Assert.True(reader.HasRows);
         command.Cancel();
         await cancelSent.Task.WaitAsync(TestTimeout, Token);
         var reading = reader.ReadAsync(Token);
         Assert.False(reading.IsCompleted);
+        // The prefetched borrowed row keeps the tiny incoming pipe paused until
+        // cancellation hands input ownership to recovery; drive both sides concurrently.
+        await initialWrite.WaitAsync(TestTimeout, Token);
         await wire.WriteAsync(Join(Error("57014"), Ready()));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reading.WaitAsync(TestTimeout, Token));
         command.CommandText = "select next";
@@ -280,6 +394,8 @@ public sealed class AdoNetTests
         using var batch = MpgsqlFactory.Instance.CreateBatch();
         command.Connection = first;
         batch.Connection = first;
+        using var directlyConstructed = new MpgsqlCommand("select 1", first);
+        Assert.Equal(7, directlyConstructed.CommandTimeout);
         Assert.Equal(7, command.CommandTimeout);
         Assert.Equal(7, batch.Timeout);
         command.Connection = second;
@@ -414,11 +530,12 @@ public sealed class AdoNetTests
         await using var command = connection.CreateCommand("select delayed rows");
         var opening = command.ExecuteReaderAsync(Token);
         await Sync(wire);
-        await wire.WriteAsync(Join(Begin(20), Row(Int64(1))));
+        var initialWrite = wire.WriteAsync(Join(Begin(20), Row(Int64(1))));
         await using var reader = await opening.WaitAsync(TestTimeout, Token);
         using var movement = new CancellationTokenSource();
         movement.Cancel();
         var reading = reader.ReadAsync(movement.Token);
+        await initialWrite.WaitAsync(TestTimeout, Token);
         await wire.WriteAsync(Join(Error("57014"), Ready()));
         var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reading.WaitAsync(TestTimeout, Token));
         Assert.Equal(movement.Token, error.CancellationToken);
@@ -481,11 +598,12 @@ public sealed class AdoNetTests
         batch.BatchCommands.Add(new MpgsqlBatchCommand("update later"));
         var opening = batch.ExecuteReaderAsync(Token);
         await Sync(wire);
-        await wire.WriteAsync(Join(Begin(20), Row(Int64(1))));
+        var initialWrite = wire.WriteAsync(Join(Begin(20), Row(Int64(1))));
         var reader = await opening.WaitAsync(TestTimeout, Token);
         var closing = reader
             .DisposeAsync()
             .AsTask();
+        await initialWrite.WaitAsync(TestTimeout, Token);
         await wire.WriteAsync(Join(Row(Int64(2)), Command("SELECT 2"), Packet('1'), Packet('2'), Packet('n'), Command("UPDATE 7"), Ready()));
         await closing.WaitAsync(TestTimeout, Token);
         Assert.Equal(7, reader.RecordsAffected);

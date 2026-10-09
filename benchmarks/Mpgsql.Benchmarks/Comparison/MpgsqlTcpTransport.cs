@@ -11,15 +11,28 @@ namespace Mpgsql.Benchmarks.Comparison;
 internal sealed class MpgsqlTcpTransport : IAsyncDisposable
 {
     private readonly TcpClient _client;
-    private MpgsqlTcpTransport(TcpClient client)
+    private readonly CountingPipeWriter? _countingWriter;
+    private MpgsqlTcpTransport(TcpClient client, int readBufferSize, bool instrumentTransport)
     {
         _client = client;
         var stream = client.GetStream();
-        Writer = new CountingPipeWriter(PipeWriter.Create(stream, new StreamPipeWriterOptions(leaveOpen: true)));
-        Session = new MpgsqlMessageSession(PipeReader.Create(stream, new StreamPipeReaderOptions(leaveOpen: true)), Writer);
+        var readOptions = new StreamPipeReaderOptions(
+            bufferSize: readBufferSize == 0 ? MpgsqlMessageSession.DefaultReadBufferSize : readBufferSize,
+            minimumReadSize: 1024, leaveOpen: true);
+        ReadBufferSize = readOptions.BufferSize;
+        PipeWriter output = PipeWriter.Create(stream, new StreamPipeWriterOptions(leaveOpen: true));
+        if (instrumentTransport)
+        {
+            _countingWriter = new CountingPipeWriter(output);
+            output = _countingWriter;
+        }
+        Session = new MpgsqlMessageSession(PipeReader.Create(stream, readOptions), output);
     }
     internal MpgsqlMessageSession Session { get; }
-    internal CountingPipeWriter Writer { get; }
+    internal CountingPipeWriter Writer => _countingWriter
+        ?? throw new InvalidOperationException("Transport counters are disabled for this acceptance fixture.");
+    internal bool InstrumentTransport => _countingWriter is not null;
+    internal int ReadBufferSize { get; }
     public async ValueTask DisposeAsync()
     {
         await Session
@@ -27,8 +40,10 @@ internal sealed class MpgsqlTcpTransport : IAsyncDisposable
             .ConfigureAwait(false);
         _client.Dispose();
     }
-    internal static async Task<MpgsqlTcpTransport> OpenAsync(int port, CancellationToken token = default)
+    internal static async Task<MpgsqlTcpTransport> OpenAsync(
+        int port, CancellationToken token = default, int readBufferSize = 0, bool instrumentTransport = true)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(readBufferSize);
         var client = new TcpClient
         {
             NoDelay = true
@@ -78,7 +93,7 @@ internal sealed class MpgsqlTcpTransport : IAsyncDisposable
                     throw new InvalidDataException("Startup ErrorResponse.");
                 }
             }
-            return new MpgsqlTcpTransport(client);
+            return new MpgsqlTcpTransport(client, readBufferSize, instrumentTransport);
         }
         catch
         {

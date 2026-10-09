@@ -1,13 +1,17 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Mpgsql.Protocol;
 
 namespace Mpgsql.Internal;
 
 // Only offsets are retained per field: row storage is contiguous after copying or frame assembly.
+// An inactive storage can retain its own buffer of at most 128 bytes, but never the original caller buffer,
+// frame owner, field memory or row-budget reservation. Borrowed field lifetime is unchanged.
 internal sealed class RowStorage(RowStoragePool? pool)
 {
+    private const int SmallBufferCapacity = 128;
     internal RowStorage? Next;
     private RowBufferBudget? _budget;
     private byte[]? _buffer;
@@ -17,12 +21,27 @@ internal sealed class RowStorage(RowStoragePool? pool)
     private int[]? _offsets;
     private IMemoryOwner<byte>? _owner;
     private ReadOnlyMemory<byte> _payload;
+    private byte[]? _smallBuffer;
     private int _singleOffset;
+    private InlineOffsets _inlineOffsets;
+
+    [InlineArray(8)]
+    private struct InlineOffsets
+    {
+        private int _element0;
+    }
+
     internal bool CanReuse => Volatile.Read(ref _generation) < long.MaxValue - 1;
 
     internal long BeginLease()
     {
-        return Interlocked.Increment(ref _generation);
+        // A new storage or a pool pop belongs exclusively to this renter. Release publishes
+        // the next even generation before cleanup and Return; stale handles can only fail
+        // their CAS while this renter publishes the next odd generation. CanReuse retires
+        // storage before the counter can wrap, so an earlier odd generation cannot alias it.
+        var generation = _generation + 1;
+        Volatile.Write(ref _generation, generation);
+        return generation;
     }
 
     internal void Initialize(
@@ -37,17 +56,36 @@ internal sealed class RowStorage(RowStoragePool? pool)
         {
             _payload = message.Payload.First;
         }
+        else if (_bytes <= SmallBufferCapacity)
+        {
+            var buffer = _smallBuffer;
+            if (buffer is null || buffer.Length < _bytes)
+            {
+                // Retain the smallest fitting tier, then reuse its high-water capacity.
+                var capacity = _bytes switch
+                {
+                    <= 16 => 16,
+                    <= 32 => 32,
+                    <= 64 => 64,
+                    _ => SmallBufferCapacity
+                };
+                _smallBuffer = buffer = new byte[capacity];
+            }
+            message.Payload.CopyTo(buffer);
+            _payload = buffer.AsMemory(0, (int)_bytes);
+        }
         else
         {
             _buffer = ArrayPool<byte>.Shared.Rent(checked((int)_bytes));
             message.Payload.CopyTo(_buffer);
             _payload = _buffer.AsMemory(0, (int)_bytes);
         }
-        // The common scalar result needs one offset, not a separate rented array.
+        // Keep scalar access separate and small row offsets inside the pooled storage.
         var offsets = _count switch
         {
             0 => Span<int>.Empty,
             1 => MemoryMarshal.CreateSpan(ref _singleOffset, 1),
+            <= 8 => _inlineOffsets[.._count],
             _ => (_offsets = ArrayPool<int>.Shared.Rent(_count)).AsSpan(0, _count)
         };
         var bytes = _payload.Span;
@@ -95,7 +133,12 @@ internal sealed class RowStorage(RowStoragePool? pool)
         {
             throw new ArgumentOutOfRangeException(nameof(ordinal));
         }
-        var offset = _count == 1 ? _singleOffset : _offsets![ordinal];
+        var offset = _count switch
+        {
+            1 => _singleOffset,
+            <= 8 => _inlineOffsets[ordinal],
+            _ => _offsets![ordinal]
+        };
         return offset == -1
             ? null
             : new ReadOnlySequence<byte>

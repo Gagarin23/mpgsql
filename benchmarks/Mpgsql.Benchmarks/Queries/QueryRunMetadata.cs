@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -15,8 +16,10 @@ internal static class QueryRunMetadata
         foreach (var directory in new[]
                  {
                      "src/Mpgsql.Protocol",
-                     "src/Mpgsql.Protocol.Client",
-                     "benchmarks/Mpgsql.Protocol.Benchmarks"
+                     "src/Mpgsql.Sessions",
+                     "src/Mpgsql",
+                     "src/Mpgsql.Multiplexing",
+                     "benchmarks/Mpgsql.Benchmarks"
                  })
         foreach (var file in Directory.EnumerateFiles(Path.Combine(root, directory), "*", SearchOption.AllDirectories))
         {
@@ -67,13 +70,17 @@ internal static class QueryRunMetadata
             AssembliesSha256 = new Dictionary<string, string>
             {
                 ["Mpgsql.Protocol"] = Hash(typeof(TypeOid).Assembly.Location),
-                ["Mpgsql.Protocol.Client"] = Hash(typeof(MpgsqlDataSource).Assembly.Location),
-                ["Mpgsql.Protocol.Benchmarks"] = Hash(typeof(QueryPacketBenchmarks).Assembly.Location),
+                ["Mpgsql.Sessions"] = Hash(typeof(MpgsqlMessageSession).Assembly.Location),
+                ["Mpgsql"] = Hash(typeof(MpgsqlDataSource).Assembly.Location),
+                ["Mpgsql.Multiplexing"] = Hash(typeof(MpgsqlMultiplexingDataSource).Assembly.Location),
+                ["Mpgsql.Benchmarks"] = Hash(typeof(QueryPacketBenchmarks).Assembly.Location),
                 ["Npgsql"] = Hash(typeof(NpgsqlDataSource).Assembly.Location)
             },
             NpgsqlVersion = typeof(NpgsqlDataSource)
                 .Assembly.GetName()
                 .Version?.ToString(),
+            NpgsqlPackageVersion = typeof(NpgsqlDataSource).Assembly
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion,
             AllocationScope = "Entire process: driver + in-process peer + timed runner work. No fixture subtraction.",
             ArrivalModel = "Closed loop: fixed sequential workers. Not a fixed arrival rate experiment.",
             Transport = transport ?? "Two System.IO.Pipelines Pipe endpoints per prewarmed session; no TCP/PostgreSQL/authentication.",
@@ -99,7 +106,7 @@ internal static class QueryRunMetadata
                 }
             }
         }
-        throw new DirectoryNotFoundException("Run the query load runner from the Mpgsql.Protocol repository.");
+        throw new DirectoryNotFoundException("Run the query load runner from the Mpgsql repository.");
     }
     private static string Hash(string file)
     {

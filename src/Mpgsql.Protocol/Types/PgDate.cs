@@ -15,11 +15,13 @@ public readonly record struct PgDate(int DaysSinceEpoch)
     }
     public DateOnly ToDateOnly()
     {
-        var day = (long)DaysSinceEpoch + EpochDayNumber;
-        if (!IsFinite || day < 0 || day > DateOnly.MaxValue.DayNumber)
+        // Adding the epoch can wrap only into a negative Int32. Its unsigned
+        // value is still outside DateOnly's range, including both infinities.
+        var day = unchecked(DaysSinceEpoch + EpochDayNumber);
+        if ((uint)day > (uint)DateOnly.MaxValue.DayNumber)
         {
             throw new OverflowException("The PostgreSQL date is outside DateOnly's range.");
         }
-        return DateOnly.FromDayNumber((int)day);
+        return DateOnly.FromDayNumber(day);
     }
 }

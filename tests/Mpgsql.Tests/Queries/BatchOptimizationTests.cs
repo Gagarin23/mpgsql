@@ -146,11 +146,12 @@ public sealed class BatchOptimizationTests
             .Sync()
             .Write(expected);
         Assert.Equal(expected.WrittenSpan.ToArray(), await ThroughSync(wire));
-        await wire.WriteAsync(Join(Query(11), Ready()));
+        var writing = wire.WriteAsync(Join(Query(11), Ready()));
         await using var reader = await opening.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         Assert.True(await reader.ReadAsync(TestContext.Current.CancellationToken));
         Assert.Equal(11, reader.GetInt64(0));
         Assert.False(await reader.NextResultAsync(TestContext.Current.CancellationToken));
+        await writing;
         await command.DisposeAsync();
         Assert.Empty(parameters);
     }
@@ -163,7 +164,9 @@ public sealed class BatchOptimizationTests
         await using var source = new MpgsqlDataSource(_ => ValueTask.FromResult(wire.Session), (_, _) => ValueTask.CompletedTask);
         await using var connection = await source.OpenConnectionAsync(TestContext.Current.CancellationToken);
         await using var batch = connection.CreateBatch();
-        var first = new MpgsqlBatchCommand("select $1::bigint[]");
+        // This test coordinates a background encoder and disposal. Keep that
+        // duplex path selected rather than blocking its own thread in inline encoding.
+        var first = new MpgsqlBatchCommand("select $1::bigint[] /*" + new string('x', 64 * 1024) + "*/");
         first.Parameters.Add(MpgsqlParameterValue.Int64Array(input.Memory));
         batch.BatchCommands.Add(first);
         var second = new MpgsqlBatchCommand("select $1::bigint");

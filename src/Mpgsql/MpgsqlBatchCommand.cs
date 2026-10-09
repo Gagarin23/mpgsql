@@ -2,6 +2,7 @@ using System.Data;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
 using Mpgsql.Internal;
+using Mpgsql.Protocol;
 
 namespace Mpgsql;
 
@@ -11,6 +12,7 @@ public sealed class MpgsqlBatchCommand : DbBatchCommand
     internal MpgsqlBatch? Owner;
     internal MpgsqlPreparedStatement? Statement;
     private string _sql = "";
+    private int _sqlCStringLength;
     public MpgsqlBatchCommand()
     {
         Parameters = new MpgsqlParameterCollection(Gate, CheckMutable, () => Statement is not null);
@@ -34,6 +36,7 @@ public sealed class MpgsqlBatchCommand : DbBatchCommand
                     throw new InvalidOperationException("Call UnprepareAsync before changing SQL.");
                 }
                 _sql = value ?? "";
+                _sqlCStringLength = 0;
             }
         }
     }
@@ -74,9 +77,13 @@ public sealed class MpgsqlBatchCommand : DbBatchCommand
     internal QueryDefinition Snapshot()
     {
         var query = new QueryDefinition(_sql, Parameters.Snapshot(), PreparedStatement: Statement);
+        if (Statement is null && _sqlCStringLength == 0)
+        {
+            _sqlCStringLength = WireEncoding.CStringLength(_sql);
+        }
         return query with
         {
-            EncodedSize = query.Measure()
+            EncodedSize = query.Measure(_sqlCStringLength)
         };
     }
 }

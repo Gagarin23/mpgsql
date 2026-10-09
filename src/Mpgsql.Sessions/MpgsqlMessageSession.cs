@@ -50,7 +50,7 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
     private readonly Task _receiveTask;
     private readonly Queue<MpgsqlQueryBatch> _responses = new Queue<MpgsqlQueryBatch>();
 
-    private readonly RowStoragePool _rows = new RowStoragePool();
+    private readonly RowStoragePool _rows = new RowStoragePool(singleRenter: true);
 
     // Only admitted preparations and confirmed server statements require strong ownership.
     private readonly ConcurrentDictionary<string, MpgsqlPreparedStatement> _statements = new ConcurrentDictionary<string, MpgsqlPreparedStatement>(StringComparer.Ordinal);
@@ -67,6 +67,8 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
 
     private bool _claimed;
     private MpgsqlQueryBatch? _collecting;
+    private volatile bool _adoReceiveHandoff;
+    private bool _adoSession;
     private int _completedNotificationCount;
     private long _copiedRows;
     private int _disposed;
@@ -85,7 +87,7 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
 
     private MpgsqlMessageSession(
         PipeReader input, PipeWriter output,
-        CancellationToken lifetimeToken, SocketTransport? transport
+        CancellationToken lifetimeToken, SocketTransport? transport, bool adoSession = false
     )
     {
         ArgumentNullException.ThrowIfNull(input);
@@ -94,6 +96,9 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
         _output = output;
         _lifetime = CancellationTokenSource.CreateLinkedTokenSource(lifetimeToken);
         _transport = transport;
+        _adoSession = adoSession;
+        if (adoSession)
+            _adoRow = new BorrowedRow();
         if (transport is not null)
         {
             _rowBudget = new RowBufferBudget(8 * 1024 * 1024);
@@ -106,9 +111,13 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
                 _notices.Enqueue(notice);
             }
         }
+        if (adoSession)
+            InstallAdoLifetimeWake();
         _controlTask = ControlLoopAsync();
         _writeTask = WriteLoopAsync();
-        _receiveTask = ReceiveLoopAsync();
+        _receiveTask = adoSession ? Task.CompletedTask : ReceiveLoopAsync();
+        if (adoSession)
+            InstallAdoIdleMonitor();
     }
 
     internal bool IsHealthy
@@ -140,6 +149,7 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
             lock (_gate)
             {
                 return _failure is null && _disposed == 0 && !_lifetime.IsCancellationRequested
+                       && !(_adoSession && _adoReadCompleted)
                        && _transactionStatus == TransactionStatus.Idle;
             }
         }
@@ -162,7 +172,7 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
     /// <summary>Faults on transport/protocol failure; completes normally on disposal.</summary>
     public Task Completion => _completion.Task;
 
-    internal long CopiedRowBytes => Interlocked.Read(ref _copiedRows) + Interlocked.Read(ref _frames.CopiedRowBytes);
+    internal long CopiedRowBytes => Volatile.Read(ref _copiedRows) + Volatile.Read(ref _frames.CopiedRowBytes);
 
     public async ValueTask DisposeAsync()
     {
@@ -176,10 +186,12 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
         }
         MpgsqlQueryBatch[] batches;
         MpgsqlPreparedStatement[] statements;
+        AdoCursor? cursor;
         var error = new ObjectDisposedException(nameof(MpgsqlMessageSession));
         lock (_gate)
         {
             batches = [.. _batches];
+            cursor = _adoCursor;
             statements = [.. _statements.Values, .. _localStatements.Select(pair => pair.Key)];
             _statements.Clear();
             _localStatements.Clear();
@@ -194,12 +206,38 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
             batch.Fail(error);
             batch.ReleaseRegistration();
         }
+        cursor?.Fail(error);
         _lifetime.Cancel();
-        // ReadAsync/FlushAsync already use this token. Calling CancelPending* after a stream
-        // adapter concurrently completed can touch its disposed internal cancellation source.
+        if (_adoSession)
+        {
+            await StopAdoIdleMonitorAsync().ConfigureAwait(false);
+            _cancellations.Writer.TryComplete();
+            foreach (var batch in batches)
+                await batch.InvalidateReaderFromOwner().ConfigureAwait(false);
+            if (cursor is not null)
+                await cursor.InvalidateFromOwner().ConfigureAwait(false);
+            Task drain;
+            lock (_gate)
+                drain = _adoDraining
+                    ? (_adoDrainIdle ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).Task
+                    : Task.CompletedTask;
+            await drain.ConfigureAwait(false);
+        }
+        // General reads and output Flush use this token. ADO's session registration
+        // wakes its sole input owner and is detached before completing that endpoint.
+        if (_adoInlineWriting)
+            await WaitForInlineWriterAsync().ConfigureAwait(false);
         await _receiveTask.ConfigureAwait(false);
         await _writeTask.ConfigureAwait(false);
         await _controlTask.ConfigureAwait(false);
+        if (_adoSession)
+        {
+            await ObservePendingAdoInputAsync().ConfigureAwait(false);
+            await _adoLifetimeWake.DisposeAsync().ConfigureAwait(false);
+            ReleaseAdoRow();
+            _frames.Dispose();
+            await _input.CompleteAsync(_failure).ConfigureAwait(false);
+        }
         _completion.TrySetResult();
         _lifetime.Dispose();
         _transport?.Dispose();
@@ -263,12 +301,16 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
         lock (_gate)
         {
             ThrowIfStopped();
+            if (_adoCursor is not null)
+                throw new InvalidOperationException("An ADO cursor already owns this session.");
             var batch = new MpgsqlQueryBatch
             (
                 this,
                 requestToken
             );
             _batches.Add(batch);
+            if (_adoSession)
+                StopAdoIdleOwner();
             return batch;
         }
     }
@@ -315,11 +357,8 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
     }
     internal void RecordRowCopy(long size)
     {
-        Interlocked.Add
-        (
-            ref _copiedRows,
-            size
-        );
+        // Only the receive loop records copies; observers need publication, not an atomic RMW.
+        Volatile.Write(ref _copiedRows, _copiedRows + size);
     }
     internal void ScheduleDiscard(MpgsqlQueryBatch batch)
     {
@@ -335,6 +374,8 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
         lock (_gate)
         {
             _batches.Remove(batch);
+            if (_adoSession)
+                _adoIdleSince = Environment.TickCount64;
         }
     }
 
@@ -364,7 +405,7 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
         }
     }
 
-    internal ValueTask SendPrepareAsync(MpgsqlQueryBatch batch, MpgsqlPreparedStatement statement)
+    internal ValueTask SendPrepareAsync(IQueryGroup batch, MpgsqlPreparedStatement statement)
     {
         lock (_gate)
         {
@@ -407,10 +448,11 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
     // The upper API owns the complete boundary. Admit query bytes and its mandatory Sync as
     // one FIFO work item, retaining independent logical-cancellation and delivery barriers.
     internal OutboundWork SendExecution(
-        MpgsqlQueryBatch batch, QueryDefinition single,
+        IQueryGroup batch, QueryDefinition single,
         QueryDefinition[]? queries
     )
     {
+        long encodedBytes = 5; // One Sync follows every exclusive ADO execution.
         if (queries is null)
         {
             if (single.EncodedSize == 0)
@@ -420,6 +462,7 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
                     EncodedSize = single.Measure()
                 };
             }
+            encodedBytes += single.EncodedSize;
         }
         else
         {
@@ -435,8 +478,11 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
                             .Measure()
                     };
                 }
+                encodedBytes += queries[i].EncodedSize;
             }
         }
+        OutboundWork work;
+        bool inline;
         lock (_gate)
         {
             CheckSend(batch);
@@ -456,12 +502,26 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
                     }
                 }
             }
-            var work = queries is null ? new OutboundWork(batch, single) : new OutboundWork(batch, queries, true);
+            work = queries is null ? new OutboundWork(batch, single) : new OutboundWork(batch, queries, true);
+            inline = _adoSession && encodedBytes < 65536 && (queries?.Length ?? 1) < 256
+                && _pendingAdoWrites == 0 && !_adoInlineWriting && !_backgroundOutputActive;
             batch.SyncQueued();
-            _ = QueueWrite(work);
+            AdmitWriterWork(work);
+            if (inline)
+            {
+                _adoInlineWriting = true;
+                // The measured prepost win is limited to small batches. Single-query
+                // posting before output regressed latency and retains normal read order.
+                if (queries is { Length: > 1 })
+                    ArmAdoInput();
+            }
+            else
+                _writes.Writer.TryWrite(work);
             _collecting = null;
-            return work;
         }
+        if (inline)
+            _ = WriteSmallAdoAsync(work);
+        return work;
     }
 
     internal OutboundWork SendGroupedExecution(
@@ -504,7 +564,7 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
         }
     }
 
-    internal ValueTask SendCloseAsync(MpgsqlQueryBatch batch, MpgsqlPreparedStatement statement)
+    internal ValueTask SendCloseAsync(IQueryGroup batch, MpgsqlPreparedStatement statement)
     {
         lock (_gate)
         {
@@ -518,10 +578,17 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
         }
     }
 
-    private void CheckSend(MpgsqlQueryBatch batch)
+    private void CheckSend(IQueryGroup batch)
     {
         ThrowIfStopped();
         batch.ThrowForSend();
+        if (batch is AdoCursor cursor)
+        {
+            if (!ReferenceEquals(_adoCursor, cursor))
+                throw new InvalidOperationException("The ADO cursor no longer owns this session.");
+        }
+        else if (_adoCursor is not null)
+            throw new InvalidOperationException("An ADO cursor already owns this session.");
         if (_collecting is not null && _collecting != batch)
         {
             throw new InvalidOperationException("Call SendSyncAsync on the collecting group before sending another group.");
@@ -540,33 +607,30 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
     // Called with the session gate held, after validation and statement admission.
     private ValueTask QueueWrite(OutboundWork work)
     {
-        if (_collecting is null)
-        {
-            _collecting = work.ResponseBatch;
-            _responses.Enqueue(work.ResponseBatch);
-        }
-        work.Batch.AddWrite(work);
+        AdmitWriterWork(work);
         _writes.Writer.TryWrite(work);
         return new ValueTask(work.Completion);
     }
 
-    internal ValueTask SendSyncAsync(MpgsqlQueryBatch batch)
+    internal ValueTask SendSyncAsync(IQueryGroup batch)
     {
         lock (_gate)
         {
             ThrowIfStopped();
+            if (batch is AdoCursor cursor && !ReferenceEquals(_adoCursor, cursor))
+                throw new InvalidOperationException("The ADO cursor no longer owns this session.");
             if (_collecting is not null && _collecting != batch)
             {
                 throw new InvalidOperationException("Another group owns the collecting boundary.");
             }
             batch.SyncQueued();
-            if (_collecting is null)
+            if (_collecting is null && batch is MpgsqlQueryBatch responseBatch)
             {
-                _responses.Enqueue(batch);
+                _responses.Enqueue(responseBatch);
             }
             _collecting = null;
             var work = new OutboundWork(batch);
-            batch.AddWrite(work);
+            AddPendingWriterWork(work);
             _writes.Writer.TryWrite(work);
             return new ValueTask(work.Completion);
         }
@@ -589,7 +653,7 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
             }
             _collecting = null;
             var work = group.SyncWork;
-            batch.AddWrite(work);
+            AddPendingWriterWork(work);
             _writes.Writer.TryWrite(work);
         }
     }
@@ -612,6 +676,8 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
                        .Reader.WaitToReadAsync()
                        .ConfigureAwait(false))
             {
+                if (_adoInlineWriting)
+                    await WaitForInlineWriterAsync().ConfigureAwait(false);
                 long bytes = 0;
                 var operations = 0;
                 OutboundWork? inputFlush = null;
@@ -633,21 +699,24 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
                     }
                     if (!work.TryStart())
                     {
-                        work.Batch.RemoveWrite(work);
+                        ReleaseWriterWork(work);
                         continue;
                     }
                     try
                     {
+                        if (_adoSession)
+                            await WaitForAdoIdleOwnerAsync().ConfigureAwait(false);
                         lock (_gate)
                         {
                             ThrowIfStopped();
+                            BeginBackgroundOutput();
                         }
                         if (work.IsSync)
                         {
                             FrontendMessage
                                 .Sync()
                                 .Write(_output);
-                            work.Batch.SealPublished();
+                            work.Group.SealPublished();
                             bytes += 5;
                             operations++;
                         }
@@ -656,13 +725,13 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
                             var complete = true;
                             try
                             {
-                                if (!work.HasSync || !work.Batch.RequestToken.IsCancellationRequested)
+                                if (!work.HasSync || !work.CancellationRequested)
                                 {
                                     complete = WriteQueryGroup(work, ref bytes, ref operations);
                                 }
                             }
                             catch (OperationCanceledException) when (work.HasSync &&
-                                                                     work.Batch.RequestToken.IsCancellationRequested && !_lifetime.IsCancellationRequested)
+                                                                     work.CancellationRequested && !_lifetime.IsCancellationRequested)
                             {
                                 /* The encoder has stopped using inputs; its Sync still follows published queries. */
                             }
@@ -682,21 +751,21 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
                                 FrontendMessage
                                     .Sync()
                                     .Write(_output);
-                                work.Batch.SealPublished();
+                                work.Group.SealPublished();
                                 bytes += 5;
                                 operations++;
                             }
                         }
                         else
                         {
-                            work.Batch.RequestToken.ThrowIfCancellationRequested();
+                            work.Group.RequestToken.ThrowIfCancellationRequested();
                             work.Write(_output.GetSpan(work.Size));
-                            work.Batch.RequestToken.ThrowIfCancellationRequested();
+                            work.Group.RequestToken.ThrowIfCancellationRequested();
                             lock (_gate)
                             {
                                 ThrowIfStopped();
-                                work.Batch.RegisterOperation(work.Kind, work.Statement);
-                                if (work.ResponseBatch != work.Batch)
+                                work.Group.RegisterOperation(work.Kind, work.Statement);
+                                if (work.ResponseGroup != work.Group)
                                 {
                                     work.ResponseBatch.SyncGroup.RegisterPublished(work.Batch);
                                 }
@@ -708,15 +777,15 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
                         work.Published();
                         pending.Add(work);
                     }
-                    catch (OperationCanceledException error) when (!work.IsSync && work.Batch.RequestToken.IsCancellationRequested && !_lifetime.IsCancellationRequested)
+                    catch (OperationCanceledException error) when (!work.IsSync && work.CancellationRequested && !_lifetime.IsCancellationRequested)
                     {
                         work.Complete(error);
-                        work.Batch.RemoveWrite(work);
+                        ReleaseWriterWork(work);
                     }
                     catch (Exception error)
                     {
                         work.Complete(Fail(error));
-                        work.Batch.RemoveWrite(work);
+                        ReleaseWriterWork(work);
                     }
                     if (bytes >= 65536 || operations >= 256)
                     {
@@ -725,6 +794,7 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
                 }
                 if (pending.Count == 0 && bytes == 0)
                 {
+                    EndBackgroundOutput();
                     continue;
                 }
                 try
@@ -758,9 +828,10 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
                 {
                     foreach (var work in pending)
                     {
-                        work.Batch.RemoveWrite(work);
+                        ReleaseWriterWork(work);
                     }
                     pending.Clear();
+                    EndBackgroundOutput();
                 }
             }
         }
@@ -773,14 +844,20 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
         }
         finally
         {
-            if (continuation is { } remaining)
+            try
             {
-                remaining.Complete(_failure ?? new ObjectDisposedException(nameof(MpgsqlMessageSession)));
-                remaining.Batch.RemoveWrite(remaining);
+                if (continuation is { } remaining)
+                {
+                    remaining.Complete(_failure ?? new ObjectDisposedException(nameof(MpgsqlMessageSession)));
+                    ReleaseWriterWork(remaining);
+                }
+                if (_adoInlineWriting)
+                    await WaitForInlineWriterAsync().ConfigureAwait(false);
+                await _output
+                    .CompleteAsync(_failure)
+                    .ConfigureAwait(false);
             }
-            await _output
-                .CompleteAsync(_failure)
-                .ConfigureAwait(false);
+            finally { EndBackgroundOutput(); }
         }
     }
 
@@ -791,7 +868,8 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
     {
         while (work.TryGetQuery(out var query))
         {
-            work.Batch.RequestToken.ThrowIfCancellationRequested();
+            if (work.CancellationRequested)
+                throw new OperationCanceledException(work.Group.RequestToken);
             if (query.PreparedStatement is { } statement)
             {
                 QueryPacket.WritePreparedMeasured(statement.Name, query.Parameters.Span, _output.GetSpan(query.EncodedSize), query.EncodedSize);
@@ -800,11 +878,12 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
             {
                 QueryPacket.WriteMeasured(query.Sql, query.Parameters.Span, _output.GetSpan(query.EncodedSize), query.EncodedSize);
             }
-            work.Batch.RequestToken.ThrowIfCancellationRequested();
+            if (work.CancellationRequested)
+                throw new OperationCanceledException(work.Group.RequestToken);
             lock (_gate)
             {
                 ThrowIfStopped();
-                work.Batch.RegisterOperation(query.PreparedStatement is null ? MessageOperationKind.Query : MessageOperationKind.PreparedQuery, query.PreparedStatement);
+                work.Group.RegisterOperation(query.PreparedStatement is null ? MessageOperationKind.Query : MessageOperationKind.PreparedQuery, query.PreparedStatement);
                 _output.Advance(query.EncodedSize);
             }
             work.QueryPublished();
@@ -840,6 +919,12 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
                     .ReadAsync(_lifetime.Token)
                     .ConfigureAwait(false);
                 var input = read.Buffer;
+                if (_adoReceiveHandoff)
+                {
+                    // Transfer bytes without acknowledging any of the outstanding read.
+                    _input.AdvanceTo(input.Start, input.Start);
+                    return;
+                }
                 try
                 {
                     if (read.IsCanceled)
@@ -980,11 +1065,14 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
         }
         finally
         {
-            _frames.Dispose();
-            _cancellations.Writer.TryComplete();
-            await _input
-                .CompleteAsync(Volatile.Read(ref _disposed) == 0 ? failure : null)
-                .ConfigureAwait(false);
+            if (!_adoReceiveHandoff)
+            {
+                _frames.Dispose();
+                _cancellations.Writer.TryComplete();
+                await _input
+                    .CompleteAsync(Volatile.Read(ref _disposed) == 0 ? failure : null)
+                    .ConfigureAwait(false);
+            }
         }
     }
 
@@ -1035,6 +1123,7 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
     {
         MpgsqlQueryBatch[] batches;
         MpgsqlPreparedStatement[] statements;
+        AdoCursor? cursor;
         lock (_gate)
         {
             if (_failure is not null)
@@ -1053,7 +1142,10 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
                 error = new MpgsqlServerException(diagnostics, null, null, error);
             }
             _failure = error;
+            if (_adoSession)
+                _adoIdleTimer?.Change(Timeout.Infinite, Timeout.Infinite);
             batches = [.. _batches.Where(batch => !batch.Completion.IsCompleted)];
+            cursor = _adoCursor;
             statements = [.. _statements.Values, .. _localStatements.Select(pair => pair.Key)];
             _statements.Clear();
             _localStatements.Clear();
@@ -1068,6 +1160,10 @@ public sealed partial class MpgsqlMessageSession : IAsyncDisposable
             batch.Fail(error);
             ReleaseBatch(batch);
         }
+        // Notify the cursor outside the session gate; its failure cleanup
+        // completes writer and statement lifecycles.
+        if (cursor is not null && !cursor.ProtocolCompleted)
+            cursor.Fail(error);
         _completion.TrySetException(error);
         _lifetime.Cancel();
         return error;

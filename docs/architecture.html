@@ -115,31 +115,33 @@
 <nav><a href="upper-api.md">Верхний API</a><a href="extended-query-protocol.md">Extended Query</a><a
         href="architecture-core.html">Нижний пакет</a></nav>
 <h1>Mpgsql: четыре проекта</h1>
-<p>ADO.NET и мультиплексор используют общий протокольный движок. Выберите слой, чтобы увидеть его ответственность и
+<p>ADO.NET использует отдельный cursor в Sessions; явный pipeline и мультиплексор сохраняют свои batch/readers.
+    Codecs и транспорт общие. Выберите слой, чтобы увидеть его ответственность и
     границы владения.</p>
 <div class="diagram">
-    <button aria-pressed="true" data-layer="client"><strong>Mpgsql.Client</strong>DbConnection · DbCommand ·
+    <button aria-pressed="true" data-layer="client"><strong>Mpgsql</strong>DbConnection · DbCommand ·
         DbDataReader<br><span class="small">Эксклюзивный пул, транзакции, DbBatch</span></button>
     <button aria-pressed="false" data-layer="mux"><strong>Mpgsql.Multiplexing</strong>Независимые запросы · backpressure<br><span
             class="small">In-flight slots, автоматические Sync-группы</span></button>
     <div class="arrow">↘ &nbsp; ↙</div>
     <button aria-pressed="false" class="shared" data-layer="sessions"><strong>Mpgsql.Sessions</strong>TCP/TLS ·
         authentication · CancelRequest<br><span
-                class="small">Явный pipeline, prepared handles, буферы результатов</span></button>
+                class="small">ADO cursor, явный pipeline, prepared handles</span></button>
     <div class="arrow">↓</div>
-    <button aria-pressed="false" class="shared" data-layer="core"><strong>Mpgsql</strong>Независимый
+    <button aria-pressed="false" class="shared" data-layer="core"><strong>Mpgsql.Protocol</strong>Независимый
         NuGet-пакет<br><span class="small">Protocol · converters · PostgreSQL types · binary COPY</span></button>
 </div>
 <article aria-live="polite" class="panel" id="details"></article>
-<footer>Client и Multiplexing не зависят друг от друга. Sessions зависит от Mpgsql. Все три верхних проекта непакуемые;
-    пространства имён сохраняют префикс Mpgsql.
+<footer>Mpgsql и Multiplexing не зависят друг от друга. Sessions зависит от Mpgsql.Protocol.
+    Пакет Mpgsql включает Sessions.dll; Sessions и Multiplexing непакуемые. Пространства имён сохраняются.
+    Этап выделения ADO cursor заканчивается проверками корректности до бенчмарков; ускорение не заявляется.
 </footer>
 <script>
     const layers = {
         client: {
             name: 'ADO.NET и эксклюзивное владение',
-            body: 'Одно выполнение или reader удерживает физическую сессию до ReadyForQuery и завершения CancelRequest. Команды и batch можно менять и запускать повторно после завершения. Prepare и транзакции привязаны к открытому соединению. В пул возвращается только здоровая idle-сессия; автоматического reset SQL нет.',
-            links: [['MpgsqlConnection', '../src/Mpgsql.Client/MpgsqlConnection.cs'], ['MpgsqlCommand', '../src/Mpgsql.Client/MpgsqlCommand.cs'], ['MpgsqlDataReader', '../src/Mpgsql.Client/MpgsqlDataReader.cs'], ['QueryExecution', '../src/Mpgsql.Client/Internal/QueryExecution.cs']]
+            body: 'Публичный Db* и типизированный ValueTask API сохраняется. QueryExecution удерживает эксклюзивную сессию, отмену и recovery до ReadyForQuery и завершения CancelRequest; результат читает отдельный AdoCursor из Sessions. Provider не создаёт общий MpgsqlQueryBatch/MpgsqlResultReader. Команды и batch повторно выполняются после завершения; старый public reader остаётся закрытым. В пул возвращается только здоровая idle-сессия без автоматического reset SQL.',
+            links: [['MpgsqlConnection', '../src/Mpgsql/MpgsqlConnection.cs'], ['MpgsqlCommand', '../src/Mpgsql/MpgsqlCommand.cs'], ['MpgsqlDataReader', '../src/Mpgsql/MpgsqlDataReader.cs'], ['QueryExecution', '../src/Mpgsql/Internal/QueryExecution.cs']]
         },
         mux: {
             name: 'Независимые запросы и общий Sync',
@@ -148,13 +150,13 @@
         },
         sessions: {
             name: 'Общий протокольный движок',
-            body: 'Самостоятельный protocol-3.0 startup с TLS и trust/cleartext/MD5/SCRAM-SHA-256. Raw API сохраняет явный SendSyncAsync и несколько закрытых pipeline-групп в полёте. ErrorResponse восстанавливается только через Sync/ReadyForQuery. Reader держит borrowed row bytes; связь с владельцем выполнения используется при завершении, без дополнительного диспетчера на каждой строке.',
-            links: [['MpgsqlMessageSession', '../src/Mpgsql.Sessions/MpgsqlMessageSession.cs'], ['MpgsqlQueryBatch', '../src/Mpgsql.Sessions/MpgsqlQueryBatch.cs'], ['MpgsqlResultReader', '../src/Mpgsql.Sessions/MpgsqlResultReader.cs'], ['SocketTransport', '../src/Mpgsql.Sessions/Internal/SocketTransport.cs']]
+            body: 'AdoCursor объединяет operation response, result, row и movement state одного ADO выполнения. Полная строка заимствует PipeReader buffer до движения/закрытия. Codecs, BorrowedRow, frame assembly и transport input общие; IQueryGroup разделяет только writer control без per-row dispatcher. Явный pipeline и Mux сохраняют MpgsqlQueryBatch/MpgsqlResultReader, фоновый receive и owned-row очереди. Startup и ErrorResponse recovery через Sync/ReadyForQuery сохраняются. State pooling и новый transport/bulk API не добавляются.',
+            links: [['AdoCursor', '../src/Mpgsql.Sessions/Internal/AdoCursor.cs'], ['IQueryGroup', '../src/Mpgsql.Sessions/Internal/IQueryGroup.cs'], ['MpgsqlMessageSession', '../src/Mpgsql.Sessions/MpgsqlMessageSession.cs'], ['MpgsqlQueryBatch', '../src/Mpgsql.Sessions/MpgsqlQueryBatch.cs'], ['MpgsqlResultReader', '../src/Mpgsql.Sessions/MpgsqlResultReader.cs']]
         },
         core: {
             name: 'Нижний пакет без транспорта и верхнего API',
-            body: 'Полные wire-кодеки, PostgreSQL-типы и преобразование scalar/array/binary COPY payload. Пакет не зависит от Sessions, Client, Multiplexing или System.IO.Pipelines. Конвертеры сохраняют jsonb как Memory<byte> и массивы как ReadOnlyMemory; внешняя длина/NULL принадлежат framing протокола.',
-            links: [['Проект Mpgsql', '../src/Mpgsql/Mpgsql.csproj'], ['Подробная схема', 'architecture-core.html']]
+            body: 'Полные wire-кодеки, PostgreSQL-типы и преобразование scalar/array/binary COPY payload. Пакет не зависит от Sessions, ADO.NET Mpgsql, Multiplexing или System.IO.Pipelines. Конвертеры сохраняют jsonb как Memory<byte> и массивы как ReadOnlyMemory; внешняя длина/NULL принадлежат framing протокола.',
+            links: [['Проект Mpgsql.Protocol', '../src/Mpgsql.Protocol/Mpgsql.Protocol.csproj'], ['Подробная схема', 'architecture-core.html']]
         }
     };
 

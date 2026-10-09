@@ -19,27 +19,27 @@ public sealed class OwnedRowLeaseTests
         );
     }
 
-    [Fact]
-    public async Task OldCopiesCannotReleaseOrReadAReusedStorageGeneration()
+    [Theory, InlineData(1), InlineData(2), InlineData(8), InlineData(9)]
+    public async Task OldCopiesCannotReleaseOrReadAReusedStorageGeneration(int fields)
     {
         await using var wire = new ScriptedSession();
         await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
         var pool = new RowStoragePool();
         var budget = new RowBufferBudget(28);
-        var one = Message(Int64(11));
+        var one = Message(Enumerable.Repeat(Int64(11), fields).ToArray());
         Assert.True(await budget.ReserveAsync(one.Payload.Length, batch, TestContext.Current.CancellationToken));
         var row = pool.Rent(one, null, budget);
         var stale = row;
         row.Dispose();
         Assert.Equal(0, budget.Used);
-        var two = Message(Int64(22));
+        var two = Message(Enumerable.Repeat(Int64(22), fields).ToArray());
         Assert.True(await budget.ReserveAsync(two.Payload.Length, batch, TestContext.Current.CancellationToken));
         var next = pool.Rent(two, null, budget);
         stale.Dispose();
         row.Dispose();
         Assert.Equal(two.Payload.Length, budget.Used);
-        Assert.Throws<ObjectDisposedException>(() => stale[0]);
-        Assert.Equal(Int64(22), next[0]!.Value.ToArray());
+        Assert.Throws<ObjectDisposedException>(() => stale[fields - 1]);
+        Assert.Equal(Int64(22), next[fields - 1]!.Value.ToArray());
         next.Dispose();
         next.Dispose();
         Assert.Equal(0, budget.Used);
@@ -92,7 +92,7 @@ public sealed class OwnedRowLeaseTests
         }
     }
 
-    [Theory, InlineData(0), InlineData(1), InlineData(2), InlineData(8), InlineData(16), InlineData(129)]
+    [Theory, InlineData(0), InlineData(1), InlineData(2), InlineData(8), InlineData(9), InlineData(16), InlineData(129)]
     public void ReusedStorageHandlesChangingFieldCountsAndNullEmptyValues(int fields)
     {
         var pool = new RowStoragePool();
@@ -103,8 +103,12 @@ public sealed class OwnedRowLeaseTests
             foreach (var count in new[]
                      {
                          fields,
+                         8,
+                         9,
                          1,
                          0,
+                         9,
+                         8,
                          fields
                      })
             {
@@ -156,6 +160,39 @@ public sealed class OwnedRowLeaseTests
         using var next = pool.Rent(Message(Int64(7)), null, null);
         Assert.Equal(Int64(7), next[0]!.Value.ToArray());
         owner.Dispose();
+    }
+
+    [Theory, InlineData(2), InlineData(8), InlineData(9)]
+    public async Task InvalidInlineAndRentedRowsLeaveFrameAndBudgetWithCaller(int fields)
+    {
+        await using var wire = new ScriptedSession();
+        await using var batch = wire.Session.CreateBatch(TestContext.Current.CancellationToken);
+        var pool = new RowStoragePool();
+        var valid = Message(Enumerable.Repeat(Int64(7), fields).ToArray());
+        var budget = new RowBufferBudget(valid.Payload.Length * 2);
+        var truncated = valid.Payload.Slice(0, valid.Payload.Length - 1).ToArray();
+        var negative = valid.Payload.ToArray();
+        negative.AsSpan(2, 4).Fill(0xff);
+        negative[5] = 0xfe; // -2 is not the SQL NULL marker.
+        var trailing = valid.Payload.ToArray().Concat(new byte[] { 99 }).ToArray();
+        foreach (var bytes in new[] { truncated, negative, trailing })
+        {
+            var owner = new CountingOwner(bytes);
+            Assert.True(await budget.ReserveAsync(bytes.Length, batch, TestContext.Current.CancellationToken));
+            var malformed = new BackendMessage((byte)'D', BackendMessageKind.DataRow, new ReadOnlySequence<byte>(owner.Memory), fields);
+            Assert.Throws<InvalidDataException>(() => pool.Rent(malformed, owner, budget));
+            Assert.Equal(0, owner.Disposals);
+            Assert.Equal(bytes.Length, budget.Used);
+            owner.Dispose();
+            budget.Release(bytes.Length);
+            Assert.Equal(0, budget.Used);
+
+            Assert.True(await budget.ReserveAsync(valid.Payload.Length, batch, TestContext.Current.CancellationToken));
+            var next = pool.Rent(valid, null, budget);
+            Assert.Equal(Int64(7), next[fields - 1]!.Value.ToArray());
+            next.Dispose();
+            Assert.Equal(0, budget.Used);
+        }
     }
 
     [Fact]

@@ -73,15 +73,25 @@ internal static class BinaryPayload
         }
     }
 
-    // For small split fixed fields only; never consolidates a variable-sized payload.
+    // Each fixed-field codec validates its exact payload length. Keep a contiguous
+    // value on that path; stack storage is needed only for fragmented fields.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static T ReadSmall<T, TCodec>(ReadOnlySequence<byte> payload, int size)
         where TCodec : struct, IBinaryCodec<T>
     {
-        RequireLength(payload.Length, size);
         if (payload.IsSingleSegment)
         {
             return TCodec.Read(payload.FirstSpan);
         }
+        return ReadSmallFragmented<T, TCodec>(payload, size);
+    }
+
+    // For small split fixed fields only; never consolidates a variable-sized payload.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static T ReadSmallFragmented<T, TCodec>(ReadOnlySequence<byte> payload, int size)
+        where TCodec : struct, IBinaryCodec<T>
+    {
+        RequireLength(payload.Length, size);
         Span<byte> bytes = stackalloc byte[20];
         payload.CopyTo(bytes[..size]);
         return TCodec.Read(bytes[..size]);

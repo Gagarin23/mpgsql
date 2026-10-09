@@ -10,9 +10,11 @@
         <Version>0.1.0-alpha.1</Version>
         <Title>Mpgsql: Minimalistic PostgreSQL driver</Title>
         <Description>Asynchronous ADO.NET provider for PostgreSQL with native TCP/TLS authentication, an exclusive connection pool, typed parameters and readers, reusable commands and batches, local transactions, and prepared statements.</Description>
-        <Authors>Mpgsql contributors</Authors>
+        <Authors>Belov Ilya and contributors</Authors>
         <PackageTags>postgresql;postgres;ado.net;database;driver;dotnet</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageIcon>mpgsql-icon.png</PackageIcon>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageProjectUrl>https://github.com/Gagarin23/mpgsql</PackageProjectUrl>
         <RepositoryUrl>https://github.com/Gagarin23/mpgsql</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
@@ -30,6 +32,7 @@
     </ItemGroup>
     <ItemGroup>
         <None Update="README.md" Pack="true" PackagePath="/"/>
+        <None Include="../../assets/branding/mpgsql-icon.png" Pack="true" PackagePath="/"/>
     </ItemGroup>
     <Target Name="IncludeSessionBuildOutput">
         <ItemGroup>

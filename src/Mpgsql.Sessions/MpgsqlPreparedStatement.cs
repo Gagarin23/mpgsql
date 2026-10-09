@@ -1,3 +1,4 @@
+using Mpgsql.Internal;
 using Mpgsql.Protocol;
 
 namespace Mpgsql;
@@ -7,10 +8,10 @@ public sealed class MpgsqlPreparedStatement : IDisposable
 {
     private readonly Lock _gate = new Lock();
     private readonly TaskCompletionSource _prepared = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-    private MpgsqlQueryBatch? _closeBatch;
+    private IQueryGroup? _closeBatch;
     private bool _closed;
     private bool _disposed;
-    private MpgsqlQueryBatch? _prepareBatch;
+    private IQueryGroup? _prepareBatch;
     private bool _prepareQueued;
     private bool _retired;
 
@@ -83,7 +84,7 @@ public sealed class MpgsqlPreparedStatement : IDisposable
         }
     }
 
-    internal void QueuePrepare(MpgsqlQueryBatch batch)
+    internal void QueuePrepare(IQueryGroup batch)
     {
         lock (_gate)
         {
@@ -97,7 +98,7 @@ public sealed class MpgsqlPreparedStatement : IDisposable
         }
     }
 
-    internal void ValidateExecution(MpgsqlQueryBatch batch, ReadOnlySpan<MpgsqlParameterValue> parameters)
+    internal void ValidateExecution(IQueryGroup batch, ReadOnlySpan<MpgsqlParameterValue> parameters)
     {
         lock (_gate)
         {
@@ -126,7 +127,7 @@ public sealed class MpgsqlPreparedStatement : IDisposable
         }
     }
 
-    internal bool QueueClose(MpgsqlQueryBatch batch)
+    internal bool QueueClose(IQueryGroup batch)
     {
         lock (_gate)
         {

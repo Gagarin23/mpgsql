@@ -141,15 +141,15 @@ internal static class ConcurrentComparison
         )
         {
             var assembly = context.Benchmarks;
-            var profile = assembly.GetType("Mpgsql.Protocol.Benchmarks.Queries.QueryLoadProfile", true)!.GetMethod("Find", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [profileName])!;
-            var driver = Enum.Parse(assembly.GetType("Mpgsql.Protocol.Benchmarks.Comparison.ComparisonDriver", true)!, "Mpgsql.Protocol");
-            var fixtureType = assembly.GetType("Mpgsql.Protocol.Benchmarks.Comparison.TcpComparisonFixture", true)!;
+            var profile = assembly.GetType("Mpgsql.Benchmarks.Queries.QueryLoadProfile", true)!.GetMethod("Find", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [profileName])!;
+            var driver = Enum.Parse(assembly.GetType("Mpgsql.Benchmarks.Comparison.ComparisonDriver", true)!, "Mpgsql");
+            var fixtureType = assembly.GetType("Mpgsql.Benchmarks.Comparison.TcpComparisonFixture", true)!;
             var pending = (Task)fixtureType.GetMethod("CreateAsync", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [driver, profile, groupSize, 1])!;
             await pending.ConfigureAwait(false);
             var fixture = pending
                 .GetType()
                 .GetProperty("Result")!.GetValue(pending)!;
-            var measure = assembly.GetType("Mpgsql.Protocol.Benchmarks.Comparison.TcpComparisonLoadRunner", true)!.GetMethod("MeasureAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
+            var measure = assembly.GetType("Mpgsql.Benchmarks.Comparison.TcpComparisonLoadRunner", true)!.GetMethod("MeasureAsync", BindingFlags.NonPublic | BindingFlags.Static)!;
             return new LoadRun(fixture, profile, measure);
         }
         internal async Task<JsonElement> MeasureAsync(int count, int sample)

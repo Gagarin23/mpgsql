@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Globalization;
 using Mpgsql.Types;
 
@@ -110,48 +111,49 @@ internal static class ResultValue
         };
     }
 
-    internal static object Read(MpgsqlResultReader reader, int ordinal)
+    // Result descriptions are validated as binary before the session publishes them.
+    internal static object Read(uint oid, ReadOnlySequence<byte> payload)
     {
-        return (TypeOid)reader.Columns.Span[ordinal].DataTypeOid switch
+        return (TypeOid)oid switch
         {
-            TypeOid.Boolean                                                                                                                => reader.GetFieldValue<bool>(ordinal),
-            TypeOid.Int16                                                                                                                  => reader.GetFieldValue<short>(ordinal),
-            TypeOid.Int32                                                                                                                  => reader.GetFieldValue<int>(ordinal),
-            TypeOid.Int64 or TypeOid.Money                                                                                                 => reader.GetFieldValue<long>(ordinal),
-            TypeOid.Oid                                                                                                                    => reader.GetFieldValue<uint>(ordinal),
-            TypeOid.Float32                                                                                                                => reader.GetFieldValue<float>(ordinal),
-            TypeOid.Float64                                                                                                                => reader.GetFieldValue<double>(ordinal),
-            TypeOid.Numeric                                                                                                                => reader.GetFieldValue<PgNumeric>(ordinal),
-            TypeOid.Uuid                                                                                                                   => reader.GetFieldValue<Guid>(ordinal),
-            TypeOid.Bytea                                                                                                                  => reader.GetFieldValue<ReadOnlyMemory<byte>>(ordinal),
-            TypeOid.Jsonb                                                                                                                  => reader.GetFieldValue<Memory<byte>>(ordinal),
-            TypeOid.Text or TypeOid.VarChar or TypeOid.BpChar or TypeOid.Name or TypeOid.Json or TypeOid.Xml                               => reader.GetFieldValue<string>(ordinal),
-            TypeOid.Date                                                                                                                   => reader.GetFieldValue<PgDate>(ordinal),
-            TypeOid.Time                                                                                                                   => reader.GetFieldValue<PgTime>(ordinal),
-            TypeOid.TimeTz                                                                                                                 => reader.GetFieldValue<PgTimeTz>(ordinal),
-            TypeOid.Timestamp                                                                                                              => reader.GetFieldValue<PgTimestamp>(ordinal),
-            TypeOid.TimestampTz                                                                                                            => reader.GetFieldValue<PgTimestampTz>(ordinal),
-            TypeOid.Interval                                                                                                               => reader.GetFieldValue<PgInterval>(ordinal),
-            TypeOid.Inet or TypeOid.Cidr                                                                                                   => reader.GetFieldValue<PgInet>(ordinal),
-            TypeOid.BooleanArray                                                                                                           => reader.GetFieldValue<ReadOnlyMemory<bool?>>(ordinal),
-            TypeOid.Int16Array                                                                                                             => reader.GetFieldValue<ReadOnlyMemory<short?>>(ordinal),
-            TypeOid.Int32Array                                                                                                             => reader.GetFieldValue<ReadOnlyMemory<int?>>(ordinal),
-            TypeOid.Int64Array or TypeOid.MoneyArray                                                                                       => reader.GetFieldValue<ReadOnlyMemory<long?>>(ordinal),
-            TypeOid.OidArray                                                                                                               => reader.GetFieldValue<ReadOnlyMemory<uint?>>(ordinal),
-            TypeOid.Float32Array                                                                                                           => reader.GetFieldValue<ReadOnlyMemory<float?>>(ordinal),
-            TypeOid.Float64Array                                                                                                           => reader.GetFieldValue<ReadOnlyMemory<double?>>(ordinal),
-            TypeOid.NumericArray                                                                                                           => reader.GetFieldValue<ReadOnlyMemory<PgNumeric?>>(ordinal),
-            TypeOid.UuidArray                                                                                                              => reader.GetFieldValue<ReadOnlyMemory<Guid?>>(ordinal),
-            TypeOid.ByteaArray                                                                                                             => reader.GetFieldValue<ReadOnlyMemory<ReadOnlyMemory<byte>?>>(ordinal),
-            TypeOid.JsonbArray                                                                                                             => reader.GetFieldValue<ReadOnlyMemory<Memory<byte>?>>(ordinal),
-            TypeOid.TextArray or TypeOid.VarCharArray or TypeOid.BpCharArray or TypeOid.NameArray or TypeOid.JsonArray or TypeOid.XmlArray => reader.GetFieldValue<ReadOnlyMemory<string?>>(ordinal),
-            TypeOid.DateArray                                                                                                              => reader.GetFieldValue<ReadOnlyMemory<PgDate?>>(ordinal),
-            TypeOid.TimeArray                                                                                                              => reader.GetFieldValue<ReadOnlyMemory<PgTime?>>(ordinal),
-            TypeOid.TimeTzArray                                                                                                            => reader.GetFieldValue<ReadOnlyMemory<PgTimeTz?>>(ordinal),
-            TypeOid.TimestampArray                                                                                                         => reader.GetFieldValue<ReadOnlyMemory<PgTimestamp?>>(ordinal),
-            TypeOid.TimestampTzArray                                                                                                       => reader.GetFieldValue<ReadOnlyMemory<PgTimestampTz?>>(ordinal),
-            TypeOid.IntervalArray                                                                                                          => reader.GetFieldValue<ReadOnlyMemory<PgInterval?>>(ordinal),
-            TypeOid.InetArray or TypeOid.CidrArray                                                                                         => reader.GetFieldValue<ReadOnlyMemory<PgInet?>>(ordinal),
+            TypeOid.Boolean                                                                                                                => FieldValueDecoder<bool>.Read(oid, payload),
+            TypeOid.Int16                                                                                                                  => FieldValueDecoder<short>.Read(oid, payload),
+            TypeOid.Int32                                                                                                                  => FieldValueDecoder<int>.Read(oid, payload),
+            TypeOid.Int64 or TypeOid.Money                                                                                                 => FieldValueDecoder<long>.Read(oid, payload),
+            TypeOid.Oid                                                                                                                    => FieldValueDecoder<uint>.Read(oid, payload),
+            TypeOid.Float32                                                                                                                => FieldValueDecoder<float>.Read(oid, payload),
+            TypeOid.Float64                                                                                                                => FieldValueDecoder<double>.Read(oid, payload),
+            TypeOid.Numeric                                                                                                                => FieldValueDecoder<PgNumeric>.Read(oid, payload),
+            TypeOid.Uuid                                                                                                                   => FieldValueDecoder<Guid>.Read(oid, payload),
+            TypeOid.Bytea                                                                                                                  => FieldValueDecoder<ReadOnlyMemory<byte>>.Read(oid, payload),
+            TypeOid.Jsonb                                                                                                                  => FieldValueDecoder<Memory<byte>>.Read(oid, payload),
+            TypeOid.Text or TypeOid.VarChar or TypeOid.BpChar or TypeOid.Name or TypeOid.Json or TypeOid.Xml                               => FieldValueDecoder<string>.Read(oid, payload),
+            TypeOid.Date                                                                                                                   => FieldValueDecoder<PgDate>.Read(oid, payload),
+            TypeOid.Time                                                                                                                   => FieldValueDecoder<PgTime>.Read(oid, payload),
+            TypeOid.TimeTz                                                                                                                 => FieldValueDecoder<PgTimeTz>.Read(oid, payload),
+            TypeOid.Timestamp                                                                                                              => FieldValueDecoder<PgTimestamp>.Read(oid, payload),
+            TypeOid.TimestampTz                                                                                                            => FieldValueDecoder<PgTimestampTz>.Read(oid, payload),
+            TypeOid.Interval                                                                                                               => FieldValueDecoder<PgInterval>.Read(oid, payload),
+            TypeOid.Inet or TypeOid.Cidr                                                                                                   => FieldValueDecoder<PgInet>.Read(oid, payload),
+            TypeOid.BooleanArray                                                                                                           => FieldValueDecoder<ReadOnlyMemory<bool?>>.Read(oid, payload),
+            TypeOid.Int16Array                                                                                                             => FieldValueDecoder<ReadOnlyMemory<short?>>.Read(oid, payload),
+            TypeOid.Int32Array                                                                                                             => FieldValueDecoder<ReadOnlyMemory<int?>>.Read(oid, payload),
+            TypeOid.Int64Array or TypeOid.MoneyArray                                                                                       => FieldValueDecoder<ReadOnlyMemory<long?>>.Read(oid, payload),
+            TypeOid.OidArray                                                                                                               => FieldValueDecoder<ReadOnlyMemory<uint?>>.Read(oid, payload),
+            TypeOid.Float32Array                                                                                                           => FieldValueDecoder<ReadOnlyMemory<float?>>.Read(oid, payload),
+            TypeOid.Float64Array                                                                                                           => FieldValueDecoder<ReadOnlyMemory<double?>>.Read(oid, payload),
+            TypeOid.NumericArray                                                                                                           => FieldValueDecoder<ReadOnlyMemory<PgNumeric?>>.Read(oid, payload),
+            TypeOid.UuidArray                                                                                                              => FieldValueDecoder<ReadOnlyMemory<Guid?>>.Read(oid, payload),
+            TypeOid.ByteaArray                                                                                                             => FieldValueDecoder<ReadOnlyMemory<ReadOnlyMemory<byte>?>>.Read(oid, payload),
+            TypeOid.JsonbArray                                                                                                             => FieldValueDecoder<ReadOnlyMemory<Memory<byte>?>>.Read(oid, payload),
+            TypeOid.TextArray or TypeOid.VarCharArray or TypeOid.BpCharArray or TypeOid.NameArray or TypeOid.JsonArray or TypeOid.XmlArray => FieldValueDecoder<ReadOnlyMemory<string?>>.Read(oid, payload),
+            TypeOid.DateArray                                                                                                              => FieldValueDecoder<ReadOnlyMemory<PgDate?>>.Read(oid, payload),
+            TypeOid.TimeArray                                                                                                              => FieldValueDecoder<ReadOnlyMemory<PgTime?>>.Read(oid, payload),
+            TypeOid.TimeTzArray                                                                                                            => FieldValueDecoder<ReadOnlyMemory<PgTimeTz?>>.Read(oid, payload),
+            TypeOid.TimestampArray                                                                                                         => FieldValueDecoder<ReadOnlyMemory<PgTimestamp?>>.Read(oid, payload),
+            TypeOid.TimestampTzArray                                                                                                       => FieldValueDecoder<ReadOnlyMemory<PgTimestampTz?>>.Read(oid, payload),
+            TypeOid.IntervalArray                                                                                                          => FieldValueDecoder<ReadOnlyMemory<PgInterval?>>.Read(oid, payload),
+            TypeOid.InetArray or TypeOid.CidrArray                                                                                         => FieldValueDecoder<ReadOnlyMemory<PgInet?>>.Read(oid, payload),
             _                                                                                                                              => throw new NotSupportedException("Use GetRawValue for this PostgreSQL type.")
         };
     }

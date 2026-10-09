@@ -10,6 +10,8 @@ internal struct BatchCompletionSignal
     private bool _completed;
     private bool _result;
 
+    internal bool IsCompleted => _completed;
+
     internal Task<bool> Task => _task ??= _completed
         ? _error is null ? System.Threading.Tasks.Task.FromResult(_result) : System.Threading.Tasks.Task.FromException<bool>(_error)
         : (_source = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously)).Task;

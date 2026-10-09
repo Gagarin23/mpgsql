@@ -67,7 +67,7 @@ public sealed class UpperLifecycleTests
             .ExecuteReaderValueTaskAsync(cancellationToken: TestContext.Current.CancellationToken)
             .AsTask();
         await Sync(wire);
-        await wire.WriteAsync(Join(Begin(20), Row(Int64(0))));
+        var initialWrite = wire.WriteAsync(Join(Begin(20), Row(Int64(0))));
         var reader = await opening;
         Assert.True(await reader.ReadAsync(TestContext.Current.CancellationToken));
         var moving = reader.ReadAsync(TestContext.Current.CancellationToken);
@@ -76,6 +76,7 @@ public sealed class UpperLifecycleTests
             .DisposeAsync()
             .AsTask();
         Assert.False(disposing.IsCompleted);
+        await initialWrite.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         await wire.WriteAsync(Join(Row(Int64(1)), Command(), Ready()));
         await disposing.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         await Assert.ThrowsAsync<ObjectDisposedException>(() => moving.WaitAsync(TestTimeout, TestContext.Current.CancellationToken));
@@ -212,14 +213,12 @@ public sealed class UpperLifecycleTests
             .ExecuteReaderValueTaskAsync(cancellationToken: TestContext.Current.CancellationToken)
             .AsTask();
         var held = await a.Outgoing.Reader.ReadAsync(TestContext.Current.CancellationToken);
-        await a.WriteAsync(Join(Begin(20), Row(Int64(0))));
+        var initialWrite = a.WriteAsync(Join(Begin(20), Row(Int64(0))));
         var reader = await opening;
+        var closing = reader.DisposeAsync().AsTask();
+        await initialWrite.WaitAsync(TestTimeout, TestContext.Current.CancellationToken);
         var error = await Assert.ThrowsAsync<MpgsqlException>
-        (() => reader
-            .DisposeAsync()
-            .AsTask()
-            .WaitAsync(TestTimeout, TestContext.Current.CancellationToken)
-        );
+        (() => closing.WaitAsync(TestTimeout, TestContext.Current.CancellationToken));
         Assert.IsType<TimeoutException>(error.InnerException);
         payload[0] = 99;
         a.Outgoing.Reader.AdvanceTo(held.Buffer.End);

@@ -144,6 +144,28 @@ if (args.Contains("--verify-query-compare"))
     return;
 }
 
+if (args.Contains("--verify-ado-execution"))
+{
+    try { await TcpAdoExecutionVerification.RunAsync().WaitAsync(TimeSpan.FromMinutes(3)); }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine(error);
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
+if (args.Contains("--verify-ado-coalesced"))
+{
+    try { await TcpAdoCoalescedVerification.RunAsync().WaitAsync(TimeSpan.FromMinutes(3)); }
+    catch (Exception error)
+    {
+        Console.Error.WriteLine(error);
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
 if (args.Contains("--query-load"))
 {
     try { await QueryLoadRunner.RunAsync(args); }
